@@ -18,9 +18,9 @@ NOW = datetime(2026, 10, 5, 10, tzinfo=timezone.utc)
 
 
 def articles():
-    return [{"headline": "Reserve bank publishes interest rate decision", "summary": "Domestic monetary policy changed",
+    return [{"headline": "Reserve bank publishes interest rate decision", "summary": "FirstRand monetary policy exposure changed",
              "url": "https://sarb.example/rates", "timestamp": (NOW-timedelta(days=1)).isoformat(), "timestamp_kind": "published"},
-            {"headline": "Bank credit losses increase as consumer repayments weaken", "summary": "Financial sector earnings risk",
+            {"headline": "Bank credit losses increase as consumer repayments weaken", "summary": "FirstRand earnings risk",
              "url": "https://news.example/banks", "timestamp": (NOW-timedelta(days=2)).isoformat(), "timestamp_kind": "published"}]
 
 
@@ -35,6 +35,52 @@ class WeeklyBriefTests(unittest.TestCase):
         self.addCleanup(self.repo.close)
         self.brief = import_brief(self.repo, {"edition_date": "2026-10-05", "text": "Weekly banking context"}, NOW-timedelta(minutes=1))
         self.items = normalize_items(articles(), NOW)
+
+    def test_unrelated_publishers_cannot_boost_wrong_stock(self):
+        for key, headline in (("CFR", "Pepkor buys a fintech business"), ("CLS", "Wheat exports disrupted in Black Sea")):
+            data = articles()
+            for article in data:
+                article["summary"] = headline
+            items = normalize_items(data, NOW)
+            raw = proposal(items)
+            raw["matches"][0]["instrument_ids"] = [key]
+            raw["matches"][0]["description"] = "Richemont and Clicks are definitely affected"
+            match = validate_matches(raw, items, {key})[0]
+            self.assertTrue(match["cross_publisher_support"])
+            self.assertFalse(match["research_flag"])
+            self.assertEqual(match["research_priority_boost"], 0)
+            self.assertEqual(match["relevance"]["state"], "UNSUPPORTED_INSTRUMENT_LINK")
+
+    def test_every_article_and_every_issuer_requires_support(self):
+        data = articles()
+        data[1]["summary"] = "Other banks face weaker credit quality"
+        items = normalize_items(data, NOW)
+        self.assertFalse(validate_matches(proposal(items), items, {"FSR"})[0]["research_flag"])
+        raw = proposal(self.items)
+        raw["matches"][0]["instrument_ids"].append("CFR")
+        self.assertFalse(validate_matches(raw, self.items, {"FSR", "CFR"})[0]["research_flag"])
+
+    def test_issuer_boundaries_and_group_alias(self):
+        for body, expected in (("Clicks expands pharmacies", False), ("Clicks Group publishes results", True),
+                               ("User clicks on a website", False), ("Superclickssoftware expands", False),
+                               ("CLS wheat exposure", False)):
+            # A mention is deliberately not treated as proof of economic meaning.
+            data = articles()
+            for article in data:
+                article["summary"] = body
+            items = normalize_items(data, NOW)
+            raw = proposal(items); raw["matches"][0]["instrument_ids"] = ["CLS"]
+            self.assertEqual(validate_matches(raw, items, {"CLS"})[0]["research_flag"], expected)
+
+    def test_feedback_retains_legacy_and_deduplicates_cases(self):
+        from market_intelligence.weekly_brief import relevance_feedback
+        case = {"case_id": "bad", "relevance": {"state": "UNSUPPORTED_INSTRUMENT_LINK"}}
+        feedback = relevance_feedback([{"cases": [case, {"case_id": "legacy"}]}, {"cases": [case]}])
+        self.assertEqual(feedback["rejected_links"], 1)
+        self.assertEqual(feedback["legacy_unchecked_cases"], 1)
+        self.assertFalse(feedback["model_weight_training"])
+        self.assertFalse(feedback["automatic_promotion"])
+        self.assertEqual(feedback["trading_weight"], 0)
 
     def test_import_idempotent_receipt_not_backdated(self):
         again = import_brief(self.repo, {"edition_date": "2026-10-05", "text": "Weekly banking context"}, NOW)
@@ -114,12 +160,16 @@ class WeeklyBriefTests(unittest.TestCase):
 
     def test_historical_returns_start_after_receipt_not_article_date(self):
         old = {"category": "MONETARY_POLICY", "case_id": "old", "instrument_ids": ["FSR"], "research_flag": True,
+               "relevance": {"version": "issuer-article-relevance-v1", "state": "DIRECT_ISSUER_MENTION"},
                "received_at": "2026-09-20T10:00:00+00:00", "articles": [
-                   {"evidence_id": "e", "timestamp": "2026-09-01T10:00:00+00:00", "timestamp_kind": "published"}]}
+                   {"evidence_id": "e", "headline": "FirstRand", "summary": "FirstRand earnings", "timestamp": "2026-09-01T10:00:00+00:00", "timestamp_kind": "published"}]}
         bars = [{"timestamp": (datetime(2026, 9, 1)+timedelta(days=i)).date().isoformat(), "close": 100+i} for i in range(30)]
         result = historical_screen(old, [old, old], {"FSR": {"bars": bars}}, NOW)
         self.assertEqual(len(result["samples"]), 3)
         self.assertAlmostEqual(result["samples"][0]["close_return"], 122/119-1)
+        legacy = deepcopy(old)
+        legacy.pop("relevance")
+        self.assertFalse(historical_screen(old, [legacy], {"FSR": {"bars": bars}}, NOW)["samples"])
         old["research_flag"] = False
         self.assertFalse(historical_screen(old, [old], {"FSR": {"bars": bars}}, NOW)["samples"])
         old["research_flag"] = True

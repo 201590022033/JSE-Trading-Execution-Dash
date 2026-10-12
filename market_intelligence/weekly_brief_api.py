@@ -103,7 +103,7 @@ def create_weekly_brief_blueprint(factory):
                 state = ("DESCRIPTIVE_RETURNS_ONLY" if cleaned else "WAITING_FOR_DATED_HISTORY_OR_REAL_BARS") if match["research_flag"] else "SOURCE_REVIEW_REQUIRED"
                 cases.append({**match, "case_id": cid, "brief_id": brief["brief_id"], "received_at": observed.isoformat(),
                               "articles": [items[r] for r in match["evidence_ids"]],
-                              "historical_research": {"state": state, "samples": cleaned}})
+                              "historical_research": {"state": state, "samples": cleaned if match["research_flag"] else []}})
             record = {"brief_id": brief["brief_id"], "received_at": observed.isoformat(), "provider": "ollama_local",
                       "model": model, "cases": cases, "state": scan_state, "version": VERSION,
                       "previous_brief_id": previous_id, "input_coverage": coverage,

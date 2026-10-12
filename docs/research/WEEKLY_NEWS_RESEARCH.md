@@ -1,3 +1,11 @@
+Verification: independent review accepted the conservative guard; 44 focused and 997 full offline tests pass (111.074s), 54 protected artifacts pass. Offline replay of the original saved Ollama response rejects CFR and CLS links with zero boost; original frozen scans remain unchanged. Browser review confirms explicit older-unchecked labels and advisory counts. No new model inference or hosted upload performed.
+
+## R12 relevance guard continuation — 12 October 2026
+
+R12 remains ACTIVE/PARTIAL. Weekly model proposals now pass the same versioned issuer applicability guard locally and at authenticated ingress: every cited article must explicitly name every proposed issuer. Unmatched/indirect links are retained with reasons, zero boost and no historical samples. Broad sector terms, model descriptions and bare tickers cannot establish applicability. Clicks requires its unambiguous full catalog name. Older frozen scans remain unchanged; unchecked or failing legacy cases are excluded from new historical screens.
+
+The dashboard exposes bounded, deduplicated rejection/unchecked counts and an advisory next experiment. This is an error-review foundation, not model training or a completed Hermes loop. No executable Hermes agent exists; historical M35 remains a proposal. A future learning cycle needs independent relevance labels, reviewed exposure mappings, chronological holdout evaluation, outcome/cost controls and experiment-registry proposals. No automatic model/rule/weight promotion is implemented. The weekly source remains paused pending runtime semantic acceptance; Railway recovery remains with the owner. B5 and execution gates remain unchanged.
+
 ## Current acceptance — 12 October 2026
 
 The weekly source is PAUSED LOCALLY after independent review rejected unsupported instrument mappings in the completed bounded scan. Briefs, prior watchlists and audits remain readable. Other news feeds continue. Research attention and trading effects from these proposals are zero. R12 remains partial until evidence-to-instrument applicability is reviewed and tested; different publishers alone do not validate a stock link.
