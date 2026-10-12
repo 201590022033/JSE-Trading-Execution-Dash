@@ -132,6 +132,26 @@ class WeeklyBriefTests(unittest.TestCase):
         bars = [{"timestamp": f"2026-09-{20+i}", "close": 100, "estimated": True} for i in range(7)]
         self.assertFalse(historical_screen(old, [old], {"FSR": {"bars": bars}}, NOW)["samples"])
 
+    def test_operator_audit_is_authenticated_bounded_and_separate(self):
+        wrapper = type("Repo", (), {"close": lambda _: None, "__getattr__": lambda _, key: getattr(self.repo, key)})()
+        app = Flask(__name__); app.secret_key = "test"
+        app.register_blueprint(create_weekly_brief_blueprint(lambda: wrapper))
+        client = app.test_client(); route = "/api/market-intelligence/weekly-brief/review"
+        payload = {"brief_id":self.brief["brief_id"], "text":"Arithmetic check; input quotes unverified"}
+        with patch.dict(os.environ, {"SWING_DATA_UPLOAD_TOKEN":"test", "PAPER_CONTROL_TOKEN":""}):
+            self.assertEqual(client.post(route,json=payload).status_code,401)
+            headers={"Authorization":"Bearer test"}
+            with patch("market_intelligence.weekly_brief_api.datetime") as clock:
+                clock.now.return_value=NOW
+                for _ in range(2):
+                    response=client.post(route,json=payload,headers=headers)
+                    self.assertEqual(response.status_code,202)
+                    self.assertEqual(response.json["trading_weight"],0)
+                self.assertEqual(len(status(self.repo,NOW)["reviews"]),1)
+                self.assertEqual(self.repo.paper_record(self.brief["brief_id"])["text"],"Weekly banking context")
+                self.assertEqual(client.post(route,json={**payload,"brief_id":"unknown"},headers=headers).status_code,422)
+                self.assertEqual(client.post(route,json={**payload,"text":"x"*15001},headers=headers).status_code,422)
+
     def test_authenticated_api_read_and_import(self):
         # Non-closing wrapper lets independent HTTP requests share the fixture DB.
         wrapper = type("Repo", (), {"close": lambda _: None, "__getattr__": lambda _, key: getattr(self.repo, key)})()
@@ -163,8 +183,54 @@ class WeeklyBriefTests(unittest.TestCase):
                 failed["matches"] = payload["matches"]
                 failed["articles"] = payload["articles"]
                 self.assertEqual(client.post("/api/market-intelligence/weekly-brief/scan", json=failed, headers={"Authorization": "Bearer test"}).status_code, 422)
+                payload["previous_brief_id"] = self.brief["brief_id"]
+                self.assertEqual(client.post("/api/market-intelligence/weekly-brief/scan", json=payload, headers={"Authorization": "Bearer test"}).status_code, 422)
+                payload.pop("previous_brief_id")
                 payload["provider"] = "invented"
                 self.assertEqual(client.post("/api/market-intelligence/weekly-brief/scan", json=payload, headers={"Authorization": "Bearer test"}).status_code, 422)
+
+
+class WeeklyComparisonTests(unittest.TestCase):
+    def test_prior_requires_earlier_edition_and_actual_receipt(self):
+        from market_intelligence.weekly_brief import previous_context
+        current = dict(brief_id="now", edition_date="2026-10-12", received_at="2026-10-12T07:00:00Z", text="Current")
+        prior = dict(brief_id="prior", edition_date="2026-10-05", received_at="2026-10-05T07:00:00Z", text="Ranked paper tests: banks")
+        future = {**prior, "brief_id":"late", "received_at":"2026-10-12T08:00:00Z"}
+        result = previous_context(current, [current, future, prior])
+        self.assertEqual(result["brief_id"], "prior")
+        self.assertEqual(result["trading_weight"], 0)
+        self.assertEqual(previous_context(current, [future,current])["state"], "NO_PREVIOUS_EDITION")
+
+    def test_model_receives_prior_commentary_without_new_evidence_ids(self):
+        prior = {"state":"UNVERIFIED_PRIOR_WATCHLIST", "watchlist":"Banks underperform"}
+        brief = dict(brief_id="test", text="Current brief")
+        model = Mock(return_value='{"matches":[]}')
+        local_scan(brief, articles(), {}, [], NOW, model, {"FSR":{}}, prior=prior)
+        self.assertIn('"previous_week":', model.call_args.args[0])
+        self.assertIn("not article evidence", model.call_args.args[0])
+        self.assertEqual(len(normalize_items(articles(), NOW)), 2)
+
+    def test_cpu_budget_selects_consistent_real_references(self):
+        from market_intelligence.weekly_brief import bounded_scan_input, scan_prompt, response_schema
+        brief={"text":"x"*60000}
+        prior={"watchlist":"y"*5000}
+        supplied=[{**articles()[i%2],"url":f"https://source{i}.example/article", "summary":"s"*3000} for i in range(20)]
+        b, chosen, previous, coverage=bounded_scan_input(brief,supplied,prior,NOW,{"FSR":{}})
+        sources=normalize_items(chosen,NOW)
+        self.assertLessEqual(len(scan_prompt(b,sources,{"FSR":{}},previous))+len(json.dumps(response_schema(sources,{"FSR":{}}))),5500)
+        self.assertTrue(2<=len(sources)<=8)
+        self.assertEqual(coverage["articles_selected"],len(sources))
+        self.assertEqual(coverage["articles_supplied"],20)
+        self.assertEqual(brief["text"],"x"*60000)
+
+    def test_local_runner_never_uses_arbitrary_http_remote(self):
+        from scripts.weekly_news_research import run
+        with self.assertRaises(ValueError):
+            run({"SWING_RESEARCH_URL":"http://remote.example", "SWING_DATA_UPLOAD_TOKEN":"test"})
+        with patch("requests.get", side_effect=RuntimeError("stop")) as get:
+            with self.assertRaises(RuntimeError):
+                run({"SWING_RESEARCH_URL":"http://remote.example", "SWING_DATA_UPLOAD_TOKEN":"test"}, local=True)
+            self.assertTrue(get.call_args.args[0].startswith("http://127.0.0.1:5000/"))
 
 
 class PostgresWeeklyBriefParityTests(WeeklyBriefTests):

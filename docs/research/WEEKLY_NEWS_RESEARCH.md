@@ -1,3 +1,15 @@
+## Current acceptance — 12 October 2026
+
+The weekly source is PAUSED LOCALLY after independent review rejected unsupported instrument mappings in the completed bounded scan. Briefs, prior watchlists and audits remain readable. Other news feeds continue. Research attention and trading effects from these proposals are zero. R12 remains partial until evidence-to-instrument applicability is reviewed and tested; different publishers alone do not validate a stock link.
+
+## 12 October 2026 continuation
+
+Following a measured CPU timeout, the bounded weekly scan uses up to eight real article references, explicit brief/watchlist excerpts, a 5,500-character prompt/schema ceiling and a hard 400-token output cap. Its 480-second deadline and independent validation remain. Coverage is visible; no full-edition evaluation is claimed.
+
+The source panel now shows the previous earlier-received edition's watchlist and separately recorded authenticated operator audit. Ollama receives prior commentary for continuation/contradiction hypotheses; commentary never becomes article corroboration or a predictive result. The existing maximum 0.05 attention boost and zero trading weight are preserved.
+
+Explicit `python scripts/weekly_news_research.py --local --brief-file PATH --edition-date YYYY-MM-DD` imports into the fixed authenticated local dashboard; `--local` runs its bounded scan. Default remote mode still requires HTTPS. Railway subscription/deployment outage currently prevents hosted delivery; local receipt/outbox remains authoritative for retry. Existing task-to-dashboard delivery still requires import, not an automatic ChatGPT integration. No duplicate weekly automation created. The local server needs the matching private upload token in its process environment.
+
 # Monday brief and research flags
 
 ## Current context — 5 October 2026

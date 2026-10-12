@@ -40,11 +40,29 @@ def create_weekly_brief_blueprint(factory):
         try:
             if kind == "import":
                 return jsonify(import_brief(repository, payload, now)), 202
+            if kind == "review":
+                brief = repository.paper_record(payload["brief_id"])
+                if not brief or brief.get("source_id") != "weekly_sa_brief":
+                    raise ValueError("Known brief required")
+                body = text(payload["text"], 15000)
+                record = {"brief_id": brief["brief_id"], "received_at": now.isoformat(),
+                          "text": body, "kind": "OPERATOR_AUDIT_COMMENTARY", "trading_weight": 0}
+                rid = "weekly-review-" + digest({"brief": brief["brief_id"], "text": body})
+                if not repository.paper_record(rid):
+                    repository.save_paper_record(rid, ACCOUNT, "weekly-review", now.isoformat(), record)
+                return jsonify(record), 202
             if kind != "scan":
                 return jsonify(error="Unknown operation"), 404
             brief = repository.paper_record(payload["brief_id"])
             if not brief or brief.get("source_id") != "weekly_sa_brief":
                 raise ValueError("Known brief required")
+            previous_id = payload.get("previous_brief_id")
+            if previous_id:
+                previous = repository.paper_record(previous_id)
+                if (not previous or previous.get("source_id") != "weekly_sa_brief"
+                    or previous["edition_date"] >= brief["edition_date"]
+                    or timestamp(previous["received_at"]) >= timestamp(brief["received_at"])):
+                    raise ValueError("Earlier received edition required")
             observed = timestamp(payload["received_at"])
             if observed > now or now-observed > timedelta(days=4) or observed < timestamp(brief["received_at"]):
                 raise ValueError("Current local scan required")
@@ -57,6 +75,14 @@ def create_weekly_brief_blueprint(factory):
             scan_state = payload.get("state", "LOCAL_OLLAMA_SCAN_COMPLETE")
             if scan_state not in {"LOCAL_OLLAMA_SCAN_COMPLETE", "LOCAL_OLLAMA_UNAVAILABLE_OR_INVALID_RESPONSE"} or (scan_state != "LOCAL_OLLAMA_SCAN_COMPLETE" and matches):
                 raise ValueError("Invalid local scan state")
+            coverage = payload.get("input_coverage", {})
+            if coverage:
+                if (set(coverage) != {"articles_supplied", "articles_selected", "brief_characters", "previous_characters", "prompt_and_schema_characters", "truncated"}
+                    or coverage["truncated"] is not True
+                    or any(type(v) is not int or not 0 <= v <= 5500 for k, v in coverage.items() if k != "truncated")
+                    or not 2 <= coverage["articles_selected"] <= 8
+                    or coverage["articles_selected"] > coverage["articles_supplied"]):
+                    raise ValueError("Invalid bounded input coverage")
             cases = []
             for match in matches:
                 cid = "weekly-case-"+digest({"brief": brief["brief_id"], "match": match, "version": VERSION})
@@ -80,6 +106,7 @@ def create_weekly_brief_blueprint(factory):
                               "historical_research": {"state": state, "samples": cleaned}})
             record = {"brief_id": brief["brief_id"], "received_at": observed.isoformat(), "provider": "ollama_local",
                       "model": model, "cases": cases, "state": scan_state, "version": VERSION,
+                      "previous_brief_id": previous_id, "input_coverage": coverage,
                       "live_execution": False, "trading_weight": 0}
             rid = "weekly-scan-"+digest(record)
             if not repository.paper_record(rid):

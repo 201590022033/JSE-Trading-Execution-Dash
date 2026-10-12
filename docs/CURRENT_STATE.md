@@ -1,3 +1,15 @@
+## R12 acceptance — PARTIAL, 12 October 2026
+
+Local software integration, capture 4/6 and calendar removal are verified. The CPU-bounded Ollama retry completed, but its two instrument links (Pepkor→CFR; wheat→CLS) lack supporting evidence. Independent review rejects usable-trigger acceptance. The local weekly research source is paused as reviewer-approved containment until applicability validation is fixed; other news remains active. Both proposals remain source-review-required with zero attention boost and no trading effect; a prominent operator audit records the rejected links. Full weekly trigger evaluation and verified issuer/cross-asset mapping remain pending. R12 stays active; no next milestone is started. Railway upload awaits the owner’s subscription recovery. 989 safe tests and 54 protected checks pass.
+
+## 12 October 2026 continuation
+
+R10 capture 4/6 is retained locally through completed 9 October: four IRESS anchors, one clean three-session price observation and no mature four/five-session observations. Local whole-source IRESS numerical inputs are AVAILABLE; canonical OST remains separate. Today’s calendar reminder is removed and 13/14 October remain.
+
+R12 extends the existing weekly source panel with earlier-received watchlist context, separate authenticated operator audits, a fixed local CLI destination and explicitly bounded CPU Ollama inputs. Research attention is source-gated; trading weight remains zero. Initial model timeout was independently diagnosed/reviewed; runtime retry acceptance is recorded in the current milestone. No automatic task-to-dashboard delivery or calibrated trading weighting is established.
+
+Railway has no active deployment and upload returns 404; owner is resolving subscription. Database volume is approximately 29% full. Today’s hashed data is saved for retry, not claimed uploaded. B5 partial closure, historical AI and execution gates remain unchanged. See [capture record](research/R10_CAPTURE_2026_10_12.md) and [ADR 0062](adr/0062-weekly-comparison-and-local-research.md).
+
 # Current project state — 5 October 2026
 
 ## 9 October 2026 operating update

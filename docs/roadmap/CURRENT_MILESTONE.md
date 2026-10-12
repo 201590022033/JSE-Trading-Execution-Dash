@@ -1,3 +1,11 @@
+## R12 acceptance — PARTIAL, 12 October 2026
+
+Local software integration, capture 4/6 and calendar removal are verified. The CPU-bounded Ollama retry completed, but its two instrument links (Pepkor→CFR; wheat→CLS) lack supporting evidence. Independent review rejects usable-trigger acceptance. The local weekly research source is paused as reviewer-approved containment until applicability validation is fixed; other news remains active. Both proposals remain source-review-required with zero attention boost and no trading effect; a prominent operator audit records the rejected links. Full weekly trigger evaluation and verified issuer/cross-asset mapping remain pending. R12 stays active; no next milestone is started. Railway upload awaits the owner’s subscription recovery. 989 safe tests and 54 protected checks pass.
+
+## R12 weekly context comparison — ACTIVE, 12 October 2026
+
+Extend existing derived weekly-news research with prior-receipt context and explicit claim audit. Complete local capture 4/6; hosted upload blocked by removed Railway deployments. Preserve all B5, trading and provenance gates.
+
 # Current milestone — R11 IRESS numerical Open routing
 
 9 October operating continuation completed: calendar capture 3/6 and separate native OST Sasol/STX40 refresh uploaded; current local/hosted numerical preview AVAILABLE through 8 October, IRESS Open R243.63 and ATR14 9.0474. Three immutable IRESS captures have zero revisions and 0 clean/3 pending at each horizon. Independently reviewed R9 readiness-counter correction now reports two later observed sessions, still not ready. Dated one-CFD statement/fill/financing evidence is reconciled locally, current account tariffs observed, and private financial files remain offline. No trade action, admission change, forced learning cycle or schedule change. 983 safe tests/54 protected checks pass. See [9 October record](../research/R10_CAPTURE_2026_10_09.md). R11 remains complete; B5/historical AI/execution requirements remain separate.
