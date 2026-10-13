@@ -1,3 +1,7 @@
+## 13 October operating continuation
+
+R10 scheduled capture5/6 completed locally through12 October: separate IRESS Sasol OHLCV and native OST Sasol/Top40 exports retained with actual acquisition/hash. Five immutable IRESS captures have zero revisions; cohorts3/4/5 sessions now2/1/0 clean and3/4/5 pending. Four later observed sessions meet the descriptive readiness counter only. Numerical preview AVAILABLE, IRESS Open R246.05. Today's calendar reminder deleted;14 October remains. Railway upload still404; validated local snapshot retained.33 focused tests and independent integer comparison pass. No admission, AI model, strategy, execution or weekly-source activation change. See [13 October record](../research/R10_CAPTURE_2026_10_13.md). R12 remains ACTIVE/PARTIAL.
+
 ## R12 relevance guard continuation — 12 October 2026
 
 R12 remains ACTIVE/PARTIAL. Weekly model proposals now pass the same versioned issuer applicability guard locally and at authenticated ingress: every cited article must explicitly name every proposed issuer. Unmatched/indirect links are retained with reasons, zero boost and no historical samples. Broad sector terms, model descriptions and bare tickers cannot establish applicability. Clicks requires its unambiguous full catalog name. Older frozen scans remain unchanged; unchecked or failing legacy cases are excluded from new historical screens.
