@@ -1,3 +1,7 @@
+# Local operating update — 15 October 2026
+
+Fresh PC lineage is operational: PostgreSQL18, shared local dashboard/paper worker, idle-only worker/backup tasks, preserved local news receipts and synthetic fresh account. Railway web/worker disconnected; original volume remains inactive and unrecovered.1012offline tests/54protected checks pass; startup, duplicate cycle and27-table restore parity verified. R12 ACTIVE/PARTIAL; no Hermes implementation or historical AI/Live promotion. See research/LOCAL_PC_OPERATING_GUIDE.md and research/HERMES_IMPLEMENTATION_PLAN.md. Earlier text below is historical context.
+
 ## R12 acceptance — PARTIAL, 12 October 2026
 
 Local software integration, capture 4/6 and calendar removal are verified. The CPU-bounded Ollama retry completed, but its two instrument links (Pepkor→CFR; wheat→CLS) lack supporting evidence. Independent review rejects usable-trigger acceptance. The local weekly research source is paused as reviewer-approved containment until applicability validation is fixed; other news remains active. Both proposals remain source-review-required with zero attention boost and no trading effect; a prominent operator audit records the rejected links. Full weekly trigger evaluation and verified issuer/cross-asset mapping remain pending. R12 stays active; no next milestone is started. Railway upload awaits the owner’s subscription recovery. 989 safe tests and 54 protected checks pass.

@@ -1,5 +1,7 @@
 # Railway to local PC — migration and learning plan
 
+Executed-scope override,15 October2026: the owner subsequently authorized an isolated fresh start instead of waiting for hosted recovery. That local cutover is complete; no hosted history is claimed restored. See LOCAL_PC_OPERATING_GUIDE.md. The restore-first plan below remains historical planning and applies only if the old Railway volume is later recovered.
+
 Prepared 15 October 2026. Planning only; no Railway deletion, database cutover, worker activation or risk-rule change performed. R12 remains the sole active milestone. Local migration phases are queued until R12 is explicitly re-scoped or closed; no claim that a full Hermes agent already exists.
 
 ## Verified assessment

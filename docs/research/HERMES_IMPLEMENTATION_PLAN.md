@@ -1,3 +1,9 @@
+## Fresh local runtime accepted; Hermes remains proposed — 15 October 2026
+
+The owner subsequently authorized a fresh local lineage rather than waiting for Railway recovery. This supersedes the restore dependency below for the new lineage only. A separate PostgreSQL18 database/account now runs the existing versioned paper worker; no hosted learning history is claimed. The preserved prior-week audit found decisions but zero matured outcomes, and no available paired Sasol snapshot passed the shadow entry setup. See LOCAL_FRESH_START_REPLAY.md and LOCAL_PC_OPERATING_GUIDE.md.
+
+The immediate Hermes prerequisite is now durable experiments plus independent R12 relevance labels and acceptance, not hosted backup recovery. Keep the remaining steps below in order. Both supervisors are still unimplemented. The local worker/provider switches disable model/broker retrieval; interactive news refresh has zeroLLMbudget. Windows worker/backup jobs require10minutesidle and below-normal priority. Dedicated model/backtest queue integration is a future Hermes slice, not implied by migrating the paper worker.
+
 # Hermes advisory learning — staged implementation plan
 
 Prepared 15 October 2026. This is a design and acceptance plan, not an installed agent or a new active Hermes milestone. The owner has reprioritized local operation as L1 ACTIVE and deferred the unfinished R12 acceptance; the roadmap/ADR records that transition. The owner subsequently authorized a **fresh, separate local paper lineage** when Railway recovery was unavailable. Neither this document nor that reset changes a trading rule, source gate, weekly-source pause, or Live execution setting. See [the local migration plan](LOCAL_PC_MIGRATION_PLAN.md) and the L1 acceptance record for the actual reset boundary.

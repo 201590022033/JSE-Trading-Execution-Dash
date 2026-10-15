@@ -1,4 +1,6 @@
-# Current architecture — 5 October 2026
+# Current architecture — local placement override, 15 October 2026
+
+The new owner-authorized local lineage uses one isolated PostgreSQL18 cluster on loopback55432 for dashboard and paper worker. Private acceptance requires the matching database/account, LOCAL/LOCAL_UPLOAD and explicit provider/model disable switches. Windows worker/backup tasks require10minutesidle; interactive news inference has zero budget. Railway web/worker source connections and cron are removed; original inactive volume retained. No hosted ledger was restored. See [local operating guide](../research/LOCAL_PC_OPERATING_GUIDE.md). Earlier cloud diagrams below are historical checkpoints.
 
 Use [current state](../CURRENT_STATE.md) for the operating snapshot and [target architecture](TARGET_ARCHITECTURE.md) for work not yet implemented. Earlier accumulated milestone notes are preserved in [the checkpoint archive](../history/CURRENT_ARCHITECTURE_PRE_2026-10-05.md).
 

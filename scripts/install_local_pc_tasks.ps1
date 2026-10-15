@@ -13,11 +13,14 @@ $localStartupTrigger = New-ScheduledTaskTrigger -AtLogOn -User $localUser
 $localStartupSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 2)
 Register-ScheduledTask -TaskName 'Trading System Local PC Startup' -Action $localStartupAction -Trigger $localStartupTrigger -Principal $localPrincipal -Settings $localStartupSettings -Force | Out-Null
 $localWorkerAction = New-ScheduledTaskAction -Execute $localPython -Argument ('"' + $localLauncher + '" cycle') -WorkingDirectory $localRoot
-$localWorkerTrigger = New-ScheduledTaskTrigger -Daily -At '08:45'
+$localWorkerTrigger = New-ScheduledTaskTrigger -Daily -At '09:00'
 $localWorkerSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RunOnlyIfIdle -IdleDuration (New-TimeSpan -Minutes 10) -IdleWaitTimeout (New-TimeSpan -Hours 23) -RestartOnIdle -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 20) -RestartCount 2 -RestartInterval (New-TimeSpan -Minutes 5) -Priority 7
 Register-ScheduledTask -TaskName 'Trading System Local PC Idle Worker' -Action $localWorkerAction -Trigger $localWorkerTrigger -Principal $localPrincipal -Settings $localWorkerSettings -Force | Out-Null
 if ($EnableWorker) { Enable-ScheduledTask -TaskName 'Trading System Local PC Idle Worker' | Out-Null }
 else { Disable-ScheduledTask -TaskName 'Trading System Local PC Idle Worker' | Out-Null }
+$localBackupAction = New-ScheduledTaskAction -Execute $localPython -Argument ('"' + $localLauncher + '" backup') -WorkingDirectory $localRoot
+$localBackupTrigger = New-ScheduledTaskTrigger -Daily -At '02:00'
+Register-ScheduledTask -TaskName 'Trading System Local PC Idle Backup' -Action $localBackupAction -Trigger $localBackupTrigger -Principal $localPrincipal -Settings $localWorkerSettings -Force | Out-Null
 $localCollectorName = 'Trading System Local Swing Daily Data'
 $localCollector = Get-ScheduledTask -TaskName $localCollectorName -ErrorAction SilentlyContinue
 if ($localCollector) {

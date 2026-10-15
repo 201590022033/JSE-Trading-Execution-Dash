@@ -10,6 +10,8 @@ import json
 import os
 import subprocess
 import sys
+import hashlib
+from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT/'runtime/local-migration/fresh-20261015'
@@ -42,7 +44,7 @@ def start_database():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['dashboard', 'cycle', 'start-db'])
+    parser.add_argument('command', choices=['dashboard', 'cycle', 'start-db', 'backup'])
     args = parser.parse_args()
     from ai_config import project_environment
     env = project_environment()
@@ -51,6 +53,25 @@ def main():
     if args.command == 'start-db':
         return 0
     flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+    if args.command == 'backup':
+        from scripts.bootstrap_local_postgres import BIN
+        from scripts.local_runtime import process_lock
+        with process_lock(FOLDER/'backup.lock'):
+            settings = json.loads((FOLDER/'private.json').read_text())
+            backup_env = env.copy()
+            backup_env['PGPASSWORD'] = settings['password']
+            backup_env['PGCONNECT_TIMEOUT'] = '5'
+            backup = FOLDER/('local-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')+'.dump')
+            staged = backup.with_suffix('.partial')
+            subprocess.run([str(BIN/'pg_dump.exe'), '-h', '127.0.0.1', '-p', str(settings['port']),
+                            '-U', settings['user'], '-d', settings['database'], '-Fc', '-f', str(staged)],
+                           env=backup_env, creationflags=flags,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=600)
+            staged.replace(backup)
+            receipt = {'scope': 'FRESH_LOCAL_LEDGER_ONLY', 'hosted_history_restored': False,
+                       'bytes': backup.stat().st_size, 'sha256': hashlib.sha256(backup.read_bytes()).hexdigest()}
+            backup.with_suffix('.receipt.json').write_text(json.dumps(receipt, indent=2))
+        return 0
     if args.command == 'dashboard':
         import socket
         with socket.socket() as probe:

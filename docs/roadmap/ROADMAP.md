@@ -1,4 +1,8 @@
-## L1 local PC migration — ACTIVE, 15 October 2026
+## Current status — L1 completed; R12 ACTIVE/PARTIAL, 15 October 2026
+
+Owner-authorized fresh local lineage is operational: isolated PostgreSQL18, shared dashboard/worker, idle-only tasks, duplicate-cycle verification and27-table backup/restore parity.1012offline tests and54protected checks pass. Railway web/worker sources disconnected and cron removed; original inactive volume retained. No hosted history restored, old decisions changed or AI/execution gates relaxed. R12 resumes as the sole ACTIVE milestone; weekly source stays paused. See [local operating guide](../research/LOCAL_PC_OPERATING_GUIDE.md) and [Hermes plan](../research/HERMES_IMPLEMENTATION_PLAN.md). Earlier paragraphs below are historical checkpoints.
+
+## L1 local PC migration — original activation checkpoint, 15 October 2026
 
 Owner explicitly authorized migration and agent work after reviewing the local plan. L1 is the sole ACTIVE milestone. R12 is DEFERRED/PARTIAL at owner reprioritization, not accepted as a working news-learning system; its source pause and existing gates remain. L1 orders hosted data recovery and verified restore before local worker activation or Railway retirement. Source/data, runtime and independent acceptance agents are assigned; no historical record or strategy is reclassified. See ADR0064 and LOCAL_PC_MIGRATION_PLAN.
 
