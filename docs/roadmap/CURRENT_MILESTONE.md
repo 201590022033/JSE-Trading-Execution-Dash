@@ -1,3 +1,7 @@
+## Final R10 capture and local migration planning — 15 October 2026
+
+Six scheduled IRESS captures are preserved; final14 October reminder deleted. A separately dated15 October seventh capture restores benchmark alignment through14 October. Open R259.05 and numerical preview AVAILABLE; zero revisions,4/3/2clean and 3/4/5pending price-only observations at3/4/5sessions.33 focused tests/54 protected checks pass. No B5/historical AI/execution promotion. Owner selected future PC operation: [restore-first migration and two learning-loop plan](../research/LOCAL_PC_MIGRATION_PLAN.md) is prepared, not implemented. Railway backup/restore remains the first cutover dependency. No cloud resources removed; R12 remains ACTIVE/PARTIAL. See [final capture record](../research/R10_CAPTURE_FINAL_2026_10_15.md).
+
 ## 13 October operating continuation
 
 R10 scheduled capture5/6 completed locally through12 October: separate IRESS Sasol OHLCV and native OST Sasol/Top40 exports retained with actual acquisition/hash. Five immutable IRESS captures have zero revisions; cohorts3/4/5 sessions now2/1/0 clean and3/4/5 pending. Four later observed sessions meet the descriptive readiness counter only. Numerical preview AVAILABLE, IRESS Open R246.05. Today's calendar reminder deleted;14 October remains. Railway upload still404; validated local snapshot retained.33 focused tests and independent integer comparison pass. No admission, AI model, strategy, execution or weekly-source activation change. See [13 October record](../research/R10_CAPTURE_2026_10_13.md). R12 remains ACTIVE/PARTIAL.
