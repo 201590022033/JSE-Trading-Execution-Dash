@@ -92,6 +92,8 @@ class SentimentProviders:
 
     def begin_scan(self, budget=8):
         self.remaining = max(0,min(8,budget))
+        if self.remaining == 0:
+            return False
         local = self.providers[0]
         if monotonic() >= self._local_probe_after:
             self._local_probe_after = monotonic()+60

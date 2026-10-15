@@ -8,8 +8,17 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from threading import Lock
 from time import monotonic
+import os
 
 from instrument_registry import resolve_instrument
+
+
+def news_llm_budget():
+    """Local PC UI can reserve inference for idle jobs while keeping headlines."""
+    try:
+        return max(0, min(8, int(os.environ.get('DASHBOARD_NEWS_LLM_ITEMS', '8'))))
+    except (TypeError, ValueError):
+        return 0
 
 
 class DashboardFeeds:
@@ -112,7 +121,7 @@ class DashboardFeeds:
         def load():
             from sentiment_analyzer import MacroSentimentScanner
             if self._scanner is None:
-                self._scanner = MacroSentimentScanner(max_llm_items=8, retain_items=True)
+                self._scanner = MacroSentimentScanner(max_llm_items=news_llm_budget(), retain_items=True)
             def publish(preview):
                 data = self._news_report(preview)
                 data["ai_pending"] = self._scanner.use_llm

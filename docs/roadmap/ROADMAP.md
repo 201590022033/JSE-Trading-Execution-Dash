@@ -1,3 +1,7 @@
+## L1 local PC migration — ACTIVE, 15 October 2026
+
+Owner explicitly authorized migration and agent work after reviewing the local plan. L1 is the sole ACTIVE milestone. R12 is DEFERRED/PARTIAL at owner reprioritization, not accepted as a working news-learning system; its source pause and existing gates remain. L1 orders hosted data recovery and verified restore before local worker activation or Railway retirement. Source/data, runtime and independent acceptance agents are assigned; no historical record or strategy is reclassified. See ADR0064 and LOCAL_PC_MIGRATION_PLAN.
+
 ## Final R10 capture and local migration planning — 15 October 2026
 
 Six scheduled IRESS captures are preserved; final14 October reminder deleted. A separately dated15 October seventh capture restores benchmark alignment through14 October. Open R259.05 and numerical preview AVAILABLE; zero revisions,4/3/2clean and 3/4/5pending price-only observations at3/4/5sessions.33 focused tests/54 protected checks pass. No B5/historical AI/execution promotion. Owner selected future PC operation: [restore-first migration and two learning-loop plan](../research/LOCAL_PC_MIGRATION_PLAN.md) is prepared, not implemented. Railway backup/restore remains the first cutover dependency. No cloud resources removed; R12 remains ACTIVE/PARTIAL. See [final capture record](../research/R10_CAPTURE_FINAL_2026_10_15.md).
