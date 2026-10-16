@@ -23,7 +23,9 @@ def create_weekly_brief_blueprint(factory):
             from .source_registry import SourceRegistry
             registry = SourceRegistry(repository.store)
             registry.seed_defaults()
+            from .hermes import status as hermes_status
             return jsonify(**status(repository, datetime.now(timezone.utc)),
+                           hermes=hermes_status(repository, datetime.now(timezone.utc)),
                            enabled=registry.get_policy("weekly_sa_brief").enabled)
         finally:
             repository.close()
@@ -38,6 +40,9 @@ def create_weekly_brief_blueprint(factory):
         repository = factory()
         now = datetime.now(timezone.utc)
         try:
+            if kind == "hermes-labels":
+                from .hermes import import_labels
+                return jsonify(import_labels(repository, payload, now)), 202
             if kind == "import":
                 return jsonify(import_brief(repository, payload, now)), 202
             if kind == "review":
@@ -106,6 +111,10 @@ def create_weekly_brief_blueprint(factory):
                               "historical_research": {"state": state, "samples": cleaned if match["research_flag"] else []}})
             record = {"brief_id": brief["brief_id"], "received_at": observed.isoformat(), "provider": "ollama_local",
                       "model": model, "cases": cases, "state": scan_state, "version": VERSION,
+                      "articles": list(items.values()),
+                      "article_coverage": {"supplied": len(payload["articles"]),
+                          "retained": len(items), "normalization_limit": 20,
+                          "scope": "BOUNDED_SUPPLIED_EXCERPTS_NOT_ALL_RETRIEVED_NEWS"},
                       "previous_brief_id": previous_id, "input_coverage": coverage,
                       "live_execution": False, "trading_weight": 0}
             rid = "weekly-scan-"+digest(record)

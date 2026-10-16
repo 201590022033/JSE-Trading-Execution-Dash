@@ -1,3 +1,7 @@
+## Implementation checkpoint — 16 October 2026
+
+The first local evidence foundation is installed within R12: durable experiment adapter, retained-excerpt corpus, blinded human review queue/import, frozen-guard descriptive evaluation and read-only dashboard summary. Native first run:2articles/36examples/0labels/1DRAFT; INCONCLUSIVE. No candidate treatment, learned weights, new scheduled supervisor or source activation. The missing broad denominator, adjudicated labels and grouped chronological holdout remain R12 acceptance dependencies. See [installed behavior and verification](LOCAL_HERMES_FOUNDATION.md). Earlier plan text below is the original proposal.
+
 ## Fresh local runtime accepted; Hermes remains proposed — 15 October 2026
 
 The owner subsequently authorized a fresh local lineage rather than waiting for Railway recovery. This supersedes the restore dependency below for the new lineage only. A separate PostgreSQL18 database/account now runs the existing versioned paper worker; no hosted learning history is claimed. The preserved prior-week audit found decisions but zero matured outcomes, and no available paired Sasol snapshot passed the shadow entry setup. See LOCAL_FRESH_START_REPLAY.md and LOCAL_PC_OPERATING_GUIDE.md.

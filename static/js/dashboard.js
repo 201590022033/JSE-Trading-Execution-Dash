@@ -390,6 +390,10 @@ async function refreshWeeklyBrief() {
     $('#weekly-briefs').innerHTML = (data.briefs || []).map(b => `<details><summary>${esc(b.edition_date)} · Monday brief · unverified AI-derived context</summary><p class="muted">Received ${esc(when(b.received_at))}. Original publication time unknown.</p><pre style="white-space:pre-wrap">${esc(b.text)}</pre></details>`).join('') || '<p>No weekly brief imported yet.</p>';
     const feedback = data.relevance_feedback;
     if (feedback) $('#weekly-brief-status').textContent += ` · relevance review: ${feedback.cases_reviewed} checked, ${feedback.rejected_links} rejected, ${feedback.legacy_unchecked_cases} older unchecked · advisory feedback only; model training off`;
+    const hermes = data.hermes;
+    if (hermes) $('#weekly-brief-status').textContent += hermes.state === 'NOT_RUN'
+      ? ' · Local Hermes: awaiting first evidence review'
+      : ` · Local Hermes: ${hermes.experiment_stage.toLowerCase()} experiment, ${hermes.articles} retained articles, ${hermes.evaluation.labelled_examples} reviewed labels, ${hermes.evaluation.unlabelled} awaiting review · no held-out evaluation or learned weights`;
     const cases = [...new Map((data.scans || []).flatMap(s => (s.cases || []).map(c => [c.case_id, {...c,model:s.model}]))).values()];
     const previous = data.previous_week || {};
     $('#weekly-briefs').innerHTML += previous.watchlist ? `<details><summary>Last week's monitoring · ${esc(previous.edition_date)}</summary><p>${esc(previous.evaluation)}</p><pre style="white-space:pre-wrap">${esc(previous.watchlist)}</pre></details>` : '<p class="muted">No earlier received weekly edition available for comparison.</p>';
