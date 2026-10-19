@@ -2,6 +2,7 @@
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -20,6 +21,8 @@ def main():
     from market_intelligence.research_calendar import tick, status
     env = project_environment()
     env.update(json.loads((FOLDER/"environment.json").read_text()))
+    if env.get("PAPER_LOOP_CONFIG"):
+        os.environ["PAPER_LOOP_CONFIG"] = env["PAPER_LOOP_CONFIG"]
     now = datetime.now(timezone.utc)
     receipt = json.loads((FOLDER/"bootstrap-acceptance.json").read_text())
     url, identity = configuration(env, receipt, now)
@@ -29,11 +32,18 @@ def main():
         repository = runtime_repository(database_url=url)
         try:
             result = tick(repository, now) if args.command == "tick" else status(repository, now)
+            from application.opportunities.research_data_requests import sync_requests
+            if args.command == "tick":
+                data_requests = sync_requests(repository, now)
+            else:
+                from application.opportunities.research_data_requests import status as data_status
+                data_requests = data_status(repository, now)
             view = status(repository, now) if args.command == "tick" else result
             summary = {"state": result["state"], "checked_at": now.isoformat(),
                 "warning_receipts": len(result.get("receipts", [])),
                 "new_receipts": result.get("new_receipts", 0), "new_alerts": result.get("new_alerts", 0),
                 "upcoming": len(view["upcoming"]), "model_calls": 0, "trading_weight": 0}
+            summary["daily_import_required"] = data_requests["daily_reminder"]["due"]
             if args.command == "tick":
                 staged = FOLDER/"calendar-clock.partial"
                 staged.write_text(json.dumps(summary), encoding="utf-8")

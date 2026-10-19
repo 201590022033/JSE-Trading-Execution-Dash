@@ -35,7 +35,61 @@ def create_weekly_brief_blueprint(factory):
         from .research_calendar import status as calendar_status
         repository = factory()
         try:
-            return jsonify(calendar_status(repository, datetime.now(timezone.utc)))
+            from application.opportunities.research_data_requests import status as data_status
+            now = datetime.now(timezone.utc)
+            operations = data_status(repository, now)
+            return jsonify(**calendar_status(repository, now), routine_tasks=[{
+                "title": "Daily OST / IRESS data import", **operations["daily_reminder"]}])
+        finally:
+            repository.close()
+
+    @bp.get("/api/market-intelligence/research-data-requests")
+    def read_data_requests():
+        from application.opportunities.research_data_requests import status as data_status
+        repository = factory()
+        try:
+            result = data_status(repository, datetime.now(timezone.utc))
+            # A bounded private measurement receipt; no recursive disk scans on GET.
+            from pathlib import Path
+            path = Path(__file__).resolve().parents[1]/"runtime/local-migration/fresh-20261015/storage-measurement.json"
+            import json
+            if path.exists() and path.stat().st_size < 10000:
+                result["measured_storage"] = json.loads(path.read_text(encoding="utf-8"))
+            return jsonify(result)
+        finally:
+            repository.close()
+
+    @bp.get("/api/market-intelligence/calendar-expectations")
+    def read_expectations():
+        from .calendar_expectations import status as expectation_status
+        from scripts.calendar_ollama import runner_status
+        repository = factory()
+        try:
+            now = datetime.now(timezone.utc)
+            return jsonify(**expectation_status(repository, now), runner=runner_status(repository, now))
+        finally:
+            repository.close()
+
+    @bp.get("/api/market-intelligence/calendar-expectations/<proposal_id>")
+    def review_expectation(proposal_id):
+        if not allowed():
+            return jsonify(error="Unlock Portfolio controls to inspect and review the source packet"), 401
+        from .calendar_expectations import VERSION as EXPECTATION_VERSION, _packet
+        repository = factory()
+        try:
+            proposal = repository.paper_record(proposal_id)
+            now = datetime.now(timezone.utc)
+            if (not proposal or not proposal_id.startswith("calendar-expectation-proposal-")
+                    or proposal.get("version") != EXPECTATION_VERSION
+                    or timestamp(proposal["received_at"]) > now):
+                return jsonify(error="Known actually received expectation required"), 404
+            packet = _packet(repository, proposal["input_id"], now)
+            if not packet or packet.get("input_sha256") != proposal["input_sha256"]:
+                return jsonify(error="Unchanged source packet unavailable"), 409
+            return jsonify(proposal={key: proposal[key] for key in ("record_id", "event_id", "input_id",
+                "input_sha256", "proposal", "reviewability", "model_version", "received_at", "raw_response_sha256")},
+                packet={key: packet[key] for key in ("event", "sources", "causal_cutoff", "horizon_sessions",
+                    "benchmark_id", "expires_at", "measurement_plan", "label_acceptance", "denominator")})
         finally:
             repository.close()
 
@@ -52,6 +106,18 @@ def create_weekly_brief_blueprint(factory):
             if kind.startswith("calendar-"):
                 from . import research_calendar as calendar
                 operator = "local-operator"
+                if kind == "calendar-expectation-prepare":
+                    from .calendar_expectations import prepare_input
+                    packet = prepare_input(repository, payload["event_id"], now,
+                        horizon_sessions=payload.get("horizon_sessions", 3))
+                    return jsonify(state="SOURCE_PACKET_PREPARED_NO_MODEL_CALL", input_id=packet["record_id"],
+                        input_sha256=packet["input_sha256"], causal_cutoff=packet["causal_cutoff"]), 202
+                if kind == "calendar-expectation-freeze":
+                    from .calendar_expectations import freeze_proposal
+                    frozen = freeze_proposal(repository, payload["proposal_id"], operator, payload["rationale"],
+                        now, input_sha256=payload["input_sha256"])
+                    return jsonify(state=frozen["state"], record_id=frozen["record_id"],
+                        trading_weight=0, attention_weight=0), 202
                 if kind == "calendar-source":
                     return jsonify(calendar.import_source(repository, payload, now)), 202
                 if kind == "calendar-propose":

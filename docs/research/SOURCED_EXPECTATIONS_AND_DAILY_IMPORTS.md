@@ -1,0 +1,35 @@
+# Sourced expectations and daily imports — 19 October 2026
+
+The local dashboard now has a persistent **OST / IRESS import** card. At 08:00 SAST on weekdays its button turns red until qualifying current imports are present. Open it, sign into OST and ViewPoint directly in the Codex browser, then use **Copy import prompt**. Passwords stay with the broker. Clicking or copying does not complete the import. Exchange holidays are explicitly unverified; weekend reminders roll to Monday. The routine is visible in the internal research calendar, not a newly created Google Calendar series.
+
+The light Windows calendar clock registers requests without providers, models or ranking runs. It reads the configured account's published ranking pointer, exact registered cash identities, evaluation time, strategy version and snapshot hash. Current fresh rankings add members; stale, incomplete or missing rankings preserve previous members and requests. Previously tracked candidates remain archived rather than being deleted or repeatedly re-onboarded. Request labels distinguish current members, the Sasol pilot, shared context and retained former candidates.
+
+Actual initial state: **one explicit Sasol pilot; stale frozen Top 5; no current published members**. Eight requests are saved: four Sasol source/evidence requests and four shared context/execution/generalization requests. The latest registered dataset contains 600 OST Sasol bars, 600 OST Top40 bars and 438 IRESS Sasol bars, all ending 14 October. Today's reminder correctly remains due. This slice did not download another broker export or create another R10 capture. It prepares and schedules that operating routine.
+
+For every new candidate the queued requirements cover OST history, separate complete IRESS OHLCV, SENS/corporate actions and source definitions. Shared requests cover benchmark/sectors, gold/USDZAR contracts, costs/fills and generalizing numerical IRESS routing beyond Sasol. The queue is automatic; authenticated browser capture and missing numerical routing are still required. The configured fresh paper universe remains Sasol-only until separately expanded.
+
+## Data and storage
+
+Daily completion checks actual acquisition on the current SAST date, valid hash/provider/symbol identity, completed-session acquisition, bounded price age, full real IRESS OHLCV with whole volume units, and equal latest OST/IRESS/Top40 sessions. Re-uploading old data never refreshes the raw receipt. OST remains HLCV; no IRESS Open is copied into it. Numerical completeness does not establish historical AI admissibility.
+
+Read-only measurement at 13:18 SAST: engine runtime **109.48 MB**, installed Ollama models **4.66 GB**, disk free **1.77 TB**. Other applications and browser cache are excluded. The dashboard reads the saved measurement rather than scanning the disk on every refresh.
+
+At a conservative measured floor of 200 bytes/bar, five stocks × two sources plus six context series × 600 bars is approximately **1.92 MB** of price rows. Incremental 252-session growth is **0.81 MB**; retaining a full daily snapshot instead is **483.84 MB/year**. Five new candidates/week for 12 weeks reaches the present 18-share catalog ceiling, adding **3.12 MB** of retained two-source history beyond the first five. A proposed 30 daily/12 monthly price-copy scenario is **80.64 MB**, not an applied retention policy. These figures exclude provenance duplication, raw documents/news, database backups/indexes and models. Full learning-dash growth therefore must be monitored, not inferred from price-row bytes alone. Nothing is automatically deleted.
+
+## Local cited expectations
+
+Market AI / News now shows **Sourced event expectations**. Source preparation saves a packet; it never runs a model. Actual first Sasol Q1 packet has seven retained entries (calendar citation, news excerpts and labelled derived weekly context). Its hash and actual cutoff are retained in local PostgreSQL. No first draft or learned result is invented from preparing it.
+
+The separate **Trading System Idle Calendar Ollama** Windows task is enabled for hourly checks while signed in. It requires ten minutes idle and **7 GiB free physical RAM**, uses two CPU threads/GPU zero and stops owned work on activity or memory pressure. At verification approximately 4 GiB was free: status is **WAITING_FOR_MEMORY**, with zero request reservations and zero completed generation calls. A direct active-user run returned **WAITING_FOR_10_MINUTES_IDLE**, model calls zero. The first actual inference/semantic quality acceptance is pending resources. Existing Ollama 11434 is untouched; the owned worker uses 11435 only during work.
+
+The host accepts at most one cited proposal or abstention for an event. Exact quote and issuer checks, deterministic measurement, expiry, actual timestamps and immutable reservation prevent silent retrospective reconstruction. Inspect sources using existing unlocked Portfolio controls, explain the review and explicitly freeze the hypothesis before the event. Frozen price reference remains unresolved as-of validation; later event observations and 3/4/5-session scoring are subsequent work. Model drafts and freezes have zero attention/trading weight.
+
+## Verification and remaining work
+
+Native PostgreSQL packet/readback and repeated clock checks pass; eight requests remain eight. Browser checks verify the red button, copied prompt, storage table, calendar routine and RAM waiting state. Native Windows containment proofs kill harmless owned parent/child helpers after normal exit and crash, and verify direct listener ownership; these are not actual model-generation tests. The final safe suite passes **1207 tests in 91.802 seconds**; all **54 protected artifacts** pass. Actual-script JavaScript interaction checks also pass. After dashboard restart, the weekly source remains paused, an unauthenticated enable attempt returns401 without mutation, and expectation status reports zero model runs/reservations. Independent diagnostic/reviewer reconciliation is complete.
+
+Browser diagnosis also corrected a pre-existing Swing-summary variable error. The weekly source's prior pause was restored with an explicit audit after logs showed an earlier source-toggle POST; the original caller/payload is unknown. Existing source mutation now requires operator authentication and a strict boolean. Older source audit history and frozen decisions are preserved. Weekly automatic scans remain paused.
+
+R12 remains ACTIVE/PARTIAL. Still required: independent relevance labels/adjudication, frozen chronological evaluation, validated as-of references and outcome scoring, wider candidate/source routing, adjustment/corporate-action/volume/historical-availability evidence, and execution costs/fills/slippage. No weights, trading rules or B5 admission changed. Live execution remains disabled.
+
+See [ADR0067](../adr/0067-sourced-calendar-drafts-and-data-routines.md). Private runtime proofs and screenshots remain under `runtime/local-migration/fresh-20261015/`, excluded from Git.

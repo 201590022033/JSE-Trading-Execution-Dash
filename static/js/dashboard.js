@@ -6,6 +6,7 @@ let instruments = [], chartInstruments = [], instrumentClasses = [], canonicalRe
 let chartPoll = null, newsPoll = null;
 let canonicalPoll = null, canonicalPollAttempts = 0;
 let technicalRequestVersion = 0;
+let researchCalendarEvents = [];
 async function api(url, options = {}) {
   const response = await fetch(url, {...options, signal: AbortSignal.timeout(15000)});
   const data = await response.json();
@@ -378,7 +379,13 @@ function action(selector, handler) {
 async function refreshSources() {
   const result = await api('/api/market-intelligence/sources');
   $('#sources').innerHTML = (result.sources || []).map(s => `<label class="source-row"><input type="checkbox" data-source="${esc(s.source_id)}" ${s.enabled ? 'checked' : ''}> <b>${esc(s.source_name)}</b><small>${esc(s.status)} · ${esc(s.access_mode)} · ${esc(s.url || '')}</small></label>`).join('') || '<p class="muted">No configured sources.</p>';
-  document.querySelectorAll('[data-source]').forEach(box => box.onchange = async () => { await post(`/api/market-intelligence/sources/${encodeURIComponent(box.dataset.source)}`, {enabled: box.checked}); });
+  document.querySelectorAll('[data-source]').forEach(box => box.onchange = async () => {
+    const wanted = box.checked;
+    box.disabled = true;
+    try { await post(`/api/market-intelligence/sources/${encodeURIComponent(box.dataset.source)}`, {enabled: wanted}); }
+    catch(error) { box.checked = !wanted; $('#notice').textContent = `Source change not saved: ${error.message}`; }
+    finally { box.disabled = false; }
+  });
   await refreshWeeklyBrief();
   await refreshResearchCalendar();
 }
@@ -386,7 +393,12 @@ async function refreshResearchCalendar() {
   if (!$('#research-calendar-status')) return;
   try {
     const data = await api('/api/market-intelligence/research-calendar');
+    researchCalendarEvents = data.events;
+    if ($('#calendar-expectation-event')) $('#calendar-expectation-event').innerHTML = data.upcoming.map(e => `<option value="${esc(e.record_id)}">${esc(e.title)} · ${esc(e.event_date)}</option>`).join('');
     $('#research-calendar-status').textContent = `${data.upcoming.length} confirmed upcoming · ${data.proposals.length} dates awaiting confirmation · ${data.pending_followup.length} awaiting follow-up · ${data.alerts.length} research checks due`;
+    let routineNode = $('#research-calendar-routines');
+    if (!routineNode) { routineNode = document.createElement('div'); routineNode.id = 'research-calendar-routines'; $('#research-calendar-status').after(routineNode); }
+    routineNode.innerHTML = (data.routine_tasks || []).map(r => `<p><strong>${esc(r.title)}</strong> · weekdays ${esc(r.weekday_time)} SAST · ${r.due ? 'login and import needed' : esc(r.state.replaceAll('_',' ').toLowerCase())} · next window ${esc(when(r.next_window))}. Use the daily import button above.</p>`).join('');
     const labels = {UPCOMING_CONFIRMED:'Confirmed date',PROPOSED_REQUIRES_OPERATOR_DATE_CONFIRMATION:'Check source and confirm',PAST_AWAITING_OBSERVATIONAL_FOLLOWUP:'Date reached · follow up',CANCELLED:'Cancelled',SUPERSEDED:'Replaced by a later version'};
     const warningNote = e => {
       if (e.state !== 'UPCOMING_CONFIRMED') return '';
@@ -416,6 +428,7 @@ async function refreshResearchCalendar() {
       form.closest('details').open = true;
       $('#research-calendar-form-status').textContent = 'Supply the revised source date. Re-enter any expectation you want to freeze with this version; the original remains in the record.';
     };
+    await refreshCalendarExpectations();
   } catch (error) { $('#research-calendar-status').textContent = `Calendar unavailable: ${error.message}`; }
 }
 if ($('#research-calendar-form')) $('#research-calendar-form').onsubmit = async event => {
@@ -442,6 +455,61 @@ if ($('#research-calendar-form')) $('#research-calendar-form').onsubmit = async 
 };
 if ($('#reload-research-calendar')) $('#reload-research-calendar').onclick = refreshResearchCalendar;
 setInterval(() => { if ($('#market-ai')?.classList.contains('active')) refreshResearchCalendar(); },60000);
+function expectationCondition(condition) {
+  if (!condition) return 'No numerical expectation';
+  return `Share return minus Top40 return ${condition.operator === 'GTE' ? '≥' : '≤'} ${num(condition.threshold_pct)} percentage points`;
+}
+async function refreshCalendarExpectations() {
+  if (!$('#calendar-expectation-status')) return;
+  try {
+    const data = await api('/api/market-intelligence/calendar-expectations');
+    const r = data.runner;
+    $('#calendar-expectation-status').textContent = `${data.runs} model responses · ${data.frozen} frozen research plans · ${data.abstained} abstentions · ${data.rejected} blocked drafts · ${r.due_events} events in the seven-day window · ${r.total_reservations} request reservations · ${r.readiness_state.replaceAll('_',' ').toLowerCase()} · ${r.available_physical_ram_gib ?? 'unknown'} GiB free RAM (${r.minimum_start_free_ram_gib} GiB required)`;
+    const latest = (r.latest_states || []).map(s => `<p class="muted">Worker: ${esc(s.state.replaceAll('_',' ').toLowerCase())} · ${esc(when(s.received_at))}</p>`).join('');
+    $('#calendar-expectation-results').innerHTML = latest + data.proposals.slice(0,20).map(p => {
+      const event = researchCalendarEvents.find(e => e.record_id === p.event_id);
+      const label = p.frozen_at ? 'Frozen research expectation' : p.reviewability === 'ABSTAINED_NO_PREDICTION' ? 'Ollama abstained' : p.reviewability.startsWith('DIRECT_ISSUER_GROUNDED') ? 'Draft needs source and materiality review' : 'Blocked or invalid draft';
+      return `<article><h3>${esc(event?.title || 'Calendar event')} · ${esc(p.instrument_id)}</h3><p><strong>${esc(label)}</strong> · ${esc(p.direction)}</p><p>${esc(p.statement)}</p><p>Expected observation: ${esc(expectationCondition(p.trigger))}</p><p>Failure condition: ${esc(expectationCondition(p.failure_condition))}</p><p class="muted">${p.horizon_sessions} later observed sessions · Top40 comparison · expiry ${esc(when(p.expires_at))} · sources available by ${esc(when(p.causal_cutoff))} · outcome not scored</p><button data-expectation-review="${esc(p.record_id)}">Inspect sources and review</button><div id="review-${esc(p.record_id)}"></div></article>`;
+    }).join('');
+    if (!data.runs && !r.latest_states.length) $('#calendar-expectation-results').innerHTML += '<p>No model response yet. The first draft will appear after an eligible idle run; insufficient evidence may produce an abstention.</p>';
+    for (const button of document.querySelectorAll('[data-expectation-review]')) button.onclick = async () => {
+      const id = button.dataset.expectationReview;
+      const node = document.getElementById('review-'+id);
+      try {
+        const review = await api('/api/market-intelligence/calendar-expectations/'+encodeURIComponent(id));
+        const saved = data.proposals.find(p => p.record_id === id);
+        const cited = Array.isArray(review.proposal.proposal?.citations) ? review.proposal.proposal.citations : [];
+        node.innerHTML = `<h4>Exact cited passages</h4>${cited.map(c => {
+          const s = review.packet.sources.find(x => x.source_id === c.source_id);
+          return `<blockquote>${esc(c.quote)}</blockquote><p class="muted">${esc(s?.kind || 'Unknown source')} · source receipt ${esc(when(s?.received_at))}${s?.url ? ` · <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>` : ''}</p>`;
+        }).join('') || '<p>No cited passages.</p>'}<details><summary>Inspect the retained source packet and measurement policy</summary><pre style="white-space:pre-wrap">${esc(JSON.stringify(review.packet,null,2))}</pre></details>`;
+        if (saved.reviewability === 'DIRECT_ISSUER_GROUNDED_REQUIRES_MATERIALITY_REVIEW' && saved.event_current_and_future && !saved.frozen_at) {
+          const form = document.createElement('form');
+          form.innerHTML = '<label>Review rationale<textarea name="rationale" required minlength="10" maxlength="3000"></textarea></label><label><input name="checked" type="checkbox" required> I checked the cited material, timing and numerical conditions. I am freezing a research hypothesis for later evaluation.</label><button type="submit">Freeze reviewed research expectation</button><p role="status"></p>';
+          form.onsubmit = async event => {
+            event.preventDefault();
+            const output = form.querySelector('[role="status"]');
+            try {
+              await post('/api/market-intelligence/weekly-brief/calendar-expectation-freeze',{proposal_id:id,input_sha256:review.proposal.input_sha256,rationale:form.elements.rationale.value});
+              output.textContent = 'Research expectation frozen with its current source hash and review time.';
+              await refreshCalendarExpectations();
+            } catch(error) { output.textContent = error.message; }
+          };
+          node.append(form);
+        }
+      } catch(error) { node.textContent = error.message; }
+    };
+  } catch(error) { $('#calendar-expectation-status').textContent = `Expectations unavailable: ${error.message}`; }
+}
+if ($('#reload-calendar-expectations')) $('#reload-calendar-expectations').onclick = refreshCalendarExpectations;
+if ($('#calendar-expectation-prepare')) $('#calendar-expectation-prepare').onsubmit = async event => {
+  event.preventDefault();
+  const output = $('#calendar-expectation-prepare-status');
+  try {
+    const result = await post('/api/market-intelligence/weekly-brief/calendar-expectation-prepare',{event_id:event.currentTarget.elements.event_id.value});
+    output.textContent = `Dated source packet saved at ${when(result.causal_cutoff)}. No model was called.`;
+  } catch(error) { output.textContent = error.message; }
+};
 async function refreshWeeklyBrief() {
   try {
     const data = await api('/api/market-intelligence/weekly-brief');
@@ -603,7 +671,7 @@ $('#auto-refresh').onchange=()=>{if($('#auto-refresh').checked) refreshFeeds();}
   selectedChanged();
   chartSelectedChanged();
   await refreshFeeds();
-  await Promise.allSettled([refreshSources(), refreshIntelligence(), refreshTicker(), loadPortfolio(), refreshLearningStatus(), refreshAccountStatus()]);
+  await Promise.allSettled([refreshSources(), refreshIntelligence(), refreshTicker(), loadPortfolio(), refreshLearningStatus(), refreshAccountStatus(), refreshDataRequests()]);
   await refreshCanonicalOpportunities(true);
   setInterval(()=>{if($('#auto-refresh').checked && !document.hidden) refreshFeeds();},10000);
 })().catch(error=>{$('#system-pill').textContent='SYSTEM UNAVAILABLE';$('#feed-notice').textContent=error.message;});

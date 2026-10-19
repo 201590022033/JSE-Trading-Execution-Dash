@@ -229,3 +229,6 @@ Current guides describe today's accepted code/settings. Module contracts retain 
 | [Local engine evidence](research/LOCAL_BACKTEST_IMPLEMENTATION.md) | B1–B5 local implementation, tests and external-data gates |
 | [Local engine operating guide](research/LOCAL_BACKTEST_OPERATING_GUIDE.md) | Offline commands, callable interface, accounting/adapters/experiments and limitations |
 | [ADR 0047](adr/0047-isolated-local-replay.md) | Separate deterministic research core preserving frozen production lineage |
+
+- [Sourced expectations and daily imports](research/SOURCED_EXPECTATIONS_AND_DAILY_IMPORTS.md): current local operating scope, storage assumptions and pending actual inference/outcomes.
+- [ADR0067](adr/0067-sourced-calendar-drafts-and-data-routines.md): source packets, owned idle runner, canonical data requests and operator routines.

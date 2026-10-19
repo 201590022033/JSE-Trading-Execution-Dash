@@ -25,11 +25,11 @@ const profile=(id,workflow=null)=>({strategy_profile_id:id,strategy_profile_vers
   capabilities:[{capability_id:'test',state:'PLANNED',description:'<unsafe>'}],
   limitations:['Not validated'],canonical_workflow_tab:workflow});
 async function harness(response){
-  const root=new Element(),detail=new Element(),status=new Element(),refresh=new Element(),nav=new Element();
+  const root=new Element(),detail=new Element(),status=new Element(),refresh=new Element(),nav=new Element(),research=new Element();
   let navigation=0;nav.addEventListener('click',()=>{navigation++;});
   const calls=[];
   const elements={'#strategy-cards':root,'#strategy-detail':detail,'#strategy-status':status,
-    '#refresh-strategies':refresh,'nav button[data-tab="canonical-opportunities"]':nav};
+    '#refresh-strategies':refresh,'nav button[data-tab="canonical-opportunities"]':nav,'#swing-research-status':research};
   const state={response};
   vm.runInNewContext(fs.readFileSync('static/js/strategies.js','utf8'),{
     document:{querySelector:selector=>elements[selector],createElement:()=>new Element()},
@@ -37,11 +37,15 @@ async function harness(response){
     fetch:async(url,options)=>{calls.push(url);assert.equal(options.method,undefined);return state.response(url);}
   });
   await flush();
-  return {root,detail,status,refresh,calls,state,navigation:()=>navigation};
+  return {root,detail,status,refresh,calls,state,research,navigation:()=>navigation};
 }
 const ok=body=>({ok:true,status:200,json:async()=>body});
 (async()=>{
   const swing=profile('swing_test','canonical-opportunities'),placeholder=profile('placeholder_test');
+  const research=await harness(url=>ok(url==='/api/v1/learning/overview' ? {state:'AVAILABLE',runtime:'LOCAL',database:'postgresql',current_evaluation_gate:'OST_SOURCE_SEMANTICS_UNVERIFIED'} : {profiles:[]}));
+  assert.ok(research.research.innerHTML.includes('OST_SOURCE_SEMANTICS_UNVERIFIED'));
+  assert.ok(research.research.innerHTML.includes('LOCAL'));
+  assert.ok(!research.research.textContent.includes('Research status unavailable'));
   const ctx=await harness(url=>ok(url.endsWith('strategy-profiles')?{profiles:[swing,placeholder]}:
     {profile:url.includes('swing_test')?swing:placeholder}));
   assert.equal(ctx.root.children.length,2);

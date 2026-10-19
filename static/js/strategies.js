@@ -54,7 +54,7 @@
       const result=await read('/api/v1/learning/overview'), run=result.ai_comparison || {};
       if(result.state!=='AVAILABLE') throw Error('Research source unavailable');
       target.innerHTML=`<p>Research records: ${esc(result.runtime)} · ${esc(result.database)}. Data: ${esc(result.data_state)} · collected ${esc(result.source_observed_at || 'not yet')}.</p>
-        <p>Current historical AI evaluation: ${esc(d.current_evaluation_gate || 'See last recorded evaluation below')}.</p>
+        <p>Current historical AI evaluation: ${esc(result.current_evaluation_gate || 'See last recorded evaluation below')}.</p>
         <p>Last recorded AI research: ${esc(run.state || 'Waiting for first scheduled evaluation')} · ${esc(run.provider || 'unavailable')} · validation ${esc(run.validation || 'not yet')}.</p>
         <p>Evaluated: ${esc(run.evaluated_at || 'not yet')}. Baseline holdout: ${esc(run.baseline_holdout_samples ?? 'Unavailable')} completed samples; candidate holdout: ${esc(run.candidate_holdout_samples ?? 'Unavailable')}.</p>
         <p class="muted">No automatic strategy promotion. Supplemental inputs and prospective outcome progress are shown below.</p>`;

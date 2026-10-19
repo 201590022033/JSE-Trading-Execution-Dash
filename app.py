@@ -160,8 +160,13 @@ def intelligence_sources():
     return jsonify(sources=[s.__dict__ for s in request_source_registry().list_policies()])
 @app.post("/api/market-intelligence/sources/<source_id>")
 def intelligence_source_toggle(source_id):
+    from application.opportunities.operator_api import has_access
+    if not has_access():
+        return jsonify(error='Unlock Portfolio controls before changing source policy'), 401
     body = request.get_json(silent=True) or {}
-    return jsonify(source=request_source_registry().enable(source_id, bool(body.get("enabled"))).__dict__)
+    if not isinstance(body, dict) or type(body.get('enabled')) is not bool:
+        return jsonify(error='An explicit JSON boolean enabled value is required'), 422
+    return jsonify(source=request_source_registry().enable(source_id, body['enabled']).__dict__)
 @app.get("/api/market-intelligence")
 def market_intelligence():
     store = request_source_registry().store
