@@ -380,7 +380,68 @@ async function refreshSources() {
   $('#sources').innerHTML = (result.sources || []).map(s => `<label class="source-row"><input type="checkbox" data-source="${esc(s.source_id)}" ${s.enabled ? 'checked' : ''}> <b>${esc(s.source_name)}</b><small>${esc(s.status)} · ${esc(s.access_mode)} · ${esc(s.url || '')}</small></label>`).join('') || '<p class="muted">No configured sources.</p>';
   document.querySelectorAll('[data-source]').forEach(box => box.onchange = async () => { await post(`/api/market-intelligence/sources/${encodeURIComponent(box.dataset.source)}`, {enabled: box.checked}); });
   await refreshWeeklyBrief();
+  await refreshResearchCalendar();
 }
+async function refreshResearchCalendar() {
+  if (!$('#research-calendar-status')) return;
+  try {
+    const data = await api('/api/market-intelligence/research-calendar');
+    $('#research-calendar-status').textContent = `${data.upcoming.length} confirmed upcoming · ${data.proposals.length} dates awaiting confirmation · ${data.pending_followup.length} awaiting follow-up · ${data.alerts.length} research checks due`;
+    const labels = {UPCOMING_CONFIRMED:'Confirmed date',PROPOSED_REQUIRES_OPERATOR_DATE_CONFIRMATION:'Check source and confirm',PAST_AWAITING_OBSERVATIONAL_FOLLOWUP:'Date reached · follow up',CANCELLED:'Cancelled',SUPERSEDED:'Replaced by a later version'};
+    const warningNote = e => {
+      if (e.state !== 'UPCOMING_CONFIRMED') return '';
+      const next = [168,24,2].map(hours => ({hours,at:Date.parse(e.anchor_at)-hours*3600000})).filter(w => w.at > Date.now()).sort((a,b) => a.at-b.at)[0];
+      const missed = data.warning_receipts.some(w => w.event_id === e.record_id && w.state === 'MISSED_BEFORE_CONFIRMATION');
+      return `<p class="muted">${next ? `Next warning window: ${esc(new Intl.DateTimeFormat('en-ZA',{timeZone:e.timezone,dateStyle:'medium',timeStyle:'short'}).format(next.at))} (${next.hours} hours before date start).` : 'No further pre-event warning window remains.'}${missed ? ' An earlier warning window predates registration; no early warning is claimed for it.' : ''}</p>`;
+    };
+    const ordered = [...data.events].sort((a,b) => a.anchor_at.localeCompare(b.anchor_at));
+    $('#research-calendar-events').innerHTML = ordered.map(e => `<article><h3>${esc(e.title)}</h3><p>${esc(e.event_date)} · ${esc(e.timezone)} · ${esc(labels[e.state] || e.state)}</p><p class="muted">${esc(e.instrument_ids.join(', ') || 'Market-wide context')} · ${e.time_precision === 'DATE_ONLY_RELEASE_TIME_UNKNOWN' ? 'Date only; release time unknown' : esc(when(e.anchor_at))} · ${e.expectation ? 'Expectation frozen before event' : 'No price prediction recorded'}</p>${warningNote(e)}<p><a href="${esc(e.source_url)}" target="_blank" rel="noopener noreferrer">Check event source ↗</a></p>${e.state === 'PROPOSED_REQUIRES_OPERATOR_DATE_CONFIRMATION' ? `<button data-calendar-confirm="${esc(e.record_id)}">Confirm date from source</button>` : ''}${['UPCOMING_CONFIRMED','PROPOSED_REQUIRES_OPERATOR_DATE_CONFIRMATION'].includes(e.state) ? `<button data-calendar-revise="${esc(e.record_id)}">Revise date or expectation</button> <button data-calendar-cancel="${esc(e.record_id)}">Cancel event</button>` : ''}</article>`).join('') || '<p>No sourced calendar events yet. Undated themes do not receive an invented event date.</p>';
+    $('#research-calendar-alerts').innerHTML = data.alerts.map(a => `<p role="status"><strong>Research check due:</strong> ${esc(data.events.find(e => e.record_id === a.event_id)?.title)} · ${a.hours} hour warning · observed ${esc(when(a.observed_at))} <button data-calendar-dismiss="${esc(a.record_id)}">Acknowledge</button></p>`).join('');
+    for (const button of document.querySelectorAll('[data-calendar-confirm],[data-calendar-cancel],[data-calendar-dismiss]')) button.onclick = async () => {
+      button.disabled = true;
+      try {
+        if (button.dataset.calendarConfirm) await post('/api/market-intelligence/weekly-brief/calendar-confirm',{event_id:button.dataset.calendarConfirm});
+        if (button.dataset.calendarCancel) await post('/api/market-intelligence/weekly-brief/calendar-cancel',{event_id:button.dataset.calendarCancel,reason:'Cancelled from the local research calendar'});
+        if (button.dataset.calendarDismiss) await post('/api/market-intelligence/weekly-brief/calendar-dismiss',{warning_id:button.dataset.calendarDismiss});
+        await refreshResearchCalendar();
+      } catch (error) { $('#research-calendar-form-status').textContent = error.message; button.disabled = false; }
+    };
+    for (const button of document.querySelectorAll('[data-calendar-revise]')) button.onclick = () => {
+      const e = data.events.find(x => x.record_id === button.dataset.calendarRevise);
+      const form = $('#research-calendar-form');
+      form.reset();
+      for (const key of ['event_key','title','event_date','source_url','source_quote']) form.elements[key].value = e[key];
+      form.elements.instrument_ids.value = e.instrument_ids.join(', ');
+      form.elements.supersedes_event_id.value = e.record_id;
+      form.closest('details').open = true;
+      $('#research-calendar-form-status').textContent = 'Supply the revised source date. Re-enter any expectation you want to freeze with this version; the original remains in the record.';
+    };
+  } catch (error) { $('#research-calendar-status').textContent = `Calendar unavailable: ${error.message}`; }
+}
+if ($('#research-calendar-form')) $('#research-calendar-form').onsubmit = async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = Object.fromEntries(new FormData(form));
+  const output = $('#research-calendar-form-status');
+  try {
+    const source = await post('/api/market-intelligence/weekly-brief/calendar-source',{
+      source_url:values.source_url,title:values.title,body:values.source_quote,captured_at:new Date().toISOString(),provenance:'OPERATOR_SUPPLIED_SOURCE_EXCERPT'});
+    const proposal = {event_key:values.event_key || ('event-'+values.title.toLowerCase().replace(/[^a-z0-9]+/g,'-')).slice(0,90),title:values.title,
+      instrument_ids:values.instrument_ids.split(',').map(x=>x.trim()).filter(Boolean),event_date:values.event_date,timezone:'Africa/Johannesburg',
+      source_receipt_id:source.record_id,source_quote:values.source_quote};
+    if (values.supersedes_event_id) proposal.supersedes_event_id = values.supersedes_event_id;
+    if (values.statement.trim()) {
+      if (!values.measurement_plan.trim() || !values.expires_on) throw Error('An expectation needs a measurement plan and expiry date.');
+      proposal.expectation = {direction:values.direction,statement:values.statement,measurement_plan:values.measurement_plan,expires_at:new Date(values.expires_on+'T23:59:59+02:00').toISOString()};
+    }
+    await post('/api/market-intelligence/weekly-brief/calendar-propose',proposal);
+    output.textContent = 'Proposal saved. Check its source and confirm the date to enable research warnings.';
+    form.reset();
+    await refreshResearchCalendar();
+  } catch (error) { output.textContent = error.message; }
+};
+if ($('#reload-research-calendar')) $('#reload-research-calendar').onclick = refreshResearchCalendar;
+setInterval(() => { if ($('#market-ai')?.classList.contains('active')) refreshResearchCalendar(); },60000);
 async function refreshWeeklyBrief() {
   try {
     const data = await api('/api/market-intelligence/weekly-brief');

@@ -1,3 +1,7 @@
+## Monitoring checkpoint — 19 October 2026
+
+A deterministic source-bound research calendar and light five-minute local warning clock are now installed inside R12, with three official dated events and truthful missed-window receipts. Fresh source capture expands the private review corpus to27articles/486pairs. It still has0independentlabels; no predictor, learned weights or automatic outcome score is active. See [actual operation and next prospective-learning slice](RESEARCH_EARLY_WARNING_CALENDAR.md). Earlier planning/checkpoints below remain historical.
+
 ## Implementation checkpoint — 16 October 2026
 
 The first local evidence foundation is installed within R12: durable experiment adapter, retained-excerpt corpus, blinded human review queue/import, frozen-guard descriptive evaluation and read-only dashboard summary. Native first run:2articles/36examples/0labels/1DRAFT; INCONCLUSIVE. No candidate treatment, learned weights, new scheduled supervisor or source activation. The missing broad denominator, adjudicated labels and grouped chronological holdout remain R12 acceptance dependencies. See [installed behavior and verification](LOCAL_HERMES_FOUNDATION.md). Earlier plan text below is the original proposal.

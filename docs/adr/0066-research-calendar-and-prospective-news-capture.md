@@ -1,0 +1,15 @@
+# ADR 0066 — Research calendar and prospective news capture
+
+Date: 19 October 2026. Status: accepted for R12 research monitoring.
+
+The owner requested testing of local Hermes, then an internal calendar that can warn before a dated market event. The current news source is paused and there is no active prospective news-to-price learning loop. A deterministic source-bound calendar can operate without approving model relevance, training weights or enabling broker execution.
+
+Reuse immutable paper records in a separate research-only namespace. Store a locally hashed supplied source body, acquisition/publication/actual receipt separately, an exact supporting date citation and explicit timezone. A proposal requires separate source-date confirmation before timed warnings. AI primary-source review is labelled as such; it is not human relevance ground truth. Source authenticity remains an evidence limitation even when an assistant checked the official page. Date-only events anchor warnings to local midnight, explicitly not a known announcement time. Use calendar hours, not inferred exchange sessions.
+
+The light local clock checks seven-day, one-day and two-hour windows every five minutes while the Windows user is signed in. Its receipts distinguish due time, actual observation, registration after a warning deadline, missed event windows and later acknowledgement. No desktop-push delivery is claimed. A warning is saved once; restarts do not fabricate additional observations. Rescheduling/cancellation are append-only; an unconfirmed revision cannot silently replace the confirmed date. Optional expectations are frozen before the event with an explicit expiry and measurement plan; automatic outcome scoring is not part of this slice.
+
+The clock has no model, broker, market-data fetch or paper-cycle call. It runs at below-normal scheduling priority without waiting for idle, because a time reminder must remain timely while the user is active. Existing model/backtest worker idle controls are unchanged. No Codex heartbeat or external calendar is created; this is the dashboard application's own local scheduler. No migration or remote service is introduced.
+
+Testing also extends Hermes v2 to preserve one bounded current public-feed response in its own namespace, with raw response hash, actual acquisition, cache metadata and supplied/retained/rejected/duplicate counts. Separate SENS headlines sharing an archive URL survive. The same excerpt from different internal IDs merges, preserving original IDs and proposed-link metadata. Observation timestamps are not mistaken for publication. Initial loading/null data fails cleanly. Capture requires reported model-disabled state; no-success flags cannot establish upstream attempt counts, which stay unknown. V1 corpora/reports remain immutable and earlier label imports remain readable.
+
+Independent review reconciled the implementation and native verification. R12 remains ACTIVE/PARTIAL; weekly source pause, historical B5/AI gates, canonical trading rules and execution controls remain unchanged. See [operating record and next learning step](../research/RESEARCH_EARLY_WARNING_CALENDAR.md).

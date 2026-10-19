@@ -8,10 +8,10 @@ from hashlib import sha256
 import json
 
 from shadow_learning import timestamp
-from .weekly_brief import ACCOUNT as WEEKLY_ACCOUNT, RELEVANCE_VERSION, relevance_check
+from .weekly_brief import ACCOUNT as WEEKLY_ACCOUNT, RELEVANCE_VERSION, relevance_check, normalize_items
 
 ACCOUNT = "hermes-local-research-v1"
-VERSION = "hermes-news-diagnostic-v1"
+VERSION = "hermes-news-diagnostic-v2"
 LIMIT = 100
 
 
@@ -27,12 +27,67 @@ def records(repository, kind, now):
     return rows
 
 
+def capture_news_snapshot(repository, raw, now):
+    """Preserve a bounded existing public feed response, not a model scan.
+
+    Acquisition is now; neither cached articles nor unknown publication times
+    acquire an earlier point-in-time availability merely by being captured.
+    """
+    if not isinstance(raw, bytes) or not 1 <= len(raw) <= 500_000:
+        raise ValueError("Bounded raw news snapshot required")
+    payload = json.loads(raw)
+    if not isinstance(payload, dict) or not isinstance(payload.get("data"), dict):
+        raise ValueError("Public news snapshot is not ready")
+    data = payload["data"]
+    if (data.get("llm_used") is not False or data.get("ai_available") is not False
+            or data.get("ai_pending", False) is not False):
+        raise ValueError("Non-model public feed snapshot required")
+    supplied = data["items"]
+    if not isinstance(supplied, list) or not 1 <= len(supplied) <= 100:
+        raise ValueError("One to 100 supplied news excerpts required")
+    raw_hash = sha256(raw).hexdigest()
+    rid = "hermes-news-input-"+raw_hash
+    prior = repository.paper_record(rid)
+    if prior:
+        return prior
+    unique, rejected = {}, 0
+    for item in supplied:
+        # Normalize individually so distinct SENS headlines sharing an archive
+        # URL survive. The 20-item weekly model budget is not a capture limit.
+        normalized = list(normalize_items([item], now).values())
+        if not normalized:
+            rejected += 1
+            continue
+        article = normalized[0]
+        article["evidence_id"] = digest({"url": article["url"], "headline": article["headline"],
+            "publication": article["timestamp"] if article["timestamp_kind"] == "published" else "UNKNOWN"})
+        unique.setdefault(article["evidence_id"], article)
+    record = {"version": VERSION, "capture_id": rid, "raw_response_sha256": raw_hash,
+        "received_at": now.isoformat(), "source": "LOCAL_PUBLIC_NEWS_FEED_SNAPSHOT",
+        "endpoint": "http://127.0.0.1:5000/api/feed/news",
+        "feed_updated_at": data.get("updated_at"), "feed_state": data.get("feed_state"),
+        "supplied": len(supplied), "rejected": rejected, "retained": len(unique),
+        "duplicates": len(supplied)-rejected-len(unique), "articles": list(unique.values()),
+        "scope": "BOUNDED_RETURNED_FEED_EXCERPTS_NOT_FULL_WEB_OR_PUBLISHER_DOCUMENTS",
+        "capture_model_calls": 0, "model_calls": None,
+        "feed_model_attempts": "UNKNOWN_NOT_INFERRED_FROM_SUCCESS_FLAG",
+        "reported_llm_used": data["llm_used"], "reported_ai_available": data["ai_available"],
+        "trading_weight": 0}
+    with repository.transaction():
+        repository.create_paper_account(ACCOUNT, {"mode": "PAPER", "purpose": "RESEARCH_ONLY_NO_BALANCE"})
+        repository.save_paper_record(rid, ACCOUNT, "hermes-news-input", now.isoformat(), record)
+    return record
+
+
 def corpus(repository, catalog, now):
     scans = repository.paper_records(WEEKLY_ACCOUNT, "weekly-scan", as_of=now.isoformat(), limit=LIMIT+1)
     if len(scans) > LIMIT:
         raise ValueError("Explicit corpus window required")
-    articles, proposed, missing = {}, set(), 0
-    for scan in scans:
+    captures = repository.paper_records(ACCOUNT, "hermes-news-input", as_of=now.isoformat(), limit=LIMIT+1)
+    if len(captures) > LIMIT:
+        raise ValueError("Explicit prospective corpus window required")
+    articles, source_ids, proposed, missing = {}, {}, set(), 0
+    for scan in scans + captures:
         if "articles" not in scan:
             missing += 1
         supplied = scan.get("articles", [])
@@ -49,7 +104,11 @@ def corpus(repository, catalog, now):
             normalized["timestamp_kind"] = article.get("timestamp_kind", "unknown")
             # Hash the retained excerpt/identity, not acquisition metadata. A
             # repeated scan is not a second independent article observation.
-            key = digest({k: v for k, v in normalized.items() if k != "received_at"})
+            excluded = {"received_at", "evidence_id"}
+            if normalized["timestamp_kind"] != "published":
+                excluded.add("timestamp")
+            key = digest({k: v for k, v in normalized.items() if k not in excluded})
+            source_ids.setdefault(key, set()).add(normalized["evidence_id"])
             if key not in articles or timestamp(normalized["received_at"]) < timestamp(articles[key]["received_at"]):
                 articles[key] = normalized
     if len(articles) * len(catalog) > 10000:
@@ -60,12 +119,13 @@ def corpus(repository, catalog, now):
             examples.append({"example_id": digest({"article": raw_hash, "instrument": instrument_id}),
                 "article_sha256": raw_hash, "article": article, "instrument_id": instrument_id,
                 "issuer_name": catalog[instrument_id]["name"],
-                "was_proposed": (article["evidence_id"], instrument_id) in proposed,
+                "source_evidence_ids": sorted(source_ids[raw_hash]),
+                "was_proposed": any((ref, instrument_id) in proposed for ref in source_ids[raw_hash]),
                 "baseline_direct_mention": relevance_check([instrument_id], [article], catalog)["state"]
                                            == "DIRECT_ISSUER_MENTION"})
     identity = {"version": VERSION, "guard": RELEVANCE_VERSION, "catalog_sha256": digest(catalog),
                 "examples": examples, "legacy_scans_without_denominator": missing,
-                "scans_examined": len(scans)}
+                "scans_examined": len(scans), "prospective_capture_ids": sorted(c["capture_id"] for c in captures)}
     return {**identity, "corpus_id": "hermes-corpus-"+digest(identity),
             "denominator": "RETAINED_EXCERPTS_ONLY_NOT_ALL_RETRIEVED_NEWS",
             "historical_availability": "ACTUAL_RECEIPTS_ONLY_NO_BACKDATING"}
@@ -76,7 +136,7 @@ def import_labels(repository, payload, now):
     if not isinstance(payload, dict) or set(payload) != {"corpus_id", "labels"}:
         raise ValueError("Corpus and bounded independent labels required")
     saved = repository.paper_record(payload["corpus_id"])
-    if not saved or saved.get("version") != VERSION:
+    if not saved or saved.get("version") not in {VERSION, "hermes-news-diagnostic-v1"}:
         raise ValueError("Known immutable Hermes corpus required")
     labels = payload["labels"]
     if not isinstance(labels, list) or not 1 <= len(labels) <= 200:
@@ -176,6 +236,7 @@ def run_diagnostic(repository, catalog, now, baseline_commit):
               "input_sha256": input_hash, "corpus_id": saved["corpus_id"],
               "articles": len({x["article_sha256"] for x in saved["examples"]}),
               "examples": len(saved["examples"]), "legacy_scans_without_denominator": saved["legacy_scans_without_denominator"],
+              "prospective_captures": len(saved["prospective_capture_ids"]),
               "evaluation": evaluate(saved["examples"], labels), "experiment_stage": "DRAFT",
               "state": "INCONCLUSIVE", "model_weight_training": False, "model_calls": 0,
               "automatic_promotion": False, "trading_weight": 0, "live_execution": False,

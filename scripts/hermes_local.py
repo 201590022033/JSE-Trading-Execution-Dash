@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("diagnose", "review-pack", "import-labels"))
+    parser.add_argument("command", choices=("diagnose", "review-pack", "import-labels", "capture-news"))
     parser.add_argument("--labels", type=Path)
     args = parser.parse_args()
     from scripts.run_local_pc import FOLDER, start_database
@@ -25,7 +25,7 @@ def main():
     from ai_config import project_environment
     from runtime_persistence import runtime_repository
     from application.opportunities.public_research import public_share_catalog
-    from market_intelligence.hermes import run_diagnostic, import_labels, review_pack
+    from market_intelligence.hermes import run_diagnostic, import_labels, review_pack, capture_news_snapshot
     env = project_environment()
     env.update(json.loads((FOLDER/"environment.json").read_text()))
     now = datetime.now(timezone.utc)
@@ -39,7 +39,25 @@ def main():
     with process_lock(FOLDER/"hermes-review.lock"):
         repository = runtime_repository(database_url=url)
         try:
-            if args.command == "import-labels":
+            if args.command == "capture-news":
+                if env.get("DASHBOARD_NEWS_LLM_ITEMS") != "0":
+                    raise ValueError("Interactive model budget must be explicitly zero")
+                import requests
+                response = requests.get("http://127.0.0.1:5000/api/feed/news", timeout=30, allow_redirects=False)
+                response.raise_for_status()
+                raw = response.content
+                if not 1 <= len(raw) <= 500_000:
+                    raise ValueError("Bounded feed snapshot required")
+                folder = FOLDER/"hermes"
+                folder.mkdir(exist_ok=True)
+                from hashlib import sha256
+                target = folder/("news-response-"+sha256(raw).hexdigest()+".json")
+                if not target.exists():
+                    target.write_bytes(raw)
+                capture = capture_news_snapshot(repository, raw, datetime.now(timezone.utc))
+                result = {key: capture[key] for key in ("capture_id", "received_at", "supplied", "retained",
+                    "rejected", "duplicates", "raw_response_sha256", "model_calls", "trading_weight")}
+            elif args.command == "import-labels":
                 if not args.labels or args.labels.stat().st_size > 500_000:
                     raise ValueError("Bounded private label file required")
                 result = import_labels(repository, json.loads(args.labels.read_text(encoding="utf-8-sig")), now)

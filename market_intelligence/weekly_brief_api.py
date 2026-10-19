@@ -30,6 +30,15 @@ def create_weekly_brief_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get("/api/market-intelligence/research-calendar")
+    def read_calendar():
+        from .research_calendar import status as calendar_status
+        repository = factory()
+        try:
+            return jsonify(calendar_status(repository, datetime.now(timezone.utc)))
+        finally:
+            repository.close()
+
     @bp.post("/api/market-intelligence/weekly-brief/<kind>")
     def write(kind):
         if not allowed():
@@ -40,6 +49,20 @@ def create_weekly_brief_blueprint(factory):
         repository = factory()
         now = datetime.now(timezone.utc)
         try:
+            if kind.startswith("calendar-"):
+                from . import research_calendar as calendar
+                operator = "local-operator"
+                if kind == "calendar-source":
+                    return jsonify(calendar.import_source(repository, payload, now)), 202
+                if kind == "calendar-propose":
+                    return jsonify(calendar.propose_event(repository, payload, now)), 202
+                if kind == "calendar-confirm":
+                    return jsonify(calendar.confirm_event(repository, payload["event_id"], operator, now)), 202
+                if kind == "calendar-cancel":
+                    return jsonify(calendar.cancel_event(repository, payload["event_id"], operator, payload["reason"], now)), 202
+                if kind == "calendar-dismiss":
+                    return jsonify(calendar.dismiss_warning(repository, payload["warning_id"], operator, now)), 202
+                return jsonify(error="Unknown calendar operation"), 404
             if kind == "hermes-labels":
                 from .hermes import import_labels
                 return jsonify(import_labels(repository, payload, now)), 202

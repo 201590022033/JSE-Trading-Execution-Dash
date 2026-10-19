@@ -1,6 +1,7 @@
 """Local news evidence machinery: independent hand checks, no inference."""
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+import json
 import unittest
 from unittest.mock import patch
 from flask import Flask
@@ -8,7 +9,7 @@ from flask import Flask
 from persistence.sqlite_repository import SQLiteRepository
 from market_intelligence.weekly_brief import ACCOUNT as WEEKLY, import_brief, normalize_items
 from market_intelligence.weekly_brief_api import create_weekly_brief_blueprint
-from market_intelligence.hermes import ACCOUNT, corpus, evaluate, import_labels, run_diagnostic, status, review_pack
+from market_intelligence.hermes import ACCOUNT, corpus, evaluate, import_labels, run_diagnostic, status, review_pack, capture_news_snapshot
 
 NOW = datetime(2026, 10, 16, 8, tzinfo=timezone.utc)
 CATALOG = {"SASOL": {"name": "Sasol"}, "CFR": {"name": "Richemont"}}
@@ -54,6 +55,69 @@ class HermesTests(unittest.TestCase):
         for example in pack["examples"]:
             self.assertNotIn("baseline_direct_mention", example)
             self.assertNotIn("was_proposed", example)
+
+    def feed(self, items=None):
+        return json.dumps({"data": {"llm_used": False, "ai_available": False, "feed_state": "AVAILABLE", "updated_at": NOW.isoformat(),
+            "items": self.items if items is None else items}}).encode()
+
+    def test_prospective_capture_does_not_impersonate_weekly_model_or_backdate(self):
+        capture = capture_news_snapshot(self.repo, self.feed(), NOW)
+        self.assertEqual(capture["received_at"], NOW.isoformat())
+        self.assertEqual(capture["capture_model_calls"], 0)
+        self.assertIsNone(capture["model_calls"])
+        self.assertEqual(capture["retained"], 2)
+        self.assertEqual(capture_news_snapshot(self.repo, self.feed(), NOW+timedelta(minutes=1)), capture)
+        self.assertEqual(self.repo.paper_records(WEEKLY, "weekly-scan", as_of=NOW.isoformat()), [])
+        self.assertEqual(len(corpus(self.repo, CATALOG, NOW)["examples"]), 4)
+        self.assertEqual(len(corpus(self.repo, CATALOG, NOW-timedelta(seconds=1))["examples"]), 0)
+
+    def test_capture_retains_more_than_twenty_and_shared_sens_archive_urls(self):
+        items = [{**self.items[0], "url": "https://sens.example/archive", "headline": f"Distinct issuer {i} disclosure",
+                  "timestamp_kind": "observed"} for i in range(25)]
+        record = capture_news_snapshot(self.repo, self.feed(items), NOW)
+        self.assertEqual(record["supplied"], 25)
+        self.assertEqual(record["retained"], 25)
+        self.assertEqual(record["duplicates"], 0)
+        self.assertEqual(len(corpus(self.repo, CATALOG, NOW)["examples"]), 50)
+
+    def test_scan_and_feed_evidence_ids_do_not_duplicate_same_article(self):
+        self.seed()
+        capture_news_snapshot(self.repo, self.feed(), NOW)
+        saved = corpus(self.repo, CATALOG, NOW)
+        self.assertEqual(len(saved["examples"]), 4)
+        self.assertEqual(sum(e["was_proposed"] for e in saved["examples"]), 1)
+        self.assertTrue(all(len(e["source_evidence_ids"]) == 2 for e in saved["examples"]))
+
+    def test_failed_or_pending_ai_cannot_impersonate_zero_inference_feed(self):
+        for changes in ({"ai_available": True}, {"ai_pending": True}, {"ai_available": None}):
+            payload = json.loads(self.feed())
+            payload["data"].update(changes)
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                capture_news_snapshot(self.repo, json.dumps(payload).encode(), NOW)
+
+    def test_loading_or_non_mapping_feed_fails_before_any_capture_write(self):
+        for payload in ({"data": None}, {"data": []}, []):
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                capture_news_snapshot(self.repo, json.dumps(payload).encode(), NOW)
+        self.assertEqual(self.repo.paper_records(ACCOUNT, "hermes-news-input", as_of=NOW.isoformat()), [])
+
+    def test_snapshot_rejection_duplicate_and_model_boundaries(self):
+        items = [self.items[0], self.items[0], {**self.items[0], "url": "invalid"}]
+        record = capture_news_snapshot(self.repo, self.feed(items), NOW)
+        self.assertEqual([record[k] for k in ("supplied", "retained", "duplicates", "rejected")], [3, 1, 1, 1])
+        for raw in (b"{}", self.feed([]), self.feed(self.items*51), self.feed().replace(b'false', b'true')):
+            with self.subTest(raw=raw[:20]), self.assertRaises((ValueError, KeyError)):
+                capture_news_snapshot(self.repo, raw, NOW)
+
+    def test_unknown_publication_repeated_observation_not_independent_story(self):
+        item = {**self.items[0], "timestamp_kind": "observed"}
+        first = capture_news_snapshot(self.repo, self.feed([item]), NOW)
+        later = {**item, "timestamp": (NOW+timedelta(minutes=1)).isoformat()}
+        second = capture_news_snapshot(self.repo, self.feed([later]), NOW+timedelta(minutes=1))
+        self.assertNotEqual(first["capture_id"], second["capture_id"])
+        saved = corpus(self.repo, CATALOG, NOW+timedelta(minutes=1))
+        self.assertEqual(len(saved["examples"]), 2)
+        self.assertEqual(saved["examples"][0]["article"]["received_at"], NOW.isoformat())
 
     def test_legacy_is_visible_and_frozen_scans_unchanged(self):
         original = self.seed(True)
