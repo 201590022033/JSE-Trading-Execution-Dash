@@ -1,3 +1,10 @@
+## R1 follow-up — 20 October 2026
+
+Owner subsequently authorized R1; the research foundation is now delivered for
+review. See [R1 checkpoint](R1_FOUNDATION_2026_10_20.md). R2a is proposed next;
+R2/R3/R4/R5 and the actual P1 campaign remain pending. Earlier preflights below
+are historical, not current missing-R0/R1 claims.
+
 ## R0 follow-up — 20 October 2026
 
 Owner subsequently authorized R0. It is now delivered for review in the

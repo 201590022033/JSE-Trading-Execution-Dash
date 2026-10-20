@@ -1,3 +1,9 @@
+## R1 research foundation — 20 October 2026
+
+[Independent R1 checkpoint](research/R1_FOUNDATION_2026_10_20.md): dated
+registry, as-of snapshots and quality tiers, delivered for review. R2a proposed
+next; real P1 still pending. No execution runtime change.
+
 ## R0-ENGINE research qualification — 20 October 2026
 
 [Independent R0 checkpoint](research/R0_ENGINE_QUALIFICATION_2026_10_20.md):

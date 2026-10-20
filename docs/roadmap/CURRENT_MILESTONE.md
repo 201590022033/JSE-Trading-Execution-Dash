@@ -1,3 +1,12 @@
+## R1 research foundation delivered for review — 20 October 2026
+
+Owner authorized R1 after R0. The independent research app now implements the
+dated sector/exposure/vehicle registry, causal snapshots and tiered data admission.
+See [R1 checkpoint](../research/R1_FOUNDATION_2026_10_20.md). All 28 research tests
+and 54 execution protected checks pass. Examples remain synthetic; no real P1
+campaign or source/model work started. R2a is proposed next. Stop R1 for review;
+R12 remains the sole ACTIVE/PARTIAL milestone and execution runtime is unchanged.
+
 ## R0-ENGINE delivered for review — 20 October 2026
 
 Owner authorized the missing research qualification. The independent local
