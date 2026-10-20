@@ -3,8 +3,9 @@
 Recorded 20 October 2026 from the owner's planning-chat handoff. Documentation
 only: no implementation, source acquisition, session verification or runtime
 activation is authorized by this record. R12 remains the sole ACTIVE/PARTIAL
-milestone. X2 is now delivered for owner review; X3 radar evaluation/adoption
-remains proposed next. Earlier X1a/X1b checkpoints remain recorded.
+milestone. X3 evaluator/adapter software is now delivered for owner review; real-artifact
+acceptance and production adoption remain pending. X4/X5 remain proposed.
+Earlier X1a/X1b/X2 checkpoints remain recorded.
 
 This supplements, without replacing or reordering, [ROADMAP](ROADMAP.md),
 [CURRENT_MILESTONE](CURRENT_MILESTONE.md), the

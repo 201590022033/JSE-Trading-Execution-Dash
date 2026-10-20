@@ -1,0 +1,1 @@
+{"data":{"alert_threshold":0.5,"coefficients":[0.5],"features":[{"kind":"legacy_keyword_score","name":"keywords","term":null}],"intercept":0.2,"max_age_seconds":3600,"schema_version":"radar-linear-json/1","weight_origin":"fixed"},"schema_version":"radar-inert-data/1"}

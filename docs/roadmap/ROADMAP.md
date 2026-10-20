@@ -1,3 +1,17 @@
+## X3 reviewed radar evaluator — 20 October 2026, for owner review
+
+Owner requested X3. Software is delivered: bounded frozen-JSON evaluator,
+explicit current-radar adapter, separate review/selection/rollback journal and
+source-bound decision feedback. Synthetic same-snapshot and lifecycle tests pass.
+No compatible real accepted research artifact was supplied: real-artifact review
+and production adoption remain pending. R12 remains the sole ACTIVE/PARTIAL
+milestone; legacy defaults/runtime remain unchanged. See
+[checkpoint](../changes/X3_REVIEWED_RADAR_EVALUATOR_2026_10_20.md),
+[protocol](../research/X3_REVIEWED_RADAR_EVALUATOR.md) and
+[ADR0074](../adr/0074-reviewed-radar-release-evaluation.md).
+Stop for owner review. X4 and X5 are the two remaining numbered execution cards;
+research R/P1, P2 operational shakedown and U1 reporting are separate.
+
 ## X2 inactive release inbox — 20 October 2026, for owner review
 
 R12 remains sole ACTIVE/PARTIAL. Owner-assigned X2 delivers the explicit local

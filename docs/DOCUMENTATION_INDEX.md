@@ -1,3 +1,5 @@
+Latest bounded continuation: [X3 reviewed radar evaluator](changes/X3_REVIEWED_RADAR_EVALUATOR_2026_10_20.md), [ADR0074](adr/0074-reviewed-radar-release-evaluation.md), [protocol](research/X3_REVIEWED_RADAR_EVALUATOR.md). Software awaits review; real-artifact acceptance/production adoption pending. R12 remains ACTIVE/PARTIAL.
+
 # Complete project document index
 
 Reconciled 5 October 2026 against `master@c2ef802`. Scope: **178 existing tracked project documents**, excluding dependency-list text files, plus new guidance/archive files below. The ten authored workspace Markdown outputs are covered in the accompanying workspace report. Uploaded user attachments and documents elsewhere on the PC are source material, not rewritten project guidance.
