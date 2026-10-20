@@ -4,10 +4,12 @@
 record SSF pre-cash radar versus exact-product readiness and later owner-selected
 GitHub interactive UI assessment. Existing work/order is preserved; no card starts.
 
-Naming addendum: JSE Trading Execution Dash is the approved name. The local folder
-move is pending due to process locks; use the existing `trading-system-complete`
-path. See [pending rename record](EXECUTION_BACKLOG.md#pending-local-folder-rename--jse-trading-execution-dash).
-No service stop/rename retry or Railway change is authorized by that handoff.
+Naming completion: the canonical checkout is
+`C:/Users/Deon/Documents/GitHub/JSE-Trading-Execution-Dash`. The former
+`trading-system-complete` path is a compatibility junction preserving nine task
+references and virtualenv launchers, not a duplicate. See [completed rename record](EXECUTION_BACKLOG.md#completed-local-folder-rename--jse-trading-execution-dash).
+The planning receipt reports authorized restart and HTTP 200 verification; this
+documentation update performs no restart or further milestone work. Railway is unchanged.
 
 Owner requested continuation after X1a. R12 remains the sole ACTIVE/PARTIAL
 milestone. X1b provides shared-core 0.2.0 and a pure legacy-news-v1 scorer with

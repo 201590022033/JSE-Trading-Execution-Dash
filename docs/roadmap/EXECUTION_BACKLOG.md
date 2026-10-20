@@ -12,28 +12,31 @@ planning pack at
 `C:/Users/Deon/Documents/Codex/2026-10-20/event-driven-backtest-planning/outputs`.
 Research planning remains in that planning chat/pack.
 
-## Pending local folder rename — JSE Trading Execution Dash
+## Completed local folder rename — JSE Trading Execution Dash
 
-Status: PENDING LOCAL MOVE / DOCUMENTATION ONLY. Owner-approved project name:
+Status: COMPLETED / DOCUMENTATION UPDATE ONLY. Owner-approved project name:
 **JSE Trading Execution Dash**; repository/folder slug:
 `JSE-Trading-Execution-Dash`. The planning-chat naming receipt reports that the
 execution chat and GitHub repository have been renamed and local origin updated:
 [renamed GitHub repository](https://github.com/201590022033/JSE-Trading-Execution-Dash).
 
-Current valid source path remains
-`C:/Users/Deon/Documents/GitHub/trading-system-complete`. Pending destination:
-`C:/Users/Deon/Documents/GitHub/JSE-Trading-Execution-Dash`. The attempted local
-rename failed with Windows "being used by another process"; PostgreSQL and Python
-processes reference the checkout. No processes were stopped. Do not use the
-pending path as an existing checkout or retry the rename/stop services from this
-documentation handoff.
+Canonical checkout for all new work:
+`C:/Users/Deon/Documents/GitHub/JSE-Trading-Execution-Dash`. The earlier
+lock-blocked attempt is superseded: the planning receipt reports an
+owner-authorized dashboard stop, clean PostgreSQL shutdown, successful folder
+rename, PostgreSQL/dashboard restart and dashboard HTTP 200 verification.
 
-Later coordinate a separately authorized maintenance window after directory
-locks are released; then complete the move and verify/update active launch,
-scheduled-task and planning paths. Preserve historical receipts at their original
-paths. Hosted Railway service names/identifiers and URLs remain unchanged; the
-GitHub rename does not authorize changing them. No application logic, runtime
-settings or database contents change here.
+The former `C:/Users/Deon/Documents/GitHub/trading-system-complete` path is a
+Windows directory junction to this canonical checkout, **not a duplicate copy**.
+It preserves the existing nine scheduled-task references, saved launchers and
+virtualenv entry points. New work uses the canonical path; historical receipts
+may retain original paths. Do not remove the compatibility junction or rewrite
+active launch/task paths from this documentation handoff.
+
+Hosted Railway service names/identifiers and URLs remain unchanged. The reported
+rename preserves application logic, strategy settings and database contents.
+This note records completion only; no further restart, rename or milestone work
+is authorized here.
 
 Authoritative naming receipt:
 `C:/Users/Deon/Documents/Codex/2026-10-20/event-driven-backtest-planning/outputs/EXECUTION_PROJECT_RENAME.md`.
@@ -123,3 +126,8 @@ Owner assignment is required before beginning any proposed card.
 20 October 2026 naming addendum: recorded completed remote/chat naming and the
 pending, lock-blocked local folder move from the planning receipt. No rename
 retry, service stop, runtime path edit or Railway change was performed here.
+
+20 October 2026 completion addendum: the updated planning receipt supersedes that
+pending state. Recorded the canonical checkout, compatibility junction and
+reported authorized restart/HTTP 200 verification. This documentation update
+performed no restart, rename, runtime path change or milestone implementation.
