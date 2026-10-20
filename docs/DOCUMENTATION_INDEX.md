@@ -1,3 +1,9 @@
+## R0-ENGINE research qualification — 20 October 2026
+
+[Independent R0 checkpoint](research/R0_ENGINE_QUALIFICATION_2026_10_20.md):
+engine pins/licences, hand answers, limits and measurements; delivered for review.
+R1 proposed next; P1 remains pending. Execution runtime and R12 status unchanged.
+
 Latest status: X5 is owner-accepted and pushed at3af0f8c. [P1 readiness](research/P1_READINESS_2026_10_20.md) records missing research prerequisites and proposed R0-ENGINE next. R12 remains ACTIVE/PARTIAL.
 
 Latest bounded implementation: [X5 observed execution feedback](changes/X5_EXECUTION_FEEDBACK_2026_10_20.md), [ADR0076](adr/0076-observed-execution-feedback-round-trip.md), [protocol](research/X5_EXECUTION_FEEDBACK.md). Real-release acceptance and operational capture remain pending.

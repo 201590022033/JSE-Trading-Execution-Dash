@@ -1,3 +1,10 @@
+## R0 follow-up — 20 October 2026
+
+Owner subsequently authorized R0. It is now delivered for review in the
+independent local research repository; see [R0 checkpoint](R0_ENGINE_QUALIFICATION_2026_10_20.md).
+R1 is proposed next. This resolves the absence of R0 qualification evidence, not
+the remaining P1 dependencies. The original preflight below remains historical.
+
 # P1 research campaign readiness — 20 October 2026
 
 Status: DEPENDENCIES_NOT_READY. Preflight only; no campaign or new ACTIVE milestone.

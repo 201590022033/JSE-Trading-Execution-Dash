@@ -1,3 +1,13 @@
+## R0-ENGINE delivered for review — 20 October 2026
+
+Owner authorized the missing research qualification. The independent local
+`jse-strategy-research` workspace now has pinned engines/shared-core, independent
+hand answers, explicit capability refusals and a measured finite comparison.
+See [R0 checkpoint](../research/R0_ENGINE_QUALIFICATION_2026_10_20.md).
+Ten research tests and54 execution protected checks pass. Execution runtime is
+unchanged; R12 remains sole ACTIVE/PARTIAL. Stop for R0 review; R1 is proposed
+next. Actual P1 and real X3/X4 acceptance/adoption remain pending.
+
 ## X5 owner acceptance and P1 readiness — 20 October 2026
 
 X5 is owner-accepted and pushed at3af0f8c. P1's research prerequisites remain
