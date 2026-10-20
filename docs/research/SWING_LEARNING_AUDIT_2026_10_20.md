@@ -1,3 +1,7 @@
+## Subsequent implementation — 20 October 2026
+
+The audit below records the state before implementation. Its recommended first bounded Sasol pair is now operating: fixed baseline versus volume>1.2 candidate, actual prospective endpoints, both controls/outcomes, comparative review and future single-change request. Native1pair isNO_SETUP/NO_SETUP,0informative outcomes; no accepted improvement or model training is claimed. See [operating record](SASOL_PAIRED_REFINEMENT_2026_10_20.md). Broader family expansion and historical/news evidence remain separate. No further software prerequisite blocks collecting this pair.
+
 # Swing-learning audit — 20 October 2026
 
 Audited at approximately10:08SAST. Scope: current local source code, accepted runtime configuration, live dashboard APIs, Windows task inventory and read-only PostgreSQL records. This audit does not run a worker, model, experiment, broker request or trade, and changes no runtime settings. Private account identifiers, balances and credentials are excluded.

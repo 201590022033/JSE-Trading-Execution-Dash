@@ -55,9 +55,9 @@
       if(result.state!=='AVAILABLE') throw Error('Research source unavailable');
       target.innerHTML=`<p>Research records: ${esc(result.runtime)} · ${esc(result.database)}. Data: ${esc(result.data_state)} · collected ${esc(result.source_observed_at || 'not yet')}.</p>
         <p>Current historical AI evaluation: ${esc(result.current_evaluation_gate || 'See last recorded evaluation below')}.</p>
-        <p>Last recorded AI research: ${esc(run.state || 'Waiting for first scheduled evaluation')} · ${esc(run.provider || 'unavailable')} · validation ${esc(run.validation || 'not yet')}.</p>
+        <p>Last recorded AI research: ${esc(run.state || 'No historical AI evaluation recorded')} · ${esc(run.provider || 'unavailable')} · validation ${esc(run.validation || 'not yet')}.</p>
         <p>Evaluated: ${esc(run.evaluated_at || 'not yet')}. Baseline holdout: ${esc(run.baseline_holdout_samples ?? 'Unavailable')} completed samples; candidate holdout: ${esc(run.candidate_holdout_samples ?? 'Unavailable')}.</p>
-        <p class="muted">No automatic strategy promotion. Supplemental inputs and prospective outcome progress are shown below.</p>`;
+        <p class="muted">These historical admission checks do not block the prospective Sasol numerical comparison shown below. No automatic strategy promotion.</p>`;
     } catch(error) { target.textContent='Research status unavailable; no learning result is assumed.'; }
   }
   document.querySelector('#refresh-strategies').addEventListener('click',load);

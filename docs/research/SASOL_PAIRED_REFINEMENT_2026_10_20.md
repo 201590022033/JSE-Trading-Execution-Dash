@@ -1,0 +1,35 @@
+# Sasol prospective paired refinement — operating record
+
+20 October 2026. R12 remains the sole ACTIVE/PARTIAL milestone. **This bounded Sasol software loop is implemented and operating.** Its actual comparative market evidence is collecting; broader historical B5/AI and execution requirements remain separate.
+
+## What is complete
+
+The existing local five-minute research calendar now advances a frozen Sasol baseline and one fixed candidate after actual stored source imports. The baseline reuses technical features1.1 and shadow policy1.2: EMA20/50 uptrend, breakout/reclaim, RSI50–70, relative volume>1 and positive benchmark-relative return, structural/ATR stop and fixed2R target. Only the candidate volume gate changes, to>1.2. Holding horizon is3 observed sessions after entry. No model training or financial weight update is claimed.
+
+The ledger connects fixed definition → source-bound feature snapshot → both setup/no-setup decisions → subsequent captured endpoints → entry/stop/target/horizon/expiry outcomes → saved comparative review → next single-change request for a separate experiment. One paired episode runs at a time; busy and no-setup days remain controls. Both arm results and negative findings are retained. The first20 informative non-overlapping pairs permit an independent-review request; they are not proof of power, profitability or one-shot acceptance. Monitoring remains sequential and exploratory. A candidate with no trades is explicitly disclosed. No automatic promotion or parameter application occurs.
+
+There is **no further software prerequisite to collecting this pair**. Import the next completed aligned Sasol IRESS/OST Top40 session through the existing routine; within five minutes the clock records the control/decision and advances any open pair. An unchanged endpoint adds no observation. Historical rows supply indicator context, never retrospective experiment outcomes. Freshness, complete-session and actual-acquisition checks still apply. Missing imports remain missing and can hide stop/target touches: results are sampled-path unit-notional shadow observations, not consecutive exchange-session or broker-equivalent performance.
+
+## Independent review and fixes
+
+Two independent agents diagnosed and retested older feature-context revision gaps and late actual receipts. The reviewer reconciled both, then approved integration/native activation. Share dependencies retain exact integer OHLCV; benchmark dependencies retain exact close cents, preserving separate whole sources. Later overlapping revisions append episode exclusions; outcomes are never rewritten. Rolled-off history is unknown, not declared unchanged. Executable hashes bind coordinator, feature, policy, simulator, availability and quality implementations. Drift pauses the experiment and appears on status; a new explicit version/review is required. Actual receipt must satisfy entry expiry, regardless of an earlier session-time proxy. No live orders, canonical source replacement, historical backdating or source unpause occurs.
+
+## Actual native activation
+
+Registered **2026-10-20T09:16:19.502402+00:00** (11:16SAST) on accepted fresh local PostgreSQL. The actual latest aligned endpoint is **16 October**, not the upload date. One source observation and one paired episode are stored. Both arms: **NO_SETUP**, with available features: RSI78.6766516 and relative volume0.4962699. No entries/exits or informative trade pairs exist; review is `INSUFFICIENT_EVIDENCE_KEEP_BASELINE` (0/20). This is a valid no-setup control, not an unmet setup requirement.
+
+Dataset `swing-dataset-fcdbd681468fce6c143f0e558b88027b1e236fbad50c9f18db1a987b0129905b` was actually received20October07:00:02.680903UTC. Sasol source is whole IRESS SOL.JSE (derived normalized CSV hash8cf4d06d96ff1aae30a1d2922aeb5bafedde39eebef9907e54ccd36c4ed928f2; original native export hashf216588ff370e98e79f720cdbb3a64b729f3414abc581b8c411b8eda8fd906ee); benchmark is whole OST STX40 (raw hash3cb71b1251652cc12b6e8837577adf10b2c0e35f24701bf4b00b1a2222602ac5). Original raw acquisition times19October23:04:39.302/23:05:46.764UTC are retained, not refreshed to registration. Sasol OHLCV is complete; five old benchmark HLC anomalies are separately visible in endpoint proof, while features use its validated positive exact close path. The explicit pre-existing duplicate-row normalization is retained in private transform receipt `runtime/local-swing-data/transform-receipts/7a6b9b2468c1e190dc35531045176bf920fd92db43fbebd6a3e01a40fa42ae8a.json`; native raw and derived identity remain distinct. No OST Open is invented/spliced. Price adjustments, volume definitions and historical availability remain UNVERIFIED and explicitly accepted only for this prospective numerical lane.
+
+## Verification
+
+- 1355 safe software tests pass, including24 new SQLite/PostgreSQL-adapter behavior tests and the real JavaScript UI harness. Hand-authored synthetic trade outcomes exercise lifecycle/review branches only; none were installed in native storage.
+- 54 protected artifact checks pass. Dedicated GET is read-only and cannot tick/run models; UI escapes source text and handles unavailability/definition drift.
+- Native repeat is idempotent, frozen hashes match, original historical AI switch remains0. Native calendar tick completed with zero model calls/trading weight. Existing enabled Windows task repeats every5minutes; operator-triggered task ran20October11:17:17SAST after activation with LastTaskResult0. Restarted HTTP status matches native1episode/0informative pairs and intact frozen hashes.
+- Dashboard restarted and verified through computer use. Trading Strategies shows **One complete refinement loop** with current pair, latest source date and0/20 review. Older historical AI panel is explicitly labelled separately.
+- Pre-activation fresh-ledger backup `local-20261020T091503482780Z.dump` is494725bytes; SHA receipt independently verified. Post-activation backup `local-20261020T091851991728Z.dump` is517949bytes; independent SHA receipt verification passed.
+
+Private local evidence (excluded from Git): `runtime/local-migration/fresh-20261015/sasol-refinement-activation-20261020.json`, `sasol-refinement-20261020.png`, existing calendar-clock and backup receipts. Safe full-test log: `runtime/sasol-refinement-full-tests.log`.
+
+## Remaining boundaries
+
+Real eligible future setups and their later captured outcomes must accumulate. Twenty informative pairs are a review checkpoint, not20 login days; no-setup/busy days do not count. No new human news labels or bank response is required to operate this numerical pair. Broader news relevance learning still needs its independent labels/future evaluation. Historical B5/AI adjustment/corporate-action, volume and availability evidence remains unresolved. Assumed10/25/50bps costs are not verified OST costs; actual fills/slippage remain unmeasured. Live execution stays disabled. Six market-family strategies are not yet six operating loops. Frozen old decisions and PARTIAL records remain unchanged.

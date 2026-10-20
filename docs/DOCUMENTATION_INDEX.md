@@ -4,6 +4,8 @@ Reconciled 5 October 2026 against `master@c2ef802`. Scope: **178 existing tracke
 
 Start with [CURRENT_STATE](CURRENT_STATE.md), [current architecture](architecture/CURRENT_ARCHITECTURE.md), [target architecture](architecture/TARGET_ARCHITECTURE.md), [roadmap](roadmap/ROADMAP.md) and [recent changes](changes/2026-09-21-to-2026-10-05.md).
 
+Latest: [operational Sasol paired refinement](research/SASOL_PAIRED_REFINEMENT_2026_10_20.md), [ADR0070](adr/0070-sasol-prospective-paired-refinement.md).
+
 ## How to read this library
 
 Current guides describe today's accepted code/settings. Module contracts retain their original scope and have a current-context note. Dated decisions retain their recorded reasoning; later additive decisions do not erase it. Historical reports/handoffs retain their test results, failures and then-current restrictions. Archived ACTIVE labels never activate another milestone.

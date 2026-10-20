@@ -70,6 +70,15 @@ def create_weekly_brief_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get("/api/market-intelligence/sasol-refinement")
+    def read_sasol_refinement():
+        from .sasol_refinement import status as refinement_status
+        repository = factory()
+        try:
+            return jsonify(refinement_status(repository, datetime.now(timezone.utc)))
+        finally:
+            repository.close()
+
     @bp.get("/api/market-intelligence/research-learning")
     def read_research_learning():
         from .calendar_outcomes import status as outcomes

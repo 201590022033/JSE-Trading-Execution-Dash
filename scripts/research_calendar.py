@@ -39,6 +39,8 @@ def main():
                 outcome_tick(repository, now)
                 from market_intelligence.hermes_cycles import run_cycle
                 run_cycle(repository, now)
+                from market_intelligence.sasol_refinement import tick as refinement_tick
+                refinement_tick(repository, now)
             else:
                 from application.opportunities.research_data_requests import status as data_status
                 data_requests = data_status(repository, now)
