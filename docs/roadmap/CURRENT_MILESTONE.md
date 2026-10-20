@@ -1,3 +1,12 @@
+## X5 owner acceptance and P1 readiness — 20 October 2026
+
+Owner accepted X5. Commit3af0f8c was pushed and verified equal to GitHub master.
+P1 preflight found the separate research application/engine/campaign prerequisites
+not delivered in the audited locations. See [readiness and next assignment](../research/P1_READINESS_2026_10_20.md).
+R0-ENGINE is the next proposed bounded research task; no campaign or new ACTIVE
+milestone was started. R12 remains the sole ACTIVE/PARTIAL milestone. Prior code
+checkpoint entries below are historical; real X3/X4 adoption remains pending.
+
 ## X5 observed execution feedback — 20 October 2026, for review
 
 Owner requested X5. Shared-core0.4.0 adds immutable observed feedback; an explicit

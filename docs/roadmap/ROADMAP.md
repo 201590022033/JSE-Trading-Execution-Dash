@@ -1,3 +1,12 @@
+## X5 owner acceptance and P1 readiness — 20 October 2026
+
+X5 is owner-accepted and pushed at3af0f8c. P1's research prerequisites remain
+undelivered in the audited locations; it is not an immediately runnable campaign.
+See [preflight](../research/P1_READINESS_2026_10_20.md). R0-ENGINE is the next
+proposed research card before the remaining research foundation/campaign work.
+R12 remains the sole ACTIVE/PARTIAL milestone; no real release or P2 activation
+is implied by completion of the X software slices.
+
 ## X5 observed execution feedback — 20 October 2026, for review
 
 Owner requested X5. Shared-core0.4.0 adds immutable observed feedback; an explicit

@@ -1,4 +1,6 @@
-Latest bounded continuation: [X5 observed execution feedback](changes/X5_EXECUTION_FEEDBACK_2026_10_20.md), [ADR0076](adr/0076-observed-execution-feedback-round-trip.md), [protocol](research/X5_EXECUTION_FEEDBACK.md). Software for review; real-release acceptance and operational capture remain pending. R12 remains ACTIVE/PARTIAL.
+Latest status: X5 is owner-accepted and pushed at3af0f8c. [P1 readiness](research/P1_READINESS_2026_10_20.md) records missing research prerequisites and proposed R0-ENGINE next. R12 remains ACTIVE/PARTIAL.
+
+Latest bounded implementation: [X5 observed execution feedback](changes/X5_EXECUTION_FEEDBACK_2026_10_20.md), [ADR0076](adr/0076-observed-execution-feedback-round-trip.md), [protocol](research/X5_EXECUTION_FEEDBACK.md). Real-release acceptance and operational capture remain pending.
 
 Latest bounded continuation: [X4 inactive StrategyRelease evaluator](changes/X4_INACTIVE_STRATEGY_EVALUATOR_2026_10_20.md), [ADR0075](adr/0075-inactive-strategy-release-boundary.md), [protocol](research/X4_INACTIVE_STRATEGY_EVALUATOR.md). Software for review; real-artifact acceptance/activation pending. GitHub push authorized; R12 remains ACTIVE/PARTIAL.
 
