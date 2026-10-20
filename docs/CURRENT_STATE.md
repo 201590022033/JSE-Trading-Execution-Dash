@@ -1,3 +1,7 @@
+## Swing-learning audit — 20 October 2026
+
+Read-only code/configuration/live API/PostgreSQL audit confirms one Sasol paper/research lane, not five independent segment learners. Six H1–H6 families remain proposed; no current local Swing AI proposals/comparison runs or accepted refinement exist. The configured1.0.1 canonical baseline is fixed;1.1 has4 feature records(Sasol2/Top402),0matured outcomes;1.2 has2NO_SETUP decisions/0entries;1.3 is disabled and source-gated. The separate news coordinator is not a Swing optimizer. See [full audit](research/SWING_LEARNING_AUDIT_2026_10_20.md). No runtime or gate changes; R12 remains ACTIVE/PARTIAL.
+
 ## Evidence-bound learning coordinator — 20 October 2026
 
 R12 remains the sole ACTIVE/PARTIAL milestone. The existing light clock now records idempotent weekly/evidence-triggered training reviews and source-linked lesson memory, with separate news/Swing acceptance checks. Heldout labels do not enter adaptive memory; prior lessons cannot become news citations. The older Swing validator now enforces one changed parameter. Native PostgreSQL shows1review/0lessons/0adjudicated targets, correctly WAITING. The21–28October frozen protocol and four acquisition attempts remain unchanged. A calibrated Qwen actual-source trial is queued behind10-minute idle/3.5GiB gates; production llama3 remains unchanged.1330safe tests/54protected checks pass. No executable candidate, learned weights, source unpause or trading promotion is claimed. See [operating record](research/HERMES_COORDINATOR_2026_10_20.md) and ADR0069.
