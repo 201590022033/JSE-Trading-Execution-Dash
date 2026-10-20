@@ -1,3 +1,11 @@
+## X1a shared contracts — 20 October 2026, for owner review
+
+R12 remains the sole ACTIVE/PARTIAL milestone. Its bounded X1a continuation adds
+an inactive installable shared contract package, synthetic fixed fixtures and
+offline verification. No scorer extraction, runtime wiring, activation or UI is
+included. X1b is the next proposed card, requiring owner review/assignment;
+no following card is started. See [X1a checkpoint](../changes/X1A_SHARED_CONTRACTS_2026_10_20.md).
+
 ## Operational Sasol paired refinement — 20 October 2026
 
 The fixed baseline/candidate numerical shadow loop is implemented and active on real local source data. One change only: relative-volume threshold>1.2 versus>1.0; other1.1/1.2 rules fixed,3-observed-session horizon. The existing five-minute clock records controls, paired outcomes and comparative reviews. Native:1episode, bothNO_SETUP,0/20informative pairs; no further software prerequisite to collecting this experiment. Source dates/actual receipts, whole feature dependencies, executable hashes and revision exclusions are frozen; independent source/time and integration reviews passed.1355safe tests/54protected checks pass; dashboard verified. This is sampled-path exploratory numerical research with assumed costs, no model training, promotion or Live execution. R12 remains the sole ACTIVE/PARTIAL milestone for broader news/historical/execution evidence. See [operating record](../research/SASOL_PAIRED_REFINEMENT_2026_10_20.md) and ADR0070. Earlier checkpoints below remain historical.

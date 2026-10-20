@@ -24,6 +24,18 @@ R12 remains ACTIVE/PARTIAL. Market AI / News now shows a source-bound research c
 
 R12 remains the sole ACTIVE/PARTIAL milestone. The owner-requested local Hermes first slice now has durable scientific experiment storage, a hash-bound retained-excerpt review corpus, blinded human label queue/import, descriptive frozen-guard evaluation and a read-only dashboard summary. Native PostgreSQL restart/idempotence/exclusive-lock proof passes. Actual first run: two retained articles, 36 article/share examples, zero reviewed labels, one DRAFT experiment; INCONCLUSIVE, no learned weights or model calls. Future weekly ingress preserves bounded normalized supplied articles including zero-case scans; legacy missing denominators stay explicit. Full safe suite:1058 pass; final focused suite:91 pass;54 protected checks pass. No source unpause, new supervisor schedule, B5/historical AI admission or execution change. Next: prospective denominator, independent adjudicated labels and grouped chronological holdout before evaluating a candidate or scheduling either Hermes supervisor. See [local Hermes operating record](../research/LOCAL_HERMES_FOUNDATION.md) and ADR0065.
 
+## X1a shared contract boundary — 20 October 2026, for owner review
+
+`packages/jse_intelligence_core` is an installable Python 0.1.0 distribution with
+no runtime dependencies or application imports. Immutable SectorScope,
+EvidenceReference and RadarReleaseManifest v1 records define explicit product
+scope, provenance/time uncertainty and inert release identities/compatibility.
+No runtime imports it; scoring, strategy, provider/database configuration and
+activation remain unchanged. This is a bounded continuation of sole
+ACTIVE/PARTIAL R12. See [ADR0071](../adr/0071-shared-intelligence-contract-boundary.md)
+and [schema/API](../../packages/jse_intelligence_core/README.md). X1b scorer
+characterization/extraction is proposed only, pending owner review.
+
 # Current architecture — local placement override, 15 October 2026
 
 The new owner-authorized local lineage uses one isolated PostgreSQL18 cluster on loopback55432 for dashboard and paper worker. Private acceptance requires the matching database/account, LOCAL/LOCAL_UPLOAD and explicit provider/model disable switches. Windows worker/backup tasks require10minutesidle; interactive news inference has zero budget. Railway web/worker source connections and cron are removed; original inactive volume retained. No hosted ledger was restored. See [local operating guide](../research/LOCAL_PC_OPERATING_GUIDE.md). Earlier cloud diagrams below are historical checkpoints.

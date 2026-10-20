@@ -1,3 +1,13 @@
+## X1a shared contracts — 20 October 2026, for owner review
+
+R12 remains the sole ACTIVE/PARTIAL milestone. X1a is a bounded shared-contract
+continuation: standalone jse-intelligence-core 0.1.0 with immutable SectorScope,
+EvidenceReference and RadarReleaseManifest v1, strict schemas and offline fixed
+oracles. All runtime/scoring/default paths remain unchanged. This checkpoint
+does not complete R12 or the two-app platform. See [verification and handoff](../changes/X1A_SHARED_CONTRACTS_2026_10_20.md)
+and [ADR0071](../adr/0071-shared-intelligence-contract-boundary.md). Stop for owner
+review; X1b legacy scorer characterization/extraction remains proposed only.
+
 ## Operational Sasol paired refinement — 20 October 2026
 
 The fixed baseline/candidate numerical shadow loop is implemented and active on real local source data. One change only: relative-volume threshold>1.2 versus>1.0; other1.1/1.2 rules fixed,3-observed-session horizon. The existing five-minute clock records controls, paired outcomes and comparative reviews. Native:1episode, bothNO_SETUP,0/20informative pairs; no further software prerequisite to collecting this experiment. Source dates/actual receipts, whole feature dependencies, executable hashes and revision exclusions are frozen; independent source/time and integration reviews passed.1355safe tests/54protected checks pass; dashboard verified. This is sampled-path exploratory numerical research with assumed costs, no model training, promotion or Live execution. R12 remains the sole ACTIVE/PARTIAL milestone for broader news/historical/execution evidence. See [operating record](../research/SASOL_PAIRED_REFINEMENT_2026_10_20.md) and ADR0070. Earlier checkpoints below remain historical.

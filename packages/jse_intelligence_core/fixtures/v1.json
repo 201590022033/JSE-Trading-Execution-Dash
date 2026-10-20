@@ -1,0 +1,610 @@
+{
+  "note": "Synthetic schema examples only; no financial acceptance or activation.",
+  "accepted": [
+    {
+      "name": "explicit-bank-scope",
+      "contract": "SectorScope",
+      "payload": {
+        "schema_version": "sector-scope/1",
+        "scope_id": "synthetic:banks-v1",
+        "group_kind": "research_group",
+        "universe": {
+          "reference_id": "synthetic:universe",
+          "content_hash": "sha256:d6363f945678b8a9ed55a8b585a50576e6160cc2cd2affbd7e7ba15bf9df2de2",
+          "as_of": "2026-10-19"
+        },
+        "exposures": {
+          "reference_id": "synthetic:exposures",
+          "content_hash": "sha256:7fa84da8d1b6ceefec6994db30f01ca501c3fa6c2c5f3a775cab86aefa8f1448",
+          "as_of": "2026-10-19"
+        },
+        "allowed_instruments": [
+          {
+            "instrument_id": "JSE:SYNTH_BANK",
+            "product_type": "cash_share"
+          }
+        ],
+        "context_references": [
+          {
+            "reference_id": "context:USDZAR",
+            "content_hash": "sha256:59f055f218235ef79419b80a5777cbccd2d563530db51b51cc13420283137adf"
+          }
+        ]
+      },
+      "canonical_json": "{\"allowed_instruments\":[{\"instrument_id\":\"JSE:SYNTH_BANK\",\"product_type\":\"cash_share\"}],\"context_references\":[{\"content_hash\":\"sha256:59f055f218235ef79419b80a5777cbccd2d563530db51b51cc13420283137adf\",\"reference_id\":\"context:USDZAR\"}],\"exposures\":{\"as_of\":\"2026-10-19\",\"content_hash\":\"sha256:7fa84da8d1b6ceefec6994db30f01ca501c3fa6c2c5f3a775cab86aefa8f1448\",\"reference_id\":\"synthetic:exposures\"},\"group_kind\":\"research_group\",\"schema_version\":\"sector-scope/1\",\"scope_id\":\"synthetic:banks-v1\",\"universe\":{\"as_of\":\"2026-10-19\",\"content_hash\":\"sha256:d6363f945678b8a9ed55a8b585a50576e6160cc2cd2affbd7e7ba15bf9df2de2\",\"reference_id\":\"synthetic:universe\"}}",
+      "canonical_id": "sha256:24475db588c815ce5b5a5dd7c0a3d08727a7f657a7cf45b6073e9b19e6c78dbd"
+    },
+    {
+      "name": "source-exact-clock",
+      "contract": "EvidenceReference",
+      "payload": {
+        "schema_version": "evidence-reference/1",
+        "evidence_id": "synthetic:evidence-1",
+        "source_id": "synthetic:source",
+        "document_id": "synthetic:document",
+        "event_id": "synthetic:event",
+        "content_hash": "sha256:4e0fd3ee44b313aaaa97856f3cd6b29b7d78fe50e8b11fc9b50a1461f11db2fe",
+        "publication": {
+          "value": "2026-10-20T09:00:00Z",
+          "precision": "exact",
+          "timezone_state": "offset_known",
+          "basis": "source_asserted"
+        },
+        "source_clock_reference": {
+          "reference_id": "synthetic:source-clock",
+          "content_hash": "sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a"
+        },
+        "acquired_at": "2026-10-20T09:01:00Z",
+        "received_at": "2026-10-20T09:02:00Z",
+        "revision_kind": "original",
+        "original_reference": null,
+        "reconstruction_state": "observed",
+        "provenance": {
+          "reference_id": "synthetic:capture",
+          "content_hash": "sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e"
+        }
+      },
+      "canonical_json": "{\"acquired_at\":\"2026-10-20T09:01:00Z\",\"content_hash\":\"sha256:4e0fd3ee44b313aaaa97856f3cd6b29b7d78fe50e8b11fc9b50a1461f11db2fe\",\"document_id\":\"synthetic:document\",\"event_id\":\"synthetic:event\",\"evidence_id\":\"synthetic:evidence-1\",\"original_reference\":null,\"provenance\":{\"content_hash\":\"sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e\",\"reference_id\":\"synthetic:capture\"},\"publication\":{\"basis\":\"source_asserted\",\"precision\":\"exact\",\"timezone_state\":\"offset_known\",\"value\":\"2026-10-20T09:00:00Z\"},\"received_at\":\"2026-10-20T09:02:00Z\",\"reconstruction_state\":\"observed\",\"revision_kind\":\"original\",\"schema_version\":\"evidence-reference/1\",\"source_clock_reference\":{\"content_hash\":\"sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a\",\"reference_id\":\"synthetic:source-clock\"},\"source_id\":\"synthetic:source\"}",
+      "canonical_id": "sha256:76a50b502cb7f9d19603cd3dca116455e406c5a7f9f9adb6fadb70b353294cb0"
+    },
+    {
+      "name": "inactive-attention-release",
+      "contract": "RadarReleaseManifest",
+      "payload": {
+        "schema_version": "radar-release-manifest/1",
+        "release_id": "synthetic:radar",
+        "release_version": "0.1.0",
+        "scorer_version": "synthetic-scorer-v1",
+        "scope": {
+          "schema_version": "sector-scope/1",
+          "scope_id": "synthetic:banks-v1",
+          "group_kind": "research_group",
+          "universe": {
+            "reference_id": "synthetic:universe",
+            "content_hash": "sha256:d6363f945678b8a9ed55a8b585a50576e6160cc2cd2affbd7e7ba15bf9df2de2",
+            "as_of": "2026-10-19"
+          },
+          "exposures": {
+            "reference_id": "synthetic:exposures",
+            "content_hash": "sha256:7fa84da8d1b6ceefec6994db30f01ca501c3fa6c2c5f3a775cab86aefa8f1448",
+            "as_of": "2026-10-19"
+          },
+          "allowed_instruments": [
+            {
+              "instrument_id": "JSE:SYNTH_BANK",
+              "product_type": "cash_share"
+            }
+          ],
+          "context_references": [
+            {
+              "reference_id": "context:USDZAR",
+              "content_hash": "sha256:59f055f218235ef79419b80a5777cbccd2d563530db51b51cc13420283137adf"
+            }
+          ]
+        },
+        "vehicles": [
+          {
+            "instrument_id": "JSE:SYNTH_BANK",
+            "product_type": "cash_share"
+          }
+        ],
+        "horizons": [
+          "sessions_3"
+        ],
+        "role": "attention",
+        "content_references": [
+          {
+            "reference_id": "synthetic:scorer",
+            "content_hash": "sha256:9fd06ae742face83b54d004290b50857a8f6013e5b9725a710c83c8a93b257c3"
+          }
+        ],
+        "evidence_references": [
+          {
+            "reference_id": "synthetic:evidence-1",
+            "content_hash": "sha256:76a50b502cb7f9d19603cd3dca116455e406c5a7f9f9adb6fadb70b353294cb0"
+          }
+        ],
+        "feature_schema_version": "synthetic-features-v1",
+        "model_format_version": "synthetic-coefficients-v1",
+        "runtime_api_version": "synthetic-runtime-v1"
+      },
+      "canonical_json": "{\"content_references\":[{\"content_hash\":\"sha256:9fd06ae742face83b54d004290b50857a8f6013e5b9725a710c83c8a93b257c3\",\"reference_id\":\"synthetic:scorer\"}],\"evidence_references\":[{\"content_hash\":\"sha256:76a50b502cb7f9d19603cd3dca116455e406c5a7f9f9adb6fadb70b353294cb0\",\"reference_id\":\"synthetic:evidence-1\"}],\"feature_schema_version\":\"synthetic-features-v1\",\"horizons\":[\"sessions_3\"],\"model_format_version\":\"synthetic-coefficients-v1\",\"release_id\":\"synthetic:radar\",\"release_version\":\"0.1.0\",\"role\":\"attention\",\"runtime_api_version\":\"synthetic-runtime-v1\",\"schema_version\":\"radar-release-manifest/1\",\"scope\":{\"allowed_instruments\":[{\"instrument_id\":\"JSE:SYNTH_BANK\",\"product_type\":\"cash_share\"}],\"context_references\":[{\"content_hash\":\"sha256:59f055f218235ef79419b80a5777cbccd2d563530db51b51cc13420283137adf\",\"reference_id\":\"context:USDZAR\"}],\"exposures\":{\"as_of\":\"2026-10-19\",\"content_hash\":\"sha256:7fa84da8d1b6ceefec6994db30f01ca501c3fa6c2c5f3a775cab86aefa8f1448\",\"reference_id\":\"synthetic:exposures\"},\"group_kind\":\"research_group\",\"schema_version\":\"sector-scope/1\",\"scope_id\":\"synthetic:banks-v1\",\"universe\":{\"as_of\":\"2026-10-19\",\"content_hash\":\"sha256:d6363f945678b8a9ed55a8b585a50576e6160cc2cd2affbd7e7ba15bf9df2de2\",\"reference_id\":\"synthetic:universe\"}},\"scorer_version\":\"synthetic-scorer-v1\",\"vehicles\":[{\"instrument_id\":\"JSE:SYNTH_BANK\",\"product_type\":\"cash_share\"}]}",
+      "canonical_id": "sha256:493a553548da68117074fd9e2157db8669a1493432edd306298f14f48044ea44"
+    },
+    {
+      "name": "unknown-stays-unknown",
+      "contract": "EvidenceReference",
+      "payload": {
+        "schema_version": "evidence-reference/1",
+        "evidence_id": "synthetic:unknown-time",
+        "source_id": "synthetic:source",
+        "document_id": "synthetic:document",
+        "event_id": "synthetic:event",
+        "content_hash": "sha256:4e0fd3ee44b313aaaa97856f3cd6b29b7d78fe50e8b11fc9b50a1461f11db2fe",
+        "publication": {
+          "value": null,
+          "precision": "unknown",
+          "timezone_state": "ambiguous",
+          "basis": "unverified"
+        },
+        "source_clock_reference": {
+          "reference_id": "synthetic:source-clock",
+          "content_hash": "sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a"
+        },
+        "acquired_at": "2026-10-20T09:01:00Z",
+        "received_at": "2026-10-20T09:02:00Z",
+        "revision_kind": "original",
+        "original_reference": null,
+        "reconstruction_state": "unverified",
+        "provenance": {
+          "reference_id": "synthetic:capture",
+          "content_hash": "sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e"
+        }
+      },
+      "canonical_json": "{\"acquired_at\":\"2026-10-20T09:01:00Z\",\"content_hash\":\"sha256:4e0fd3ee44b313aaaa97856f3cd6b29b7d78fe50e8b11fc9b50a1461f11db2fe\",\"document_id\":\"synthetic:document\",\"event_id\":\"synthetic:event\",\"evidence_id\":\"synthetic:unknown-time\",\"original_reference\":null,\"provenance\":{\"content_hash\":\"sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e\",\"reference_id\":\"synthetic:capture\"},\"publication\":{\"basis\":\"unverified\",\"precision\":\"unknown\",\"timezone_state\":\"ambiguous\",\"value\":null},\"received_at\":\"2026-10-20T09:02:00Z\",\"reconstruction_state\":\"unverified\",\"revision_kind\":\"original\",\"schema_version\":\"evidence-reference/1\",\"source_clock_reference\":{\"content_hash\":\"sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a\",\"reference_id\":\"synthetic:source-clock\"},\"source_id\":\"synthetic:source\"}",
+      "canonical_id": "sha256:2d625c1ad8db5b85a0dc49d071c5c2fa3f8bf59d1fdc7e53727e25d3091d09fe"
+    },
+    {
+      "name": "dated-reconstructed-correction",
+      "contract": "EvidenceReference",
+      "payload": {
+        "schema_version": "evidence-reference/1",
+        "evidence_id": "synthetic:correction",
+        "source_id": "synthetic:source",
+        "document_id": "synthetic:document",
+        "event_id": "synthetic:event",
+        "content_hash": "sha256:4e0fd3ee44b313aaaa97856f3cd6b29b7d78fe50e8b11fc9b50a1461f11db2fe",
+        "publication": {
+          "value": "2000-01-01",
+          "precision": "date",
+          "timezone_state": "unknown",
+          "basis": "source_asserted"
+        },
+        "source_clock_reference": {
+          "reference_id": "synthetic:source-clock",
+          "content_hash": "sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a"
+        },
+        "acquired_at": "2026-10-20T09:01:00Z",
+        "received_at": "2026-10-20T09:02:00Z",
+        "revision_kind": "correction",
+        "original_reference": {
+          "reference_id": "synthetic:evidence-1",
+          "content_hash": "sha256:76a50b502cb7f9d19603cd3dca116455e406c5a7f9f9adb6fadb70b353294cb0"
+        },
+        "reconstruction_state": "reconstructed",
+        "provenance": {
+          "reference_id": "synthetic:capture",
+          "content_hash": "sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e"
+        }
+      },
+      "canonical_json": "{\"acquired_at\":\"2026-10-20T09:01:00Z\",\"content_hash\":\"sha256:4e0fd3ee44b313aaaa97856f3cd6b29b7d78fe50e8b11fc9b50a1461f11db2fe\",\"document_id\":\"synthetic:document\",\"event_id\":\"synthetic:event\",\"evidence_id\":\"synthetic:correction\",\"original_reference\":{\"content_hash\":\"sha256:76a50b502cb7f9d19603cd3dca116455e406c5a7f9f9adb6fadb70b353294cb0\",\"reference_id\":\"synthetic:evidence-1\"},\"provenance\":{\"content_hash\":\"sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e\",\"reference_id\":\"synthetic:capture\"},\"publication\":{\"basis\":\"source_asserted\",\"precision\":\"date\",\"timezone_state\":\"unknown\",\"value\":\"2000-01-01\"},\"received_at\":\"2026-10-20T09:02:00Z\",\"reconstruction_state\":\"reconstructed\",\"revision_kind\":\"correction\",\"schema_version\":\"evidence-reference/1\",\"source_clock_reference\":{\"content_hash\":\"sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a\",\"reference_id\":\"synthetic:source-clock\"},\"source_id\":\"synthetic:source\"}",
+      "canonical_id": "sha256:604e0c49ede53c207e466faa61b0aca654e24dc4441edeb527cb76e71a45ada8"
+    }
+  ],
+  "rejected": [
+    {
+      "name": "missing-scope",
+      "contract": "RadarReleaseManifest",
+      "payload": {
+        "schema_version": "radar-release-manifest/1",
+        "release_id": "synthetic:radar",
+        "release_version": "0.1.0",
+        "scorer_version": "synthetic-scorer-v1",
+        "scope": null,
+        "vehicles": [
+          {
+            "instrument_id": "JSE:SYNTH_BANK",
+            "product_type": "cash_share"
+          }
+        ],
+        "horizons": [
+          "sessions_3"
+        ],
+        "role": "attention",
+        "content_references": [
+          {
+            "reference_id": "synthetic:scorer",
+            "content_hash": "sha256:9fd06ae742face83b54d004290b50857a8f6013e5b9725a710c83c8a93b257c3"
+          }
+        ],
+        "evidence_references": [
+          {
+            "reference_id": "synthetic:evidence-1",
+            "content_hash": "sha256:76a50b502cb7f9d19603cd3dca116455e406c5a7f9f9adb6fadb70b353294cb0"
+          }
+        ],
+        "feature_schema_version": "synthetic-features-v1",
+        "model_format_version": "synthetic-coefficients-v1",
+        "runtime_api_version": "synthetic-runtime-v1"
+      }
+    },
+    {
+      "name": "unsupported-version",
+      "contract": "SectorScope",
+      "payload": {
+        "schema_version": "sector-scope/2",
+        "scope_id": "synthetic:banks-v1",
+        "group_kind": "research_group",
+        "universe": {
+          "reference_id": "synthetic:universe",
+          "content_hash": "sha256:d6363f945678b8a9ed55a8b585a50576e6160cc2cd2affbd7e7ba15bf9df2de2",
+          "as_of": "2026-10-19"
+        },
+        "exposures": {
+          "reference_id": "synthetic:exposures",
+          "content_hash": "sha256:7fa84da8d1b6ceefec6994db30f01ca501c3fa6c2c5f3a775cab86aefa8f1448",
+          "as_of": "2026-10-19"
+        },
+        "allowed_instruments": [
+          {
+            "instrument_id": "JSE:SYNTH_BANK",
+            "product_type": "cash_share"
+          }
+        ],
+        "context_references": [
+          {
+            "reference_id": "context:USDZAR",
+            "content_hash": "sha256:59f055f218235ef79419b80a5777cbccd2d563530db51b51cc13420283137adf"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown-field",
+      "contract": "SectorScope",
+      "payload": {
+        "schema_version": "sector-scope/1",
+        "scope_id": "synthetic:banks-v1",
+        "group_kind": "research_group",
+        "universe": {
+          "reference_id": "synthetic:universe",
+          "content_hash": "sha256:d6363f945678b8a9ed55a8b585a50576e6160cc2cd2affbd7e7ba15bf9df2de2",
+          "as_of": "2026-10-19"
+        },
+        "exposures": {
+          "reference_id": "synthetic:exposures",
+          "content_hash": "sha256:7fa84da8d1b6ceefec6994db30f01ca501c3fa6c2c5f3a775cab86aefa8f1448",
+          "as_of": "2026-10-19"
+        },
+        "allowed_instruments": [
+          {
+            "instrument_id": "JSE:SYNTH_BANK",
+            "product_type": "cash_share"
+          }
+        ],
+        "context_references": [
+          {
+            "reference_id": "context:USDZAR",
+            "content_hash": "sha256:59f055f218235ef79419b80a5777cbccd2d563530db51b51cc13420283137adf"
+          }
+        ],
+        "all_instruments": true
+      }
+    },
+    {
+      "name": "empty-universe-permissions",
+      "contract": "SectorScope",
+      "payload": {
+        "schema_version": "sector-scope/1",
+        "scope_id": "synthetic:banks-v1",
+        "group_kind": "research_group",
+        "universe": {
+          "reference_id": "synthetic:universe",
+          "content_hash": "sha256:d6363f945678b8a9ed55a8b585a50576e6160cc2cd2affbd7e7ba15bf9df2de2",
+          "as_of": "2026-10-19"
+        },
+        "exposures": {
+          "reference_id": "synthetic:exposures",
+          "content_hash": "sha256:7fa84da8d1b6ceefec6994db30f01ca501c3fa6c2c5f3a775cab86aefa8f1448",
+          "as_of": "2026-10-19"
+        },
+        "allowed_instruments": [],
+        "context_references": [
+          {
+            "reference_id": "context:USDZAR",
+            "content_hash": "sha256:59f055f218235ef79419b80a5777cbccd2d563530db51b51cc13420283137adf"
+          }
+        ]
+      }
+    },
+    {
+      "name": "context-as-trade",
+      "contract": "RadarReleaseManifest",
+      "payload": {
+        "schema_version": "radar-release-manifest/1",
+        "release_id": "synthetic:radar",
+        "release_version": "0.1.0",
+        "scorer_version": "synthetic-scorer-v1",
+        "scope": {
+          "schema_version": "sector-scope/1",
+          "scope_id": "synthetic:banks-v1",
+          "group_kind": "research_group",
+          "universe": {
+            "reference_id": "synthetic:universe",
+            "content_hash": "sha256:d6363f945678b8a9ed55a8b585a50576e6160cc2cd2affbd7e7ba15bf9df2de2",
+            "as_of": "2026-10-19"
+          },
+          "exposures": {
+            "reference_id": "synthetic:exposures",
+            "content_hash": "sha256:7fa84da8d1b6ceefec6994db30f01ca501c3fa6c2c5f3a775cab86aefa8f1448",
+            "as_of": "2026-10-19"
+          },
+          "allowed_instruments": [
+            {
+              "instrument_id": "JSE:SYNTH_BANK",
+              "product_type": "cash_share"
+            }
+          ],
+          "context_references": [
+            {
+              "reference_id": "context:USDZAR",
+              "content_hash": "sha256:59f055f218235ef79419b80a5777cbccd2d563530db51b51cc13420283137adf"
+            }
+          ]
+        },
+        "vehicles": [
+          {
+            "instrument_id": "context:USDZAR",
+            "product_type": "currency_product"
+          }
+        ],
+        "horizons": [
+          "sessions_3"
+        ],
+        "role": "attention",
+        "content_references": [
+          {
+            "reference_id": "synthetic:scorer",
+            "content_hash": "sha256:9fd06ae742face83b54d004290b50857a8f6013e5b9725a710c83c8a93b257c3"
+          }
+        ],
+        "evidence_references": [
+          {
+            "reference_id": "synthetic:evidence-1",
+            "content_hash": "sha256:76a50b502cb7f9d19603cd3dca116455e406c5a7f9f9adb6fadb70b353294cb0"
+          }
+        ],
+        "feature_schema_version": "synthetic-features-v1",
+        "model_format_version": "synthetic-coefficients-v1",
+        "runtime_api_version": "synthetic-runtime-v1"
+      }
+    },
+    {
+      "name": "naive-receipt",
+      "contract": "EvidenceReference",
+      "payload": {
+        "schema_version": "evidence-reference/1",
+        "evidence_id": "synthetic:evidence-1",
+        "source_id": "synthetic:source",
+        "document_id": "synthetic:document",
+        "event_id": "synthetic:event",
+        "content_hash": "sha256:4e0fd3ee44b313aaaa97856f3cd6b29b7d78fe50e8b11fc9b50a1461f11db2fe",
+        "publication": {
+          "value": "2026-10-20T09:00:00Z",
+          "precision": "exact",
+          "timezone_state": "offset_known",
+          "basis": "source_asserted"
+        },
+        "source_clock_reference": {
+          "reference_id": "synthetic:source-clock",
+          "content_hash": "sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a"
+        },
+        "acquired_at": "2026-10-20T09:01:00Z",
+        "received_at": "2026-10-20T09:02:00",
+        "revision_kind": "original",
+        "original_reference": null,
+        "reconstruction_state": "observed",
+        "provenance": {
+          "reference_id": "synthetic:capture",
+          "content_hash": "sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e"
+        }
+      }
+    },
+    {
+      "name": "backdated-receipt",
+      "contract": "EvidenceReference",
+      "payload": {
+        "schema_version": "evidence-reference/1",
+        "evidence_id": "synthetic:evidence-1",
+        "source_id": "synthetic:source",
+        "document_id": "synthetic:document",
+        "event_id": "synthetic:event",
+        "content_hash": "sha256:4e0fd3ee44b313aaaa97856f3cd6b29b7d78fe50e8b11fc9b50a1461f11db2fe",
+        "publication": {
+          "value": "2026-10-20T09:00:00Z",
+          "precision": "exact",
+          "timezone_state": "offset_known",
+          "basis": "source_asserted"
+        },
+        "source_clock_reference": {
+          "reference_id": "synthetic:source-clock",
+          "content_hash": "sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a"
+        },
+        "acquired_at": "2026-10-20T09:01:00Z",
+        "received_at": "2026-10-19T09:02:00Z",
+        "revision_kind": "original",
+        "original_reference": null,
+        "reconstruction_state": "observed",
+        "provenance": {
+          "reference_id": "synthetic:capture",
+          "content_hash": "sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e"
+        }
+      }
+    },
+    {
+      "name": "invented-exact",
+      "contract": "EvidenceReference",
+      "payload": {
+        "schema_version": "evidence-reference/1",
+        "evidence_id": "synthetic:evidence-1",
+        "source_id": "synthetic:source",
+        "document_id": "synthetic:document",
+        "event_id": "synthetic:event",
+        "content_hash": "sha256:4e0fd3ee44b313aaaa97856f3cd6b29b7d78fe50e8b11fc9b50a1461f11db2fe",
+        "publication": {
+          "value": "2026-10-20T00:00:00Z",
+          "precision": "exact",
+          "timezone_state": "unknown",
+          "basis": "unverified"
+        },
+        "source_clock_reference": {
+          "reference_id": "synthetic:source-clock",
+          "content_hash": "sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a"
+        },
+        "acquired_at": "2026-10-20T09:01:00Z",
+        "received_at": "2026-10-20T09:02:00Z",
+        "revision_kind": "original",
+        "original_reference": null,
+        "reconstruction_state": "observed",
+        "provenance": {
+          "reference_id": "synthetic:capture",
+          "content_hash": "sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e"
+        }
+      }
+    },
+    {
+      "name": "invalid-content-hash",
+      "contract": "EvidenceReference",
+      "payload": {
+        "schema_version": "evidence-reference/1",
+        "evidence_id": "synthetic:evidence-1",
+        "source_id": "synthetic:source",
+        "document_id": "synthetic:document",
+        "event_id": "synthetic:event",
+        "content_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "publication": {
+          "value": "2026-10-20T09:00:00Z",
+          "precision": "exact",
+          "timezone_state": "offset_known",
+          "basis": "source_asserted"
+        },
+        "source_clock_reference": {
+          "reference_id": "synthetic:source-clock",
+          "content_hash": "sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a"
+        },
+        "acquired_at": "2026-10-20T09:01:00Z",
+        "received_at": "2026-10-20T09:02:00Z",
+        "revision_kind": "original",
+        "original_reference": null,
+        "reconstruction_state": "observed",
+        "provenance": {
+          "reference_id": "synthetic:capture",
+          "content_hash": "sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e"
+        }
+      }
+    },
+    {
+      "name": "correction-without-original",
+      "contract": "EvidenceReference",
+      "payload": {
+        "schema_version": "evidence-reference/1",
+        "evidence_id": "synthetic:evidence-1",
+        "source_id": "synthetic:source",
+        "document_id": "synthetic:document",
+        "event_id": "synthetic:event",
+        "content_hash": "sha256:4e0fd3ee44b313aaaa97856f3cd6b29b7d78fe50e8b11fc9b50a1461f11db2fe",
+        "publication": {
+          "value": "2026-10-20T09:00:00Z",
+          "precision": "exact",
+          "timezone_state": "offset_known",
+          "basis": "source_asserted"
+        },
+        "source_clock_reference": {
+          "reference_id": "synthetic:source-clock",
+          "content_hash": "sha256:f4b90627c235316eb9b984b27d11def75d8bba809738036876c84b2af6cac84a"
+        },
+        "acquired_at": "2026-10-20T09:01:00Z",
+        "received_at": "2026-10-20T09:02:00Z",
+        "revision_kind": "correction",
+        "original_reference": null,
+        "reconstruction_state": "observed",
+        "provenance": {
+          "reference_id": "synthetic:capture",
+          "content_hash": "sha256:dd435aa51b5c74bd279f40453b6943f9f7af46c0ccdf51c2d7a8d59dcaa73b2e"
+        }
+      }
+    },
+    {
+      "name": "unsupported-role",
+      "contract": "RadarReleaseManifest",
+      "payload": {
+        "schema_version": "radar-release-manifest/1",
+        "release_id": "synthetic:radar",
+        "release_version": "0.1.0",
+        "scorer_version": "synthetic-scorer-v1",
+        "scope": {
+          "schema_version": "sector-scope/1",
+          "scope_id": "synthetic:banks-v1",
+          "group_kind": "research_group",
+          "universe": {
+            "reference_id": "synthetic:universe",
+            "content_hash": "sha256:d6363f945678b8a9ed55a8b585a50576e6160cc2cd2affbd7e7ba15bf9df2de2",
+            "as_of": "2026-10-19"
+          },
+          "exposures": {
+            "reference_id": "synthetic:exposures",
+            "content_hash": "sha256:7fa84da8d1b6ceefec6994db30f01ca501c3fa6c2c5f3a775cab86aefa8f1448",
+            "as_of": "2026-10-19"
+          },
+          "allowed_instruments": [
+            {
+              "instrument_id": "JSE:SYNTH_BANK",
+              "product_type": "cash_share"
+            }
+          ],
+          "context_references": [
+            {
+              "reference_id": "context:USDZAR",
+              "content_hash": "sha256:59f055f218235ef79419b80a5777cbccd2d563530db51b51cc13420283137adf"
+            }
+          ]
+        },
+        "vehicles": [
+          {
+            "instrument_id": "JSE:SYNTH_BANK",
+            "product_type": "cash_share"
+          }
+        ],
+        "horizons": [
+          "sessions_3"
+        ],
+        "role": "trade",
+        "content_references": [
+          {
+            "reference_id": "synthetic:scorer",
+            "content_hash": "sha256:9fd06ae742face83b54d004290b50857a8f6013e5b9725a710c83c8a93b257c3"
+          }
+        ],
+        "evidence_references": [
+          {
+            "reference_id": "synthetic:evidence-1",
+            "content_hash": "sha256:76a50b502cb7f9d19603cd3dca116455e406c5a7f9f9adb6fadb70b353294cb0"
+          }
+        ],
+        "feature_schema_version": "synthetic-features-v1",
+        "model_format_version": "synthetic-coefficients-v1",
+        "runtime_api_version": "synthetic-runtime-v1"
+      }
+    }
+  ]
+}
