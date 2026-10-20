@@ -113,10 +113,12 @@ class ReleaseInbox:
                 con.execute("BEGIN IMMEDIATE")
                 if accepted is not None:
                     manifest, profile, files = accepted
-                    same = con.execute("SELECT package_id FROM packages WHERE package_id=?", (ack["package_id"],)).fetchone()
+                    same = con.execute("SELECT profile_json FROM packages WHERE package_id=?", (ack["package_id"],)).fetchone()
                     reused = con.execute("SELECT package_id FROM packages WHERE release_id=? AND release_version=?",
                                          (manifest.release_id, manifest.release_version)).fetchone()
                     if same:
+                        # A repeated attempt cannot relabel the retained package.
+                        ack["test_only"] = json.loads(same[0])["test_only"]
                         ack.update(outcome="ALREADY_IMPORTED", reason_code="SAME_PACKAGE", state="INACTIVE")
                     elif reused:
                         ack.update(outcome="CONFLICT", reason_code="VERSION_CONFLICT")

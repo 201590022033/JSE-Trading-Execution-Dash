@@ -126,6 +126,16 @@ class ReleaseInboxTests(unittest.TestCase):
         self.assertEqual(self.inbox.get_ack(ack["ack_id"]), ack)
         self.assertEqual(self.counts(), (0, 0, 1))
 
+    def test_repeat_retains_original_test_label_after_support_config_changes(self):
+        first = self.inbox.process(self.package)
+        profile = self.profiles[0].to_dict()
+        profile["test_only"] = False
+        service = ReleaseInbox(self.root / "store", (protocol.SupportedProfile.from_dict(profile),))
+        again = service.process(self.package)
+        self.assertEqual(again["outcome"], "ALREADY_IMPORTED")
+        self.assertTrue(again["test_only"])
+        self.assertTrue(service.get_release(first["package_id"])["profile"]["test_only"])
+
     def test_missing_referenced_file_and_modified_bytes(self):
         path = self.package / "artifacts/document.json"
         raw = path.read_bytes()

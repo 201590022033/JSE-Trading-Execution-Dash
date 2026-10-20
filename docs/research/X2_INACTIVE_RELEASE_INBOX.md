@@ -91,6 +91,8 @@ Filesystem/store owners remain trusted; this is not a signature or tamper-proof
 vault. Use a local filesystem with SQLite locking, not a network share.
 
 Same package identity returns ALREADY_IMPORTED without replacing retained bytes.
+Its acknowledgement retains the original stored test_only classification even
+if the consumer support configuration subsequently changes.
 Different package identity with an existing release ID/version yields CONFLICT.
 Concurrent duplicate imports yield one imported record and subsequent already
 results; lock/storage failures yield no success claim and may be retried. No

@@ -33,7 +33,7 @@ See [protocol/service/command](../research/X2_INACTIVE_RELEASE_INBOX.md) and
 
 ## Exact verification
 
-- **25 new tests passed in 4.748s** in the final isolated new-test run. Independent
+- **26 new tests pass** in the final focused/full suites. Independent
   synthetic fixture specifies 11 source files, expected package/manifest identity,
   retained raw hashes and acknowledgement outcomes. Tests check exact ack fields,
   real invocation-time bounds, durable reopen/repeat, missing marker/bytes,
@@ -47,17 +47,18 @@ See [protocol/service/command](../research/X2_INACTIVE_RELEASE_INBOX.md) and
   process exits abruptly with code 19 before commit; reopen recovers with zero
   partial rows and a subsequent valid import succeeds. Eight concurrent identical
   attempts produce exactly one import, seven already-imported acks and one
-  retained package.
+  retained package. A final regression ensures duplicate acknowledgements retain
+  the original stored test_only classification after consumer configuration changes.
 - Fresh `-I -S -B` process blocks app/runtime/provider/engine imports, sockets,
   subprocesses, external databases and writes outside the temporary store while
   completing inactive ingestion. No Backtrader/VectorBT dependency or execution.
 - Before/after checks preserve shared scorer output, canonical Swing 1.0.1,
   configured saved research-summary behavior and inactive state. Existing source
   remains unchanged apart from documentation and new importer/test files.
-- **83 focused safe regression tests passed in 4.927s**: inbox, shared contracts,
+- **84 focused safe regression tests passed in 4.837s**: inbox, shared contracts,
   legacy scorer, local backtest reports, strategy profiles, execution safety,
   legacy scoring and provider routing.
-- `scripts/run_tests.py`: **1400 safe tests passed in 103.459s**; dotenv and
+- `scripts/run_tests.py`: **1401 safe tests passed in 103.038s**; dotenv and
   external sockets disabled by the existing runner, manual probes excluded.
 - `scripts/verify_protected_artifacts.py`: **54 checked, zero failures**; 15
   existing worktree line endings normalized by its established verifier.
