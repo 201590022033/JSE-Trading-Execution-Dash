@@ -37,6 +37,8 @@ def main():
                 data_requests = sync_requests(repository, now)
                 from market_intelligence.calendar_outcomes import tick as outcome_tick
                 outcome_tick(repository, now)
+                from market_intelligence.hermes_cycles import run_cycle
+                run_cycle(repository, now)
             else:
                 from application.opportunities.research_data_requests import status as data_status
                 data_requests = data_status(repository, now)

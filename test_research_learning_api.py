@@ -117,6 +117,21 @@ class ResearchLearningAPITests(unittest.TestCase):
         self.assertEqual(public["human_review_assertions"], 1)
         self.assertEqual(public["adjudications"], 0)
 
+    def test_cycle_mutation_is_protected_idempotent_and_public_status_is_readonly(self):
+        self.assertEqual(self.post("hermes-cycle-run", {}, False).status_code, 401)
+        plan = self.prepare_plan()
+        self.assertEqual(self.post("hermes-cycle-run", {"invented_labels": 42}).status_code, 422)
+        for _ in range(2):
+            response = self.post("hermes-cycle-run", {})
+            self.assertEqual(response.status_code, 202)
+            self.assertEqual(response.json["model_calls"], 0)
+        with patch.object(self.repo, "save_paper_record", side_effect=AssertionError("public read wrote")):
+            status = self.client.get("/api/market-intelligence/research-learning").json["learning_cycles"]
+        self.assertEqual(status["cycle_count"], 1)
+        self.assertEqual(status["lesson_count"], 0)
+        self.assertEqual(status["latest"][0]["plan_id"], plan["record_id"])
+        self.assertNotIn("reviewer_id", str(status))
+
     def test_review_rejects_mismatched_source_hash_and_missing_independence(self):
         plan = self.prepare_plan()
         example = self.review_pack(plan).json["examples"][0]

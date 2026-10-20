@@ -1,3 +1,7 @@
+## Evidence-bound learning coordinator — 20 October 2026
+
+R12 remains the sole ACTIVE/PARTIAL milestone. The existing light clock now records idempotent weekly/evidence-triggered training reviews and source-linked lesson memory, with separate news/Swing acceptance checks. Heldout labels do not enter adaptive memory; prior lessons cannot become news citations. The older Swing validator now enforces one changed parameter. Native PostgreSQL shows1review/0lessons/0adjudicated targets, correctly WAITING. The21–28October frozen protocol and four acquisition attempts remain unchanged. A calibrated Qwen actual-source trial is queued behind10-minute idle/3.5GiB gates; production llama3 remains unchanged.1330safe tests/54protected checks pass. No executable candidate, learned weights, source unpause or trading promotion is claimed. See [operating record](HERMES_COORDINATOR_2026_10_20.md) and ADR0069.
+
 ## Monitoring checkpoint — 19 October 2026
 
 A deterministic source-bound research calendar and light five-minute local warning clock are now installed inside R12, with three official dated events and truthful missed-window receipts. Fresh source capture expands the private review corpus to27articles/486pairs. It still has0independentlabels; no predictor, learned weights or automatic outcome score is active. See [actual operation and next prospective-learning slice](RESEARCH_EARLY_WARNING_CALENDAR.md). Earlier planning/checkpoints below remain historical.

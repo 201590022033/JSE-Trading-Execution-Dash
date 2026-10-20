@@ -51,7 +51,8 @@ class Element {
 const snapshot = () => ({
   calendar_outcomes:{resolved_references:0,outcomes:[],observed_source_sessions:8,inconclusive_references:1,revision_audits:0,source_rejections:0},
   news_review:{plans:[{record_id:'plan-one',received_at:'2026-10-20T08:00:00Z',holdout_start:'2026-10-21T00:00:00Z',holdout_end:'2026-10-28T00:00:00Z',state:'WAITING_FOR_EVIDENCE',guard_version:'guard<unsafe>'}],human_review_assertions:0,ai_suggestions:2,adjudications:0,results:[]},
-  small_model_calibration:{state:'WAITING_FOR_LABELLED_EVIDENCE'}
+  small_model_calibration:{state:'WAITING_FOR_LABELLED_EVIDENCE'},
+  learning_cycles:{cycle_count:1,lesson_count:0,latest:[{state:'WAITING_FOR_TRAINING',training_targets:0,training_pairs:12,false_direct_links:0,missed_reviewed_direct_links:0,indirect_exposure_gaps:0,next_action:'REVIEW_<unsafe>'}],limitation:'No candidate <script>'}
 });
 const examples = count => Array.from({length:count},(_,i)=>({example_id:'example-'+i,article_sha256:'a'.repeat(64),instrument_id:'SASOL',issuer_name:'Sasol <issuer>',article:{headline:'Headline <img src=x onerror=bad()> '+i,summary:'Retained <script>bad()</script> passage '+i,url:'https://issuer.example/?x=<unsafe>',received_at:'2026-10-20T08:00:00Z'}}));
 async function harness({data=snapshot(),authorized=false,packExamples=examples(12)}={}) {
@@ -69,6 +70,7 @@ async function harness({data=snapshot(),authorized=false,packExamples=examples(1
   const post=async(url,body)=>{
     calls.push({method:'POST',url,body});
     if(!state.authorized)throw Error('Unlock Portfolio controls');
+    if(url.endsWith('hermes-cycle-run'))return {cycles:1,model_calls:0};
     if(url.endsWith('hermes-plan-manifest'))return {record_id:'manifest-later'};
     if(url.endsWith('hermes-plan-evaluate'))return {state:'INCONCLUSIVE',reasons:['WAITING_FOR_INDEPENDENT_HUMAN_ADJUDICATION'],holdout_consumed:false};
     return {state:'RETAINED'};
@@ -95,6 +97,15 @@ async function submit(form){assert.equal(typeof form.onsubmit,'function');await 
   assert.equal(h.calls.filter(c=>c.method==='POST').length,0,'refresh must remain read-only');
   assert.ok(h.calls.every(c=>!c.url.includes('generate')&&!c.url.includes('model')));
 
+  assert.ok(h.node('hermes-cycle-summary').innerHTML.includes('1 saved reviews'));
+  assert.ok(h.node('hermes-cycle-summary').innerHTML.includes('&lt;unsafe&gt;'));
+  assert.ok(!h.node('hermes-cycle-summary').innerHTML.includes('<script>'));
+  await h.node('run-hermes-review').click();await flush();
+  assert.ok(h.node('news-review-status').textContent.includes('Unlock Portfolio controls'));
+  h.state.authorized=true;await h.node('run-hermes-review').click();await flush();
+  assert.equal(Object.keys(h.calls.filter(c=>c.url.endsWith('hermes-cycle-run')).at(-1).body).length,0);
+  assert.ok(h.node('news-review-status').textContent.includes('No model, weight or source change'));
+  h.state.authorized=false;
   const planForm=h.node('news-plan-form');planForm.elements.start.value='2026-10-22';planForm.elements.end.value='2026-10-29';
   await submit(planForm);
   assert.ok(planForm.querySelector('[role="status"]').textContent.includes('Unlock Portfolio controls'));

@@ -72,9 +72,9 @@ class ResearchTests(unittest.TestCase):
             accept_dataset(self.repo, older, self.now)
 
     def test_proposals_cannot_add_code_or_unregistered_parameters(self):
-        valid = {"parameters": {"volume_min": 1.2, "rsi_max": 65, "holding_sessions": 4}, "rationale": "Test stricter volume."}
+        valid = {"parameters": {"volume_min": 1.2, "rsi_max": 70, "holding_sessions": 3}, "rationale": "Test stricter volume."}
         self.assertEqual(validate_proposal(valid), valid)
-        for bad in ({**valid, "code": "exec"}, {**valid, "parameters": BASELINE},
+        for bad in ({**valid, "parameters": {"volume_min": 1.2, "rsi_max": 65, "holding_sessions": 4}}, {**valid, "code": "exec"}, {**valid, "parameters": BASELINE},
                     {**valid, "parameters": {**valid["parameters"], "holding_sessions": 9}}):
             with self.assertRaises(ValueError):
                 validate_proposal(bad)
@@ -84,7 +84,7 @@ class ResearchTests(unittest.TestCase):
         contexts = []
         def proposer(context):
             contexts.append(context)
-            return {"parameters": {"volume_min": 1.2, "rsi_max": 65, "holding_sessions": 4},
+            return {"parameters": {"volume_min": 1.2, "rsi_max": 70, "holding_sessions": 3},
                     "rationale": "A test, not proof.", "provider": "TEST", "model": "TEST"}
         result = run_research(self.repo, self.now, proposer)
         self.assertEqual(result["state"], "PROPOSED_AND_TESTED")

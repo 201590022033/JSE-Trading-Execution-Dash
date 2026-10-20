@@ -237,3 +237,5 @@ Current guides describe today's accepted code/settings. Module contracts retain 
 
 - [Prospective review/outcome operating record](research/PROSPECTIVE_LEARNING_COMPLETION_2026_10_20.md).
 - [ADR0068: source transformations, prospective outcomes and independent relevance review](adr/0068-prospective-reviews-and-calendar-price-outcomes.md).
+
+- [Evidence-bound coordinator operating record](research/HERMES_COORDINATOR_2026_10_20.md) and [ADR0069](adr/0069-evidence-bound-learning-coordinator.md).

@@ -76,11 +76,13 @@ def create_weekly_brief_blueprint(factory):
         from .hermes_evaluation_plan import status as plans
         from scripts.calibrate_calendar_model import status as calibration
         from scripts.run_local_pc import FOLDER
+        from .hermes_cycles import status as cycles
         repository = factory()
         try:
             now = datetime.now(timezone.utc)
             return jsonify(calendar_outcomes=outcomes(repository, now), news_review=plans(repository, now),
                            small_model_calibration=calibration(FOLDER/'qwen-calibration-v1'),
+                           learning_cycles=cycles(repository, now),
                            live_execution=False, learned_weights=False, model_calls_on_read=0)
         finally:
             repository.close()
@@ -144,6 +146,11 @@ def create_weekly_brief_blueprint(factory):
         repository = factory()
         now = datetime.now(timezone.utc)
         try:
+            if kind == "hermes-cycle-run":
+                if payload != {}:
+                    raise ValueError("Coordinator takes only its actual stored evidence")
+                from .hermes_cycles import run_cycle
+                return jsonify(run_cycle(repository, now)), 202
             if kind.startswith('hermes-plan-'):
                 from . import hermes_evaluation_plan as plan
                 if not isinstance(payload, dict):

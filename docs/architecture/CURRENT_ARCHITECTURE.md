@@ -1,3 +1,7 @@
+## Evidence-bound learning coordinator — 20 October 2026
+
+R12 remains the sole ACTIVE/PARTIAL milestone. The existing light clock now records idempotent weekly/evidence-triggered training reviews and source-linked lesson memory, with separate news/Swing acceptance checks. Heldout labels do not enter adaptive memory; prior lessons cannot become news citations. The older Swing validator now enforces one changed parameter. Native PostgreSQL shows1review/0lessons/0adjudicated targets, correctly WAITING. The21–28October frozen protocol and four acquisition attempts remain unchanged. A calibrated Qwen actual-source trial is queued behind10-minute idle/3.5GiB gates; production llama3 remains unchanged.1330safe tests/54protected checks pass. No executable candidate, learned weights, source unpause or trading promotion is claimed. See [operating record](../research/HERMES_COORDINATOR_2026_10_20.md) and ADR0069.
+
 ## Research software continuation — 20 October 2026
 
 The existing paper-record repository now stores immutable calendar as-of references, prospective source endpoints, close-only benchmark outcomes and revision overlays. The light calendar clock runs deterministic scoring without retrieval/model/trading work. New protected news-plan/review/adjudication actions and read-only status extend the existing weekly research API; Market AI / News provides blinded review controls. Protocol/guard/corpus hashes bind a future evaluation to its preregistration. Human assertions and AI suggestions remain separate; source pause and zero weights persist.
