@@ -70,6 +70,47 @@ def create_weekly_brief_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get("/api/market-intelligence/research-learning")
+    def read_research_learning():
+        from .calendar_outcomes import status as outcomes
+        from .hermes_evaluation_plan import status as plans
+        from scripts.calibrate_calendar_model import status as calibration
+        from scripts.run_local_pc import FOLDER
+        repository = factory()
+        try:
+            now = datetime.now(timezone.utc)
+            return jsonify(calendar_outcomes=outcomes(repository, now), news_review=plans(repository, now),
+                           small_model_calibration=calibration(FOLDER/'qwen-calibration-v1'),
+                           live_execution=False, learned_weights=False, model_calls_on_read=0)
+        finally:
+            repository.close()
+
+    @bp.get("/api/market-intelligence/hermes-plan/<plan_id>/review-pack")
+    def read_plan_review_pack(plan_id):
+        if not allowed():
+            return jsonify(error="Unlock Portfolio controls to inspect the blinded review pack"), 401
+        from .hermes_evaluation_plan import review_pack
+        repository = factory()
+        try:
+            return jsonify(review_pack(repository, plan_id, datetime.now(timezone.utc),
+                manifest_id=request.args.get('manifest_id'), cohort=request.args.get('cohort', 'holdout')))
+        finally:
+            repository.close()
+
+    @bp.get("/api/market-intelligence/hermes-plan/<plan_id>/reviews")
+    def read_plan_reviews(plan_id):
+        if not allowed():
+            return jsonify(error="Unlock Portfolio controls to inspect independent reviews"), 401
+        from .hermes_evaluation_plan import _plan, _rows
+        repository = factory()
+        try:
+            now = datetime.now(timezone.utc)
+            _plan(repository, plan_id, now)
+            rows = [r for r in _rows(repository, 'hermes-evaluation-review', now) if r['plan_id'] == plan_id]
+            return jsonify(reviews=rows, warning="Review other assessments only when adjudicating; first reviews must be independent.")
+        finally:
+            repository.close()
+
     @bp.get("/api/market-intelligence/calendar-expectations/<proposal_id>")
     def review_expectation(proposal_id):
         if not allowed():
@@ -103,6 +144,33 @@ def create_weekly_brief_blueprint(factory):
         repository = factory()
         now = datetime.now(timezone.utc)
         try:
+            if kind.startswith('hermes-plan-'):
+                from . import hermes_evaluation_plan as plan
+                if not isinstance(payload, dict):
+                    raise ValueError('Explicit review operation required')
+                if kind == 'hermes-plan-prepare':
+                    from .hermes import run_diagnostic
+                    from application.opportunities.public_research import public_share_catalog
+                    from pathlib import Path
+                    import subprocess
+                    commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=Path(__file__).resolve().parents[1],
+                        text=True, capture_output=True, check=True, timeout=5).stdout.strip()
+                    report = run_diagnostic(repository, public_share_catalog(), now, commit)
+                    saved = plan.register_plan(repository, {**payload, 'corpus_id': report['corpus_id'], 'baseline_commit': commit}, now)
+                    return jsonify(saved), 202
+                if kind == 'hermes-plan-review':
+                    return jsonify(plan.submit_review(repository, payload, now)), 202
+                if kind == 'hermes-plan-adjudicate':
+                    return jsonify(plan.adjudicate(repository, payload, now)), 202
+                if kind == 'hermes-plan-manifest':
+                    return jsonify(plan.freeze_review_manifest(repository, payload['plan_id'], now)), 202
+                if kind == 'hermes-plan-evaluate':
+                    from pathlib import Path
+                    import subprocess
+                    commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=Path(__file__).resolve().parents[1],
+                        text=True, capture_output=True, check=True, timeout=5).stdout.strip()
+                    return jsonify(plan.evaluate_plan(repository, payload['plan_id'], now, execution_commit=commit)), 202
+                return jsonify(error='Unknown review operation'), 404
             if kind.startswith("calendar-"):
                 from . import research_calendar as calendar
                 operator = "local-operator"

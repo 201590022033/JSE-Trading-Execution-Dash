@@ -86,40 +86,70 @@ def read_candidates(folder=ROOT):
 
 
 def attach_iress_research(dataset, now, folder=ROOT):
-    """Bind the complete Sasol numerical research chart to actual archived bytes."""
+    """Attach independent registered cash charts bound to actual archived bytes."""
     result = deepcopy(dataset)
     result.pop('research_charts', None)
+    result.pop('source_transform_receipts', None)
     if result.get('schema') != 'local-swing-dataset-v3':
         return result
+    registry = catalog()
+    transforms_path = folder/'source-transforms.json'
     try:
-        candidate = read_candidates(folder).get('charts', {}).get('SASOL', {}).get('IRESS')
-        if not candidate:
-            return result
-        raw = (folder / 'alternative-exports' /
-            ('SASOL-IRESS-' + candidate['source_sha256'] + '.csv')).read_bytes()
-        if sha256(raw).hexdigest() != candidate['source_sha256']:
-            raise ValueError('IRESS raw receipt hash mismatch')
-        acquired = timestamp(candidate['acquired_at'])
-        if not timedelta(0) <= now-acquired <= timedelta(days=4):
-            raise ValueError('IRESS research receipt expired')
-        # Reproduce the capture's completed window, rather than treating its
-        # then-live trailing row as complete when the raw bytes are read later.
-        parsed = parse_iress_export(raw, 'SASOL', 'SOL.JSE', candidate['acquired_at'], acquired)
-        if parsed != candidate:
-            raise ValueError('IRESS candidate differs from archived observations')
-        chart = {key: parsed[key] for key in ('symbol', 'currency', 'interval', 'bars')}
-        chart['provenance'] = {key: parsed[key] for key in
-            ('provider', 'origin_symbol', 'source_sha256', 'acquired_at',
-             'price_basis', 'volume_basis', 'historical_availability')}
-        chart['provenance']['purpose'] = 'OHLCV'
-        from .ost_data import normalize
-        # Preview/upload observation can be later than the saved OST import.
-        # Build separately so failed normalization cannot leak an attachment.
-        return normalize({**result, 'observed_at': now.isoformat(),
-                          'research_charts': {'SASOL': chart}}, now)
+        transforms = json.loads(transforms_path.read_text()) if transforms_path.exists() else {}
+        candidates = read_candidates(folder).get('charts', {})
+        if not isinstance(transforms, dict) or not isinstance(candidates, dict):
+            raise ValueError('Optional source archive malformed')
+    except (ValueError, KeyError, TypeError, OSError, UnicodeError):
+        return result
+    charts, receipts = {}, {}
+    for key, providers in candidates.items():
+        if (key not in registry or registry[key]['asset_class'] != 'equity'
+                or not isinstance(providers, dict) or not providers.get('IRESS')):
+            continue
+        candidate = providers['IRESS']
+        try:
+            raw = (folder/'alternative-exports'/(key+'-IRESS-'+candidate['source_sha256']+'.csv')).read_bytes()
+            if sha256(raw).hexdigest() != candidate['source_sha256']:
+                raise ValueError('IRESS raw receipt hash mismatch')
+            acquired = timestamp(candidate['acquired_at'])
+            if not timedelta(0) <= now-acquired <= timedelta(days=4):
+                raise ValueError('IRESS research receipt expired')
+            parsed = parse_iress_export(raw, key, registry[key]['ost_code']+'.JSE', candidate['acquired_at'], acquired)
+            observation = {k: v for k, v in candidate.items() if k != 'transform_receipt_sha256'}
+            if parsed != observation:
+                raise ValueError('IRESS candidate differs from archived observations')
+            chart = {field: parsed[field] for field in ('symbol', 'currency', 'interval', 'bars')}
+            chart['provenance'] = {field: parsed[field] for field in
+                ('provider', 'origin_symbol', 'source_sha256', 'acquired_at', 'price_basis', 'volume_basis', 'historical_availability')}
+            chart['provenance']['purpose'] = 'OHLCV'
+            transform = transforms.get(candidate['source_sha256'])
+            marker = candidate.get('transform_receipt_sha256')
+            derived_path = folder/'alternative-exports'/(key+'-IRESS-derived-'+candidate['source_sha256']+'.csv')
+            if (marker or derived_path.exists()) and not transform:
+                raise ValueError('Derived source requires original native transformation lineage')
+            if transform:
+                if marker and marker != transform['receipt_sha256']:
+                    raise ValueError('Derived receipt identity mismatch')
+                from .source_transforms import derive_iress_export, validate_receipts
+                native = (folder/'alternative-exports'/(key+'-IRESS-native-'+transform['original_source_sha256']+'.csv')).read_bytes()
+                derived, replayed = derive_iress_export(native, key, candidate['acquired_at'], acquired)
+                if derived != raw or replayed != transform:
+                    raise ValueError('Transform differs from original archived export')
+                validate_receipts({key: transform}, {key: chart})
+                receipts[key] = transform
+            charts[key] = chart
+        except (ValueError, KeyError, TypeError, OSError, UnicodeError, OverflowError):
+            # A bad candidate never replaces canonical fields or other candidates.
+            continue
+    if not charts:
+        return result
+    from .ost_data import normalize
+    packet = {**result, 'observed_at': now.isoformat(), 'research_charts': charts}
+    if receipts:
+        packet['source_transform_receipts'] = receipts
+    try:
+        return normalize(packet, now)
     except (ValueError, KeyError, TypeError, OSError, UnicodeError, OverflowError):
-        # Canonical OST collection may continue, but no invalid alternative
-        # enters the numerical lane or acquires a new receipt timestamp.
         return result
 
 

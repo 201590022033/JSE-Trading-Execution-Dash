@@ -189,6 +189,8 @@ def status(repo, now, *, account_id=None):
         tracked.update(row["members"])
     dataset = latest_dataset(repo)
     coverage = [_coverage(dataset, key, now, _configuration(account_id)[1]) for key in sorted(tracked)]
+    for row in coverage:
+        row['source_transform'] = (dataset or {}).get('source_transform_receipts', {}).get(row['instrument_id'])
     today = now.astimezone(SAST)
     ready = bool(coverage) and all(c["daily_ready"] for c in coverage if c["instrument_id"] in current | {"SASOL"})
     due = today.weekday() < 5 and today.hour >= 8 and not ready

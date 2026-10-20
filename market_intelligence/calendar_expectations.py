@@ -364,13 +364,16 @@ def freeze_proposal(repo, proposal_id, operator, rationale, now, *, input_sha256
         raise ValueError("Event version changed")
     if _validate(proposal["proposal"], packet) != "DIRECT_ISSUER_GROUNDED_REQUIRES_MATERIALITY_REVIEW":
         raise ValueError("Abstained, indirect and invalid proposals cannot become a research prediction")
-    return _save(repo, "calendar-expectation-freeze", proposal_id,
+    frozen = _save(repo, "calendar-expectation-freeze", proposal_id,
                  {"proposal_id": proposal_id, "event_id": proposal["event_id"], "input_sha256": input_sha256,
                   "operator": calendar._text(operator, 100), "rationale": calendar._text(rationale, 3000),
                   "state": "FROZEN_OPERATOR_REVIEWED_RESEARCH_ONLY", "review_origin": "OPERATOR_ASSERTION_NOT_INDEPENDENT_LABEL",
                   "independent_relevance_acceptance": False, "expectation": proposal["proposal"],
                   "horizon_sessions": packet["horizon_sessions"], "benchmark_id": packet["benchmark_id"],
                   "expires_at": packet["expires_at"], "measurement_plan": {**packet["measurement_plan"], "reference_at": now.isoformat()}}, now)
+    from .calendar_outcomes import register_reference
+    register_reference(repo, frozen, now)
+    return frozen
 
 
 def status(repo, now):
@@ -389,6 +392,8 @@ def status(repo, now):
         except ValueError:
             active = False
         state = "FROZEN_OPERATOR_REVIEWED_RESEARCH_ONLY" if frozen else saved["state"]
+        from .calendar_outcomes import proposal_status
+        outcome = proposal_status(repo, frozen["record_id"], now) if frozen else None
         result.append({"record_id": saved["record_id"], "event_id": saved["event_id"], "state": state,
                        "reviewability": saved["reviewability"], "instrument_id": raw.get("instrument_id"),
                        "direction": raw.get("direction"), "statement": raw.get("statement") if isinstance(raw.get("statement"), str) and len(raw["statement"]) <= 600 else None,
@@ -399,7 +404,8 @@ def status(repo, now):
                        "measurement_plan": frozen["measurement_plan"] if frozen else saved["measurement_plan"],
                        "model_version": saved["model_version"], "prompt_version": saved["prompt_version"],
                        "received_at": saved["received_at"], "frozen_at": frozen["received_at"] if frozen else None,
-                       "event_current_and_future": active, "outcome_state": "NOT_SCORED_NO_OUTCOME_ENGINE",
+                       "event_current_and_future": active, "outcome_state": outcome["outcome_state"] if outcome else "NOT_FROZEN_NO_OUTCOME",
+                       "price_outcome": outcome,
                        "attention_weight": 0, "trading_weight": 0})
     runs = _rows(repo, "calendar-expectation-run", now)
     return {"state": "CALENDAR_EXPECTATION_RESEARCH_ONLY", "proposals": result,

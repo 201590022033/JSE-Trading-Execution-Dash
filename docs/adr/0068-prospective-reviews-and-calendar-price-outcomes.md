@@ -1,0 +1,19 @@
+# ADR 0068 — Prospective reviews and calendar price outcomes
+
+Date: 20 October 2026. Status: accepted for research software within R12. No source, strategy or model promotion.
+
+## Decision
+
+Extend the existing paper-record repository, source-bound calendar expectations and retained-news Hermes corpus. The light calendar clock records eligible price outcomes without a provider, model or trading cycle. Public status reads do not write, score or generate. Existing operator authority protects plan registration, source review and adjudication.
+
+At operator freeze, bind a separate immutable price reference to an actual dataset receipt available by that freeze. Retain whole IRESS share and whole OST Top40 identities, hashes, acquisition times and exact integer-cent closes. A missing earlier receipt is inconclusive and cannot be repaired retrospectively. Observe only the newest eligible completed endpoint in a newly captured dataset; older context does not create prospective sessions. Score exact 3/4/5 observed-session gross excess close returns against the aligned benchmark, subject to expiry and revision overlays. These are descriptive outcomes, not fills, stop/target simulations or independent causal samples. Price/source/action/volume/historical-availability caveats remain.
+
+Freeze the issuer relevance baseline, protocol source hash, guard hash, current corpus and future collection dates before a later cohort exists. A source passage needs two distinct independently asserted human reviews and a separate human adjudicator for reference truth. AI suggestions are recorded separately. Blind first reviewers to baseline predictions and others' reviews. Group copied sources and adjudicated events; exclude already seen sources and gaps from untouched evaluation. A terminal evaluation consumes the held-out cohort even if inconclusive; changed code/rules need a successor future plan. Minimum counts are declared gates, not a statistical power claim. No labels, future observations, precision/recall or weights are manufactured.
+
+Generalize the existing whole-source IRESS numerical route to registered cash shares without expanding the configured Sasol ranking universe. Preserve canonical OST HLCV and all missing Open fields. Native IRESS exports with duplicate session dates remain rejected by the default parser. A separate explicit transformation may remove a duplicate only when all five OHLCV values match exactly in integer cents and whole volume units. Preserve original bytes, derived bytes, both hashes, original acquisition time, removed/kept row positions, ignored percentage differences and an immutable receipt. Replay this lineage at attachment; transport and validate it through v3 normalization and storage. Conflicting duplicates remain quarantined. Identical derived content does not refresh a receipt or create another anchor.
+
+Use a separate one-shot small-model calibration before considering a resource profile change. The pinned qwen2.5:1.5b fixture uses an owned local process, two CPU threads, no GPU, idle gating, memory cancellation and a durable reservation. Exact schema, quote and abstention checks establish only fixture behavior and sampled resource fit. They do not establish market-news accuracy. Keep the existing production llama3 profile unchanged until separately reviewed; a download or calibration pass does not activate it.
+
+## Acceptance boundary
+
+Independent source/pipeline/reviewer reconciliation preceded the duplicate transformation and outcome implementation. Offline behavior tests, native PostgreSQL readback and dashboard verification cover the software paths. Real future outcomes, independent human reviews, historical B5 definitions and execution evidence are separate acceptance requirements. R12 remains the sole ACTIVE/PARTIAL milestone; older frozen PARTIAL decisions and disabled Live execution remain intact.

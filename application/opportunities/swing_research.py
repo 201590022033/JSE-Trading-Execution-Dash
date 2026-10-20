@@ -58,7 +58,7 @@ def validate_dataset(payload, now):
             if _available_at(session) > observed or previous and session <= previous:
                 raise ValueError("ordered completed sessions required")
             previous = session
-            if row.get("estimated") or row.get("price_quality") == "ESTIMATED":
+            if row.get("estimated") or row.get("is_estimated") or row.get("synthetic") or row.get("price_quality") == "ESTIMATED":
                 raise ValueError("estimated inputs rejected")
             clean = {"timestamp": session}
             for field in ("open", "high", "low", "close", "volume"):

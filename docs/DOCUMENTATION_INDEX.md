@@ -232,3 +232,8 @@ Current guides describe today's accepted code/settings. Module contracts retain 
 
 - [Sourced expectations and daily imports](research/SOURCED_EXPECTATIONS_AND_DAILY_IMPORTS.md): current local operating scope, storage assumptions and pending actual inference/outcomes.
 - [ADR0067](adr/0067-sourced-calendar-drafts-and-data-routines.md): source packets, owned idle runner, canonical data requests and operator routines.
+
+## 20 October local research continuation
+
+- [Prospective review/outcome operating record](research/PROSPECTIVE_LEARNING_COMPLETION_2026_10_20.md).
+- [ADR0068: source transformations, prospective outcomes and independent relevance review](adr/0068-prospective-reviews-and-calendar-price-outcomes.md).

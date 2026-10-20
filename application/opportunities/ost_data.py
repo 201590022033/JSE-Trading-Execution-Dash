@@ -120,8 +120,9 @@ def normalize(payload, now):
         # A complete alternative chart is a separate numerical shadow input.
         # It never replaces or supplies individual fields to the OST chart.
         research = payload['research_charts']
-        if not isinstance(research, dict) or set(research) != {'SASOL'}:
-            raise ValueError('explicit Sasol IRESS research chart required')
+        cash = {key for key, item in registry.items() if item['asset_class'] == 'equity'}
+        if not isinstance(research, dict) or not research or set(research)-cash:
+            raise ValueError('registered cash-share IRESS research charts required')
         from .supplemental_data import validate_receipt
         normalized = validate_dataset({'schema': 'local-swing-dataset-v1',
             'observed_at': payload['observed_at'], 'charts': research}, now)['charts']
@@ -130,6 +131,9 @@ def normalize(payload, now):
                 {**chart, 'provenance': research[key]['provenance']}, observed)
             chart.update(research_only=True, historical_evaluation_allowed=False)
         cleaned['research_charts'] = normalized
+    if 'source_transform_receipts' in payload:
+        from .source_transforms import validate_receipts
+        cleaned['source_transform_receipts'] = validate_receipts(payload['source_transform_receipts'], cleaned.get('research_charts', {}))
     return cleaned
 
 

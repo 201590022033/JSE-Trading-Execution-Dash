@@ -10,7 +10,14 @@ MAPPINGS = {'SASOL': ('SOL.JO', 'IRESS', 'SOL.JSE', 'OHLCV'),
 
 
 def validate_receipt(key, chart, observed):
-    symbol, provider, origin, purpose = MAPPINGS[key]
+    if key in MAPPINGS:
+        symbol, provider, origin, purpose = MAPPINGS[key]
+    else:
+        from .ost_data import catalog
+        item = catalog()[key]
+        if item['asset_class'] != 'equity':
+            raise ValueError('Registered cash-share IRESS identity required')
+        symbol, provider, origin, purpose = item['symbol'], 'IRESS', item['ost_code']+'.JSE', 'OHLCV'
     p = chart['provenance']
     if chart['symbol'] != symbol or not isinstance(p, dict) or set(p) != {
         'provider', 'origin_symbol', 'source_sha256', 'acquired_at', 'purpose',
@@ -31,10 +38,10 @@ def validate_receipt(key, chart, observed):
     if any(datetime.fromisoformat(b['timestamp'][:10]).replace(tzinfo=timezone.utc)
            + timedelta(hours=15) > acquired for b in chart['bars']):
         raise ValueError('source captured before the session close')
-    if key == 'SASOL':
+    if provider == 'IRESS':
         from .swing_data_quality import real_ohlc
         if not all(real_ohlc(b) for b in chart['bars']):
-            raise ValueError('complete Sasol OHLC required')
+            raise ValueError('complete whole-source OHLC required')
     elif any(b.get('open') is not None for b in chart['bars']):
         raise ValueError('OST benchmark opens are unavailable')
     return {**p, 'acquired_at': acquired.isoformat()}
