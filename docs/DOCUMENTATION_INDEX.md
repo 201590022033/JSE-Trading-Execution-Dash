@@ -4,7 +4,9 @@ Reconciled 5 October 2026 against `master@c2ef802`. Scope: **178 existing tracke
 
 Start with [CURRENT_STATE](CURRENT_STATE.md), [current architecture](architecture/CURRENT_ARCHITECTURE.md), [target architecture](architecture/TARGET_ARCHITECTURE.md), [roadmap](roadmap/ROADMAP.md) and [recent changes](changes/2026-09-21-to-2026-10-05.md).
 
-Latest bounded continuation: [X1b pure legacy scorer checkpoint](changes/X1B_PURE_LEGACY_NEWS_2026_10_20.md), [ADR0072](adr/0072-pure-legacy-news-scorer.md), [scorer API](../packages/jse_intelligence_core/LEGACY_NEWS_SCORER.md). R12 remains ACTIVE/PARTIAL; X1b awaits owner review.
+Latest bounded continuation: [X2 inactive release checkpoint](changes/X2_INACTIVE_RELEASE_INBOX_2026_10_20.md), [ADR0073](adr/0073-inactive-radar-package-inbox.md), [transport/service protocol](research/X2_INACTIVE_RELEASE_INBOX.md). R12 remains ACTIVE/PARTIAL; X2 awaits owner review.
+
+Earlier: [X1b pure legacy scorer checkpoint](changes/X1B_PURE_LEGACY_NEWS_2026_10_20.md), [ADR0072](adr/0072-pure-legacy-news-scorer.md), [scorer API](../packages/jse_intelligence_core/LEGACY_NEWS_SCORER.md).
 
 Earlier: [X1a shared contracts checkpoint](changes/X1A_SHARED_CONTRACTS_2026_10_20.md), [ADR0071](adr/0071-shared-intelligence-contract-boundary.md), [schema/API](../packages/jse_intelligence_core/README.md).
 

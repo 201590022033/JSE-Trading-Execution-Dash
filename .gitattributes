@@ -10,3 +10,6 @@
 /market_profiles.py -text -filter -ident !working-tree-encoding
 
 *.sh text eol=lf
+
+# X2 transport digests bind exact fixture bytes across Windows/Linux checkouts.
+/tests/fixtures/radar_inbox/** -text -filter -ident !working-tree-encoding

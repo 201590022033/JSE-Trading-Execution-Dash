@@ -1,3 +1,14 @@
+## X2 inactive release inbox — 20 October 2026, for owner review
+
+Owner assigned X2 using the prepared handoff. R12 remains the sole ACTIVE/PARTIAL
+milestone. The bounded explicit local importer validates complete packages and
+support/evidence chains, retaining immutable inactive bytes/registry/acks in one
+transaction. No runtime integration, active release, strategy/scorer/default or
+service changes. See [checkpoint/verification](../changes/X2_INACTIVE_RELEASE_INBOX_2026_10_20.md)
+and [ADR0073](../adr/0073-inactive-radar-package-inbox.md). Stop for owner review.
+X3 accepted radar evaluation/adoption, strategy/SSF execution, UI and separate
+research R0-ENGINE work have not started. Existing SSF/UI/rename backlog is retained.
+
 ## X1b pure legacy scorer — 20 October 2026, for owner review
 
 20 October backlog-only addendum: [deferred execution to-dos](EXECUTION_BACKLOG.md)

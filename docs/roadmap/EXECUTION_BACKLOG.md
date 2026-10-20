@@ -3,7 +3,8 @@
 Recorded 20 October 2026 from the owner's planning-chat handoff. Documentation
 only: no implementation, source acquisition, session verification or runtime
 activation is authorized by this record. R12 remains the sole ACTIVE/PARTIAL
-milestone; X1b remains delivered for review and X2 remains proposed next.
+milestone. X2 is now delivered for owner review; X3 radar evaluation/adoption
+remains proposed next. Earlier X1a/X1b checkpoints remain recorded.
 
 This supplements, without replacing or reordering, [ROADMAP](ROADMAP.md),
 [CURRENT_MILESTONE](CURRENT_MILESTONE.md), the
@@ -46,7 +47,8 @@ preserved.
 ## Existing execution/shared-core work retained
 
 Preserve all previously recorded requirements and gates. In particular: X2 local
-file release inbox/validation/immutable inactive registry/acknowledgements;
+file release inbox/validation/immutable inactive registry/acknowledgements is
+delivered for review ([checkpoint](../changes/X2_INACTIVE_RELEASE_INBOX_2026_10_20.md));
 accepted versioned radar/scorer inference and current-radar integration; exact
 strategy-release compatibility/current evaluation; attributable feedback/parity
 round trip; operational shakedown and explicit acceptance before adoption.

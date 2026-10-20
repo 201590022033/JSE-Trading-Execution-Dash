@@ -1,3 +1,14 @@
+## X2 inactive release inbox — 20 October 2026, for owner review
+
+`application.release_inbox` and the explicit one-package CLI validate transport,
+shared v1 contracts, consumer-owned support profiles and referenced JSON bytes.
+A dedicated local SQLite store atomically retains the complete package, immutable
+INACTIVE registry record and acknowledgement; it is separate from runtime/account
+databases. No route, startup import, watcher, scorer/model execution or activation
+is wired. Shared-core 0.2.0, current research-summary endpoint, strategy defaults
+and services are unchanged. R12 remains sole ACTIVE/PARTIAL. See [ADR0073](../adr/0073-inactive-radar-package-inbox.md),
+[protocol](../research/X2_INACTIVE_RELEASE_INBOX.md) and [checkpoint](../changes/X2_INACTIVE_RELEASE_INBOX_2026_10_20.md).
+
 ## X1b pure legacy scorer — 20 October 2026, for owner review
 
 Shared core 0.2.0 adds `legacy-news-v1`: pure keyword/mention scoring and

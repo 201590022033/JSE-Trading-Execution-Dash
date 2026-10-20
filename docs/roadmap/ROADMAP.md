@@ -1,3 +1,12 @@
+## X2 inactive release inbox — 20 October 2026, for owner review
+
+R12 remains sole ACTIVE/PARTIAL. Owner-assigned X2 delivers the explicit local
+inactive importer with durable atomic registry/acknowledgements and no runtime
+adoption. See [checkpoint](../changes/X2_INACTIVE_RELEASE_INBOX_2026_10_20.md).
+Stop for review; X3 accepted radar evaluation is the next proposed execution card.
+Strategy/SSF execution, UI and research R0-ENGINE remain separately assigned work;
+the existing [backlog](EXECUTION_BACKLOG.md) and dependency order are retained.
+
 ## X1b pure legacy scorer — 20 October 2026, for owner review
 
 Deferred owner additions are recorded in [execution backlog](EXECUTION_BACKLOG.md):

@@ -1,0 +1,43 @@
+{
+  "package_id": "sha256:b6c1a120a4ba80aff04266f261e4cb44270264c4a750555d54379cedfc840a1e",
+  "manifest_id": "sha256:c6cc7dc8152457f8f4b2b1bbd40eb4a4d6ca042fda600edc417a5765e4927b0f",
+  "release_id": "synthetic:radar",
+  "release_version": "0.1.0",
+  "profile_id": "test-only:banks-v1",
+  "test_only": true,
+  "files": {
+    "artifacts/clock.json": "sha256:edece6243495981f63d62cba0fb1092775a02a2d1d9bfdd4ff761728b04e3bfc",
+    "artifacts/context.json": "sha256:02be8cdb963ccfd213dde96341ab4a1bb92eb757f3d176ba30b09a011128030f",
+    "artifacts/document.json": "sha256:444b5c1095cb0a7d90b1889ddaf11920edd193d3274d3233f3f585fc851f398e",
+    "artifacts/evidence.json": "sha256:624d1dac596ad68063582bbddbc1fb62cedfb9779283dc91cfa2d9fd0a9e2035",
+    "artifacts/exposures.json": "sha256:3b61972da73215c0f77b99b5c856d68dab942a125b8a555cc14698cc17dd6fc0",
+    "artifacts/provenance.json": "sha256:eb9a1fef228fc7e536664b4e06041f809c8a7abf3775a718dab67fa8f6a1eb02",
+    "artifacts/research.json": "sha256:99f7efd169f661984c611b756e9805ffd6fde3f638177ddf3824184f90740362",
+    "artifacts/universe.json": "sha256:b15b496dfb9ccbdde63766d78f33b9f11c6908731c67aa65209d86d96d1519e8",
+    "COMPLETE.json": "sha256:66feb27eda4d51667e519b5924977b205e1b63ee35c3e92f41a325a905cc5ba2",
+    "envelope.json": "sha256:1a574d185b326e31663d20efe787f3450368bb9b426aa851c5e59971aee2cf3a",
+    "manifest.json": "sha256:2e24883b87721f6ccfc00e79f05103a0b1a16b3de2906d5aa588812e3c75ada6"
+  },
+  "outcomes": {
+    "imported": [
+      "IMPORTED_INACTIVE",
+      "VALIDATED_INACTIVE",
+      "INACTIVE"
+    ],
+    "repeat": [
+      "ALREADY_IMPORTED",
+      "SAME_PACKAGE",
+      "INACTIVE"
+    ],
+    "pending": [
+      "PENDING",
+      "INCOMPLETE",
+      null
+    ],
+    "conflict": [
+      "CONFLICT",
+      "VERSION_CONFLICT",
+      null
+    ]
+  }
+}
