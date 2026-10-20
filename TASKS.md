@@ -7,3 +7,8 @@ Recent delivered slices include canonical paper workflow, session-aware daily wo
 Next recommended milestone is to freeze six 3–5-session hypothesis contracts and real-data admission. Follow with local daily causal backtests and controls, optional real 30-minute refinement, dated SENS/economic retrieval and selective radar upload. These are dependency-ordered proposed tasks; no new implementation milestone is activated by this document.
 
 Keep current gates visible: invalid OHLC blocks structural/ATR tests; JSE provider coverage/entitlements are unresolved; current cloud holdout has zero closed samples; current news cases lack independent publishers; no automatic parameter promotion or Live execution.
+
+20 October deferred additions: see the [execution/shared-intelligence backlog](docs/roadmap/EXECUTION_BACKLOG.md)
+for SSF pre-cash radar versus exact-product execution readiness and later
+owner-selected GitHub interactive-dashboard tooling assessment. This preserves
+existing tasks and milestone order; it authorizes documentation only.

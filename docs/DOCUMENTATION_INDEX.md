@@ -12,6 +12,10 @@ Earlier: [operational Sasol paired refinement](research/SASOL_PAIRED_REFINEMENT_
 
 ## How to read this library
 
+Deferred owner requirements: [execution/shared-intelligence backlog](roadmap/EXECUTION_BACKLOG.md)
+records SSF pre-cash radar/exact-product readiness and later interactive execution
+tooling assessment, preserving existing milestone order. Documentation only.
+
 Current guides describe today's accepted code/settings. Module contracts retain their original scope and have a current-context note. Dated decisions retain their recorded reasoning; later additive decisions do not erase it. Historical reports/handoffs retain their test results, failures and then-current restrictions. Archived ACTIVE labels never activate another milestone.
 
 **11 protected Markdown artifacts are intentionally unchanged** to preserve checksums and reproducibility. Their old capability/performance claims are historical evidence, not current deployment acceptance. All 54 protected artifacts remain under the existing verifier; do not amend the checksum manifest to make a rewrite pass.

@@ -1,5 +1,9 @@
 ## X1b pure legacy scorer — 20 October 2026, for owner review
 
+Deferred owner additions are recorded in [execution backlog](EXECUTION_BACKLOG.md):
+SSF pre-cash radar/readiness and later GitHub-tool UI assessment. These add no
+active milestone and do not reorder or replace existing release/integration work.
+
 R12 remains the sole ACTIVE/PARTIAL milestone. The owner-requested next bounded
 card adds shared-core 0.2.0: frozen legacy per-item scoring/normalization with
 provenance and old/new hand-answer parity. Execution code and defaults remain

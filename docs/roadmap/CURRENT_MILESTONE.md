@@ -1,5 +1,9 @@
 ## X1b pure legacy scorer — 20 October 2026, for owner review
 
+20 October backlog-only addendum: [deferred execution to-dos](EXECUTION_BACKLOG.md)
+record SSF pre-cash radar versus exact-product readiness and later owner-selected
+GitHub interactive UI assessment. Existing work/order is preserved; no card starts.
+
 Owner requested continuation after X1a. R12 remains the sole ACTIVE/PARTIAL
 milestone. X1b provides shared-core 0.2.0 and a pure legacy-news-v1 scorer with
 fixed-versus-assessed provenance, source lineage and pinned old/new fixtures.
