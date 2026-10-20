@@ -1,4 +1,7 @@
-# JSE Intelligence Core 0.3.0 — contracts, legacy scorer and StrategyRelease
+# JSE Intelligence Core 0.4.0 — contracts, legacy scorer and execution feedback
+
+X5 adds [ExecutionFeedback v1](EXECUTION_FEEDBACK.md), an immutable observed
+feedback contract. Existing strategy/news contracts and identities are unchanged.
 
 X4 adds [StrategyRelease v1](STRATEGY_RELEASE.md), StrategyMapping and
 StrategyComponent. Existing X1a schemas/identities and X1b scoring semantics are
@@ -12,7 +15,7 @@ Build/install using a local environment with setuptools >=68 and wheel:
 
 ```powershell
 python -m pip wheel --no-index --no-deps --no-build-isolation packages/jse_intelligence_core --wheel-dir work/x1a-wheels
-python -m pip install --no-index --no-deps --target work/x1a-installed work/x1a-wheels/jse_intelligence_core-0.3.0-py3-none-any.whl
+python -m pip install --no-index --no-deps --target work/x1a-installed work/x1a-wheels/jse_intelligence_core-0.4.0-py3-none-any.whl
 ```
 
 Do not install into the running application environment for X1a/X1b. Build tools are

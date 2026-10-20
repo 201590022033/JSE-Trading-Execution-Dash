@@ -15,3 +15,4 @@
 /tests/fixtures/radar_inbox/** -text -filter -ident !working-tree-encoding
 /tests/fixtures/radar_evaluator/** -text -filter -ident !working-tree-encoding
 /tests/fixtures/strategy_release/** -text -filter -ident !working-tree-encoding
+/tests/fixtures/execution_feedback/** -text -filter -ident !working-tree-encoding

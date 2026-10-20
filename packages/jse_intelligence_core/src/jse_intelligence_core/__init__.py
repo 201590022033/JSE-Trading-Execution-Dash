@@ -9,11 +9,13 @@ from .legacy_news import (
 )
 
 from .strategy_release import StrategyComponent, StrategyMapping, StrategyRelease
+from .feedback import ExecutionFeedback
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     "ArtifactReference", "ContractError", "DatedReference", "EvidenceReference",
     "InstrumentPermission", "PublicationClock", "RadarReleaseManifest", "SectorScope",
     "NewsScore", "ScoredAsset", "ScoringProvenance", "detect_mentions", "keyword_score", "score_news",
     "StrategyComponent", "StrategyMapping", "StrategyRelease",
+    "ExecutionFeedback",
 ]

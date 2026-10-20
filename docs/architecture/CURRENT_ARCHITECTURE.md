@@ -1,3 +1,17 @@
+## X5 observed execution feedback — 20 October 2026, for review
+
+Owner requested X5. Shared-core0.4.0 adds immutable observed feedback; an explicit
+append-only outbox/receiver returns idempotent batch receipts and durable sender
+checkpoints. Decision/no-setup/risk/order/fill/cost/exit/correction provenance is
+retained with causal as-of availability. No automatic learning/activation occurs.
+All examples are synthetic; operational capture and real X3/X4 release acceptance
+remain pending. R12 remains the sole ACTIVE/PARTIAL milestone. See
+[checkpoint](../changes/X5_EXECUTION_FEEDBACK_2026_10_20.md),
+[protocol](../research/X5_EXECUTION_FEEDBACK.md),
+[ADR0076](../adr/0076-observed-execution-feedback-round-trip.md).
+All numbered X software slices are delivered for review; research/P1, P2
+operational shakedown and U1 reporting remain separate. Stop for owner review.
+
 ## X4 inactive StrategyRelease evaluator — 20 October 2026, for review
 
 Owner authorized X4 and a GitHub push. Shared-core0.3.0 adds immutable strategy,
