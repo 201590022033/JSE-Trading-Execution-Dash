@@ -3,9 +3,9 @@
 Recorded 20 October 2026 from the owner's planning-chat handoff. Documentation
 only: no implementation, source acquisition, session verification or runtime
 activation is authorized by this record. R12 remains the sole ACTIVE/PARTIAL
-milestone. X3 evaluator/adapter software is now delivered for owner review; real-artifact
-acceptance and production adoption remain pending. X4/X5 remain proposed.
-Earlier X1a/X1b/X2 checkpoints remain recorded.
+milestone. X4 inactive strategy evaluator software is now delivered for review;
+real-artifact acceptance and operational activation remain pending. Owner authorized
+the GitHub push. X5 remains proposed. Earlier X1a/X1b/X2/X3 checkpoints remain recorded.
 
 This supplements, without replacing or reordering, [ROADMAP](ROADMAP.md),
 [CURRENT_MILESTONE](CURRENT_MILESTONE.md), the

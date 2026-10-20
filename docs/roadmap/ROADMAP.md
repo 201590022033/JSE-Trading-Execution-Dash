@@ -1,3 +1,17 @@
+## X4 inactive StrategyRelease evaluator — 20 October 2026, for review
+
+Owner authorized X4 and a GitHub push. Shared-core0.3.0 adds immutable strategy,
+component and exact mapping contracts without changing earlier v1 identities.
+The explicit inactive adapter reuses the existing Swing policy and verifies
+frozen full-result parity, exact capabilities and current-as-of source/admission
+timing. All qualification examples are synthetic; real research release acceptance
+and operational activation remain pending. R12 remains sole ACTIVE/PARTIAL.
+See [checkpoint](../changes/X4_INACTIVE_STRATEGY_EVALUATOR_2026_10_20.md),
+[protocol](../research/X4_INACTIVE_STRATEGY_EVALUATOR.md),
+[ADR0075](../adr/0075-inactive-strategy-release-boundary.md).
+X5 feedback is the only remaining numbered X card. Research/P1, P2 operational
+shakedown and U1 reporting remain separate. Stop after the authorized GitHub push.
+
 ## X3 reviewed radar evaluator — 20 October 2026, for owner review
 
 Owner requested X3. Software is delivered: bounded frozen-JSON evaluator,

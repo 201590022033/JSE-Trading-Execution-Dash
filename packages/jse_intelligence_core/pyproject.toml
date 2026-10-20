@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jse-intelligence-core"
-version = "0.2.0"
+version = "0.3.0"
 description = "Pure JSE intelligence contracts and frozen legacy news baseline"
 requires-python = ">=3.12"
 dependencies = []

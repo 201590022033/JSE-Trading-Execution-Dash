@@ -1,3 +1,5 @@
+Latest bounded continuation: [X4 inactive StrategyRelease evaluator](changes/X4_INACTIVE_STRATEGY_EVALUATOR_2026_10_20.md), [ADR0075](adr/0075-inactive-strategy-release-boundary.md), [protocol](research/X4_INACTIVE_STRATEGY_EVALUATOR.md). Software for review; real-artifact acceptance/activation pending. GitHub push authorized; R12 remains ACTIVE/PARTIAL.
+
 Latest bounded continuation: [X3 reviewed radar evaluator](changes/X3_REVIEWED_RADAR_EVALUATOR_2026_10_20.md), [ADR0074](adr/0074-reviewed-radar-release-evaluation.md), [protocol](research/X3_REVIEWED_RADAR_EVALUATOR.md). Software awaits review; real-artifact acceptance/production adoption pending. R12 remains ACTIVE/PARTIAL.
 
 # Complete project document index

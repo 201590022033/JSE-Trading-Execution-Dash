@@ -1,4 +1,8 @@
-# JSE Intelligence Core 0.2.0 — X1a contracts and X1b scorer
+# JSE Intelligence Core 0.3.0 — contracts, legacy scorer and StrategyRelease
+
+X4 adds [StrategyRelease v1](STRATEGY_RELEASE.md), StrategyMapping and
+StrategyComponent. Existing X1a schemas/identities and X1b scoring semantics are
+unchanged. The new execution adapter is separate from this pure contract package.
 
 Python 3.12+, standard library only at runtime. This is an inactive interchange
 boundary under the existing R12 continuation. Schema-valid means structurally
@@ -8,7 +12,7 @@ Build/install using a local environment with setuptools >=68 and wheel:
 
 ```powershell
 python -m pip wheel --no-index --no-deps --no-build-isolation packages/jse_intelligence_core --wheel-dir work/x1a-wheels
-python -m pip install --no-index --no-deps --target work/x1a-installed work/x1a-wheels/jse_intelligence_core-0.2.0-py3-none-any.whl
+python -m pip install --no-index --no-deps --target work/x1a-installed work/x1a-wheels/jse_intelligence_core-0.3.0-py3-none-any.whl
 ```
 
 Do not install into the running application environment for X1a/X1b. Build tools are

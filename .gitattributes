@@ -14,3 +14,4 @@
 # X2 transport digests bind exact fixture bytes across Windows/Linux checkouts.
 /tests/fixtures/radar_inbox/** -text -filter -ident !working-tree-encoding
 /tests/fixtures/radar_evaluator/** -text -filter -ident !working-tree-encoding
+/tests/fixtures/strategy_release/** -text -filter -ident !working-tree-encoding
