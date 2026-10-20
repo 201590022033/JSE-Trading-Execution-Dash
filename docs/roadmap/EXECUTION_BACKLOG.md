@@ -12,6 +12,34 @@ planning pack at
 `C:/Users/Deon/Documents/Codex/2026-10-20/event-driven-backtest-planning/outputs`.
 Research planning remains in that planning chat/pack.
 
+## Pending local folder rename — JSE Trading Execution Dash
+
+Status: PENDING LOCAL MOVE / DOCUMENTATION ONLY. Owner-approved project name:
+**JSE Trading Execution Dash**; repository/folder slug:
+`JSE-Trading-Execution-Dash`. The planning-chat naming receipt reports that the
+execution chat and GitHub repository have been renamed and local origin updated:
+[renamed GitHub repository](https://github.com/201590022033/JSE-Trading-Execution-Dash).
+
+Current valid source path remains
+`C:/Users/Deon/Documents/GitHub/trading-system-complete`. Pending destination:
+`C:/Users/Deon/Documents/GitHub/JSE-Trading-Execution-Dash`. The attempted local
+rename failed with Windows "being used by another process"; PostgreSQL and Python
+processes reference the checkout. No processes were stopped. Do not use the
+pending path as an existing checkout or retry the rename/stop services from this
+documentation handoff.
+
+Later coordinate a separately authorized maintenance window after directory
+locks are released; then complete the move and verify/update active launch,
+scheduled-task and planning paths. Preserve historical receipts at their original
+paths. Hosted Railway service names/identifiers and URLs remain unchanged; the
+GitHub rename does not authorize changing them. No application logic, runtime
+settings or database contents change here.
+
+Authoritative naming receipt:
+`C:/Users/Deon/Documents/Codex/2026-10-20/event-driven-backtest-planning/outputs/EXECUTION_PROJECT_RENAME.md`.
+The existing SSF and interactive-tool to-dos below and all milestone ordering are
+preserved.
+
 ## Existing execution/shared-core work retained
 
 Preserve all previously recorded requirements and gates. In particular: X2 local
@@ -91,3 +119,7 @@ planning MILESTONES_AND_SIGNOFF.md U1 and later extensions.
 work by reference. No code/interfaces/defaults changed; no new architecture
 decision, milestone activation, source/model/broker workload or UI implementation.
 Owner assignment is required before beginning any proposed card.
+
+20 October 2026 naming addendum: recorded completed remote/chat naming and the
+pending, lock-blocked local folder move from the planning receipt. No rename
+retry, service stop, runtime path edit or Railway change was performed here.
