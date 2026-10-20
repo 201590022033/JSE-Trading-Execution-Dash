@@ -1,0 +1,619 @@
+{
+  "note": "Synthetic hand-calculated legacy answers; no financial acceptance. Never generated from either scorer.",
+  "scorer_version": "legacy-news-v1",
+  "cases": [
+    {
+      "name": "positive",
+      "input": {
+        "headline": "Sasol profits rise",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:d714ffbc4641b08013e157b1458f7384a530069962b60b3b4616996db707bd51",
+      "expected": {
+        "summary": "Sasol profits rise",
+        "sentiment": "bullish",
+        "score": 1.0,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": 1,
+            "strength": 0.9
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "negative",
+      "input": {
+        "headline": "Sasol losses fall",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:1c9a1c5482da5453c92c8c271dcc257386d97ca7218600ec9c4dc6f81e224071",
+      "expected": {
+        "summary": "Sasol losses fall",
+        "sentiment": "bearish",
+        "score": -1.0,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": -1,
+            "strength": 0.9
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "neutral-mentioned",
+      "input": {
+        "headline": "Sasol board meeting",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:9f4f2591e274e9a1fea85a9e582233e9ec06c068f8c935374eaeaff7b5d664fe",
+      "expected": {
+        "summary": "Sasol board meeting",
+        "sentiment": "neutral",
+        "score": 0.0,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": 0,
+            "strength": 0.2
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "missing-body-and-headline",
+      "input": {
+        "headline": "",
+        "text": null,
+        "assessment": null,
+        "prior_sentiment": "bullish"
+      },
+      "input_hash": "sha256:f09fc2708a2656fee3fc68a672bc397d5007d05123245625b2e8e94f89ea851d",
+      "expected": {
+        "summary": "",
+        "sentiment": "neutral",
+        "score": 0.0,
+        "assets": [],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "partial-and-rounding",
+      "input": {
+        "headline": "Sasol profit growth risk",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:f883a78024fa8d8381b0307a289f26499e47488fc89089f20733dec7701e6a93",
+      "expected": {
+        "summary": "Sasol profit growth risk",
+        "sentiment": "bullish",
+        "score": 0.33,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": 1,
+            "strength": 0.53
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "balanced",
+      "input": {
+        "headline": "Sasol profit risk",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:42bf8d22fdc051ab0c2c5660243baf4b3ff4ee986872a9b693be00091fdd40eb",
+      "expected": {
+        "summary": "Sasol profit risk",
+        "sentiment": "neutral",
+        "score": 0.0,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": 0,
+            "strength": 0.2
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "repetition-not-counted",
+      "input": {
+        "headline": "Sasol profit profit profit risk",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:3b754863feb22b004fecdb387b63f5c314a5c31d8cfb7aeaec1b3e0ae4337ca3",
+      "expected": {
+        "summary": "Sasol profit profit profit risk",
+        "sentiment": "neutral",
+        "score": 0.0,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": 0,
+            "strength": 0.2
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "negation-ignored",
+      "input": {
+        "headline": "Sasol no profit",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:5d39d53544600e16b04b107330776734d855d5ba2fc3b375138097131b354523",
+      "expected": {
+        "summary": "Sasol no profit",
+        "sentiment": "bullish",
+        "score": 1.0,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": 1,
+            "strength": 0.9
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "substring-false-positive",
+      "input": {
+        "headline": "XMTNX oiling recordkeeping",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:934f4aa807ba306490c775a4bb1ccac57472145c379a3813e61518a39390d747",
+      "expected": {
+        "summary": "XMTNX oiling recordkeeping",
+        "sentiment": "bullish",
+        "score": 1.0,
+        "assets": [
+          {
+            "name": "OIL",
+            "direction": 1,
+            "strength": 0.9
+          },
+          {
+            "name": "MTN",
+            "direction": 1,
+            "strength": 0.9
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "macro-and-issuer-overlap",
+      "input": {
+        "headline": "Gold Fields profit",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:bfff21d611f314d5ab907d5d32ce38c3642d7f277fbb3f59760aecc7c5c77e28",
+      "expected": {
+        "summary": "Gold Fields profit",
+        "sentiment": "bullish",
+        "score": 1.0,
+        "assets": [
+          {
+            "name": "GOLD",
+            "direction": 1,
+            "strength": 0.9
+          },
+          {
+            "name": "GFI",
+            "direction": 1,
+            "strength": 0.9
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "body-scored-with-headline",
+      "input": {
+        "headline": "Board notice",
+        "text": "Sasol loss",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:eb46bc174136cf530f775bb5d65759d0cdf6fc35e88278bea7e76d2eb4a5c4be",
+      "expected": {
+        "summary": "Board notice",
+        "sentiment": "bearish",
+        "score": -1.0,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": -1,
+            "strength": 0.9
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "assessed-overrides-fixed",
+      "input": {
+        "headline": "Sasol profits rise",
+        "text": "",
+        "assessment": {
+          "summary": "Synthetic source assessment",
+          "sentiment": "bullish",
+          "score": 0.6,
+          "assets": [
+            {
+              "name": "SOL",
+              "direction": 1,
+              "strength": 0.6
+            }
+          ],
+          "_provider": "fixture",
+          "_model": "synthetic-v1"
+        },
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:b413a7a0df1c9d73a67344202b4f10d55fa9d5877465fc9c46c4930ef5e18814",
+      "expected": {
+        "summary": "Synthetic source assessment",
+        "sentiment": "bullish",
+        "score": 0.6,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": 1,
+            "strength": 0.6
+          }
+        ],
+        "llm_used": true,
+        "analysis_provider": "fixture",
+        "analysis_model": "synthetic-v1"
+      }
+    },
+    {
+      "name": "assessed-empty-assets-no-mention-fallback",
+      "input": {
+        "headline": "Sasol profits rise",
+        "text": "",
+        "assessment": {
+          "summary": "No asset attribution",
+          "sentiment": "bearish",
+          "score": -0.2,
+          "assets": []
+        },
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:98ca47bf040b3e9fc01442499e640c45c2e0303717b49bcd2304d7d08c072a34",
+      "expected": {
+        "summary": "No asset attribution",
+        "sentiment": "bearish",
+        "score": -0.2,
+        "assets": [],
+        "llm_used": true,
+        "analysis_provider": "unknown",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "lenient-direct-normalization",
+      "input": {
+        "headline": "Sasol board meeting",
+        "text": "",
+        "assessment": {
+          "summary": "",
+          "sentiment": "BULLISH",
+          "score": "3.5",
+          "assets": [
+            {
+              "name": " sol ",
+              "direction": "7",
+              "strength": "4"
+            },
+            {
+              "name": "SHP",
+              "direction": -7,
+              "strength": -0.4
+            },
+            {
+              "name": "IMP",
+              "direction": "bad",
+              "strength": 0.5
+            },
+            {
+              "name": "",
+              "direction": 0,
+              "strength": 0.5
+            }
+          ]
+        },
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:abb5aa403331ed8d4afd6d4d1844a25534446860636bc506a53db43351dcfbf2",
+      "expected": {
+        "summary": "Sasol board meeting",
+        "sentiment": "bullish",
+        "score": 1.0,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": 1,
+            "strength": 1.0
+          },
+          {
+            "name": "SHPJ",
+            "direction": -1,
+            "strength": 0.0
+          }
+        ],
+        "llm_used": true,
+        "analysis_provider": "unknown",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "prior-only-for-missing-assessed-sentiment",
+      "input": {
+        "headline": "Sasol board meeting",
+        "text": "",
+        "assessment": {
+          "summary": "Explicit result without sentiment"
+        },
+        "prior_sentiment": "bullish"
+      },
+      "input_hash": "sha256:913d2bdb2972485205b97a54b55f594219b1b02991ae370bfcfac5478249736e",
+      "expected": {
+        "summary": "Explicit result without sentiment",
+        "sentiment": "bullish",
+        "score": 0.0,
+        "assets": [],
+        "llm_used": true,
+        "analysis_provider": "unknown",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "empty-assessment-is-unavailable",
+      "input": {
+        "headline": "Sasol losses fall",
+        "text": "",
+        "assessment": {},
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:d4d66a5fb40616dc4887aeb1fcb4bcc045f47b4a180b2117863de581174bee2a",
+      "expected": {
+        "summary": "Sasol losses fall",
+        "sentiment": "bearish",
+        "score": -1.0,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": -1,
+            "strength": 0.9
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "invalid-score-string-becomes-zero",
+      "input": {
+        "headline": "Sasol profit",
+        "text": "",
+        "assessment": {
+          "summary": "Invalid scalar",
+          "sentiment": "bullish",
+          "score": "invalid",
+          "assets": null
+        },
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:0270c6f96a1bd34598028d2ec541e068eea128ffcb947fc2400bb4e10b328ed7",
+      "expected": {
+        "summary": "Invalid scalar",
+        "sentiment": "bullish",
+        "score": 0.0,
+        "assets": [],
+        "llm_used": true,
+        "analysis_provider": "unknown",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "duplicates-and-unknown-assessed-names-retained",
+      "input": {
+        "headline": "Sasol profit",
+        "text": "",
+        "assessment": {
+          "summary": "Unverified attribution",
+          "sentiment": "neutral",
+          "score": 0,
+          "assets": [
+            {
+              "name": "SOL",
+              "direction": 1,
+              "strength": 0.6
+            },
+            {
+              "name": "SOL",
+              "direction": -1,
+              "strength": 0.4
+            },
+            {
+              "name": "UNKNOWN_ASSET",
+              "direction": 0,
+              "strength": 0.5
+            }
+          ]
+        },
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:d455aa081a17d8203d00f8115d8e810624d7927d9e85371b3901628de3107ee2",
+      "expected": {
+        "summary": "Unverified attribution",
+        "sentiment": "neutral",
+        "score": 0.0,
+        "assets": [
+          {
+            "name": "SASOL",
+            "direction": 1,
+            "strength": 0.6
+          },
+          {
+            "name": "SASOL",
+            "direction": -1,
+            "strength": 0.4
+          },
+          {
+            "name": "UNKNOWN_ASSET",
+            "direction": 0,
+            "strength": 0.5
+          }
+        ],
+        "llm_used": true,
+        "analysis_provider": "unknown",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "positive-neutral-threshold",
+      "input": {
+        "headline": "Sasol rise surge jump gain profit beat strong boost invest growth positive fall drop decline loss miss weak downgrade risk concern",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:91de9e9dfb292f148d5e06eeacb56a5b8f6a0b778b789baa31d3a0e56c713bfb",
+      "expected": {
+        "summary": "Sasol rise surge jump gain profit beat strong boost invest growth positive fall drop decline loss miss weak downgrade risk concern",
+        "sentiment": "neutral",
+        "score": 0.1,
+        "assets": [
+          {
+            "name": "EMERGING_MARKETS",
+            "direction": 0,
+            "strength": 0.30000000000000004
+          },
+          {
+            "name": "SASOL",
+            "direction": 0,
+            "strength": 0.30000000000000004
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "negative-neutral-threshold",
+      "input": {
+        "headline": "Sasol rise surge jump gain profit beat strong boost invest fall drop decline loss miss weak downgrade risk concern bearish underperform",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:0adbd953ca670bc4c0c59273015b1f117ba7ebe37c7217e423aad0a59cec12f3",
+      "expected": {
+        "summary": "Sasol rise surge jump gain profit beat strong boost invest fall drop decline loss miss weak downgrade risk concern bearish underperform",
+        "sentiment": "neutral",
+        "score": -0.1,
+        "assets": [
+          {
+            "name": "EMERGING_MARKETS",
+            "direction": 0,
+            "strength": 0.30000000000000004
+          },
+          {
+            "name": "SASOL",
+            "direction": 0,
+            "strength": 0.30000000000000004
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    },
+    {
+      "name": "above-neutral-threshold",
+      "input": {
+        "headline": "Sasol rise surge jump gain profit beat strong boost invest growth positive upgrade fall drop decline loss miss weak downgrade risk concern",
+        "text": "",
+        "assessment": null,
+        "prior_sentiment": "neutral"
+      },
+      "input_hash": "sha256:e15ce2eda7c4ea47c62b8267e05c0a36059c4ac87d6d8f5909be045fbe5fc4c6",
+      "expected": {
+        "summary": "Sasol rise surge jump gain profit beat strong boost invest growth positive upgrade fall drop decline loss miss weak downgrade risk concern",
+        "sentiment": "bullish",
+        "score": 0.14,
+        "assets": [
+          {
+            "name": "EMERGING_MARKETS",
+            "direction": 1,
+            "strength": 0.34
+          },
+          {
+            "name": "SASOL",
+            "direction": 1,
+            "strength": 0.34
+          }
+        ],
+        "llm_used": false,
+        "analysis_provider": "keywords",
+        "analysis_model": null
+      }
+    }
+  ]
+}

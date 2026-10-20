@@ -1,3 +1,13 @@
+## X1b pure legacy scorer — 20 October 2026, for owner review
+
+Shared core 0.2.0 adds `legacy-news-v1`: pure keyword/mention scoring and
+normalization of caller-supplied assessments, with immutable provenance and
+pinned original/hand-answer parity fixtures. The execution analyzer remains
+unchanged; nothing imports the package at runtime. X1a contract schemas/IDs,
+R12 issuer guards, source weights and strategy defaults are unchanged. R12 is
+still the sole ACTIVE/PARTIAL milestone. See [ADR0072](../adr/0072-pure-legacy-news-scorer.md)
+and [checkpoint](../changes/X1B_PURE_LEGACY_NEWS_2026_10_20.md).
+
 ## Operational Sasol paired refinement — 20 October 2026
 
 The fixed baseline/candidate numerical shadow loop is implemented and active on real local source data. One change only: relative-volume threshold>1.2 versus>1.0; other1.1/1.2 rules fixed,3-observed-session horizon. The existing five-minute clock records controls, paired outcomes and comparative reviews. Native:1episode, bothNO_SETUP,0/20informative pairs; no further software prerequisite to collecting this experiment. Source dates/actual receipts, whole feature dependencies, executable hashes and revision exclusions are frozen; independent source/time and integration reviews passed.1355safe tests/54protected checks pass; dashboard verified. This is sampled-path exploratory numerical research with assumed costs, no model training, promotion or Live execution. R12 remains the sole ACTIVE/PARTIAL milestone for broader news/historical/execution evidence. See [operating record](../research/SASOL_PAIRED_REFINEMENT_2026_10_20.md) and ADR0070. Earlier checkpoints below remain historical.

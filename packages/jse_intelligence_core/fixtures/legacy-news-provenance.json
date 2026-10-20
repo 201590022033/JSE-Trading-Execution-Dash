@@ -1,0 +1,16 @@
+{
+  "source_revision": "6a23b027074ba0cf10004f36f3140723e6319d66",
+  "source_path": "sentiment_analyzer.py",
+  "source_sha256": "f0a3802479fe0fac6f9845b48a7cc31b6587c9b4b0cefa5dd6274c2605859321",
+  "ast_sha256": {
+    "MACRO_ASSETS": "6cfb974e41c623f56164a8a06310c21adfec1fbb9d663a4cc57b096f7105f329",
+    "MACRO_KEYWORDS": "36b8c8420976c04eede53095a11ef65bd25aa006043bfccec46b6ac66b1434e9",
+    "TICKER_ALIASES": "5551c2b5105b3014f025023b8e8b2df06440f51828881e1470ee7a255f7d1705",
+    "detect_mentions": "c3213b04a688bf63ae07909044f5142a7e31249335fab448d11c18a53498cd46",
+    "_BULLISH": "6d0b25a5422756a93dbe1fe9307fb910e60a973606559f8634a35ae8a6e01eb3",
+    "_BEARISH": "5e8e8ffa30c6a89258bdefa1492ea5c4ccab15773aae4ac7509fd5a7bd6c978d",
+    "_keyword_score": "991a8cf5c2a65178a8f4a76df0b954db371aec61b760602b8b729b879ec9e15a",
+    "_LLM_TICKER_MAP": "c2cdc10c057ef585a02995b0f891177efe1131abbd8a26edf389b57306d17e1f",
+    "analyze_item": "5c2aa8b7def0522341458e4f8c0b7aca788b6e4ad8ae9263a86aecd56bf33732"
+  }
+}

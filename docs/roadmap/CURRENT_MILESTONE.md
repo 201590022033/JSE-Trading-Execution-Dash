@@ -1,3 +1,14 @@
+## X1b pure legacy scorer — 20 October 2026, for owner review
+
+Owner requested continuation after X1a. R12 remains the sole ACTIVE/PARTIAL
+milestone. X1b provides shared-core 0.2.0 and a pure legacy-news-v1 scorer with
+fixed-versus-assessed provenance, source lineage and pinned old/new fixtures.
+The running analyzer, issuer/source guards, current scores and strategy defaults
+are unchanged; X1a schemas/identities remain v1. See [checkpoint and verification](../changes/X1B_PURE_LEGACY_NEWS_2026_10_20.md)
+and [ADR0072](../adr/0072-pure-legacy-news-scorer.md). Stop for owner review.
+X2 inactive release inbox/registry/acknowledgements is proposed only; no runtime
+adoption, learned weights or UI is started. Earlier checkpoints remain historical.
+
 ## X1a shared contracts — 20 October 2026, for owner review
 
 R12 remains the sole ACTIVE/PARTIAL milestone. X1a is a bounded shared-contract

@@ -1,4 +1,4 @@
-# JSE Intelligence Core 0.1.0 — X1a
+# JSE Intelligence Core 0.2.0 — X1a contracts and X1b scorer
 
 Python 3.12+, standard library only at runtime. This is an inactive interchange
 boundary under the existing R12 continuation. Schema-valid means structurally
@@ -8,10 +8,10 @@ Build/install using a local environment with setuptools >=68 and wheel:
 
 ```powershell
 python -m pip wheel --no-index --no-deps --no-build-isolation packages/jse_intelligence_core --wheel-dir work/x1a-wheels
-python -m pip install --no-index --no-deps --target work/x1a-installed work/x1a-wheels/jse_intelligence_core-0.1.0-py3-none-any.whl
+python -m pip install --no-index --no-deps --target work/x1a-installed work/x1a-wheels/jse_intelligence_core-0.2.0-py3-none-any.whl
 ```
 
-Do not install into the running application environment for X1a. Build tools are
+Do not install into the running application environment for X1a/X1b. Build tools are
 build-only dependencies. No app requirements, configuration or imports are added.
 The package does not read files, environment, accounts, databases or providers;
 its methods operate solely on supplied values.
@@ -106,5 +106,7 @@ entry/exit/volume/timeline/stop/risk/cost policies and execution requirements.
 OutcomeFeedback will bind exact release/decision IDs, no-setup/rejection states,
 actual event/receipt/fill/exit clocks, costs, corrections and paper/manual/broker
 provenance. Neither interface, transport, activation, model nor UI ships in X1a.
-X1b is proposed next: characterize legacy normalization/scoring on pinned
-positive/negative/neutral/missing fixtures before extracting any scoring logic.
+X1b adds the pure versioned legacy scorer; see [scorer API and characterization](LEGACY_NEWS_SCORER.md).
+The X1a contract schemas and fixed identities are unchanged. No running analyzer
+uses the package yet. X2 (inactive execution release inbox) is proposed next,
+subject to owner assignment; learned weights and issuer-guard changes are later.

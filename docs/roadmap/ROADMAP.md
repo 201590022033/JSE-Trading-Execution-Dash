@@ -1,3 +1,12 @@
+## X1b pure legacy scorer — 20 October 2026, for owner review
+
+R12 remains the sole ACTIVE/PARTIAL milestone. The owner-requested next bounded
+card adds shared-core 0.2.0: frozen legacy per-item scoring/normalization with
+provenance and old/new hand-answer parity. Execution code and defaults remain
+unchanged. Stop for owner review; X2 inactive file-release inbox/registry/acks is
+the next proposed execution card. Research R1 remains separate proposed work,
+not created or activated here. See [X1b checkpoint](../changes/X1B_PURE_LEGACY_NEWS_2026_10_20.md).
+
 ## X1a shared contracts — 20 October 2026, for owner review
 
 R12 remains the sole ACTIVE/PARTIAL milestone. Its bounded X1a continuation adds
