@@ -1,3 +1,9 @@
+## R5a checkpoint — 21 October2026
+
+[Language sensitivity](research/R5A_LANGUAGE_SENSITIVITY_2026_10_21.md) and
+[change note](changes/R5A_LANGUAGE_SENSITIVITY_2026_10_21.md):252 research tests,
+five synthetic studies,54 protected checks; no executing model/strategy change.
+
 ## Reusable data intake — 21 October2026
 
 [Operating record](research/RESEARCH_DATA_PIPELINE_2026_10_21.md): recovered IRESS
