@@ -1,3 +1,13 @@
+## R3a cash lifecycle replay delivered for review — 21 October 2026
+
+Owner authorized R3a. Independent research now has native Backtrader cash replay,
+2–5-session holds, dated cost scenarios, splits, net dividends and complete
+portfolio equity. See [checkpoint](../research/R3A_CASH_REPLAY_2026_10_21.md).
+Research94/protected54 pass;11 synthetic independent cash proofs. Local checkpoint;
+no R3a push. Next proposed card R3b; real discovery/data/time/cost qualification
+and remaining R4/R5 still gate P1. R12 stays sole ACTIVE/PARTIAL; runtime unchanged.
+Earlier entries below are historical checkpoints.
+
 ## R2b software delivered; real trial rejected — 21 October 2026
 
 Owner authorized R2b and GitHub push. Research now has source-bound discovery,

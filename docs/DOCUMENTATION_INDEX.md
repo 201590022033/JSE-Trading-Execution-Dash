@@ -1,3 +1,9 @@
+## R3a cash lifecycle replay — 21 October 2026
+
+[R3a checkpoint](research/R3A_CASH_REPLAY_2026_10_21.md): local implementation,
+94 research tests,11 synthetic hand-answer proofs; stop for review. R3b next.
+Actual P1 and empirical source/data/time/cost/model qualification remain pending.
+
 ## R2b discovery/event validation — 21 October 2026
 
 [R2b checkpoint](research/R2B_DISCOVERY_2026_10_21.md): software delivered;

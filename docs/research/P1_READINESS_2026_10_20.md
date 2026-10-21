@@ -1,3 +1,12 @@
+## R3a follow-up — 21 October 2026
+
+R3a cash lifecycle adapter is delivered for review; see
+[checkpoint](R3A_CASH_REPLAY_2026_10_21.md). Accounting qualification is synthetic;
+actual prices, calendars, corporate actions and dated account costs still need
+admission. R3b is next proposed, with R3c required for intraday claims. Remaining
+R4/R5 and accepted real discovery/time evidence still gate P1. R2b's real trial
+is still rejected. Earlier records below are historical. No R3a push/runtime change.
+
 ## R2b follow-up — 21 October 2026
 
 R2b software is delivered for review with one rejected real-model trial; see
