@@ -1,3 +1,9 @@
+## R4b checkpoint — 21 October2026
+
+[Bounded campaigns](research/R4B_BOUNDED_CAMPAIGNS_2026_10_21.md) and
+[change note](changes/R4B_BOUNDED_CAMPAIGNS_2026_10_21.md):198 research/54 protected
+checks and three synthetic studies; owner-authorized push. Real P1 remains pending.
+
 ## R4a portfolio metrics/outcome contracts — 21 October 2026
 
 [R4a checkpoint](research/R4A_PORTFOLIO_OUTCOMES_2026_10_21.md): local review;
