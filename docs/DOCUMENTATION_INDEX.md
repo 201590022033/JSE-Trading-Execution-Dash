@@ -1,3 +1,8 @@
+## P1 conditional pilot — 21 October2026
+
+See [pilot report](research/P1_PILOT_2026_10_21.md) and
+[change note](changes/P1_PILOT_2026_10_21.md). P1 remains unaccepted/data-blocked.
+
 ## R5b bounded refinement — 21 October2026
 
 See [research report](research/R5B_REFINEMENT_2026_10_21.md) and
