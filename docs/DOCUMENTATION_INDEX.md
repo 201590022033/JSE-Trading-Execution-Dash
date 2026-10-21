@@ -1,3 +1,9 @@
+## Reusable data intake — 21 October2026
+
+[Operating record](research/RESEARCH_DATA_PIPELINE_2026_10_21.md): recovered IRESS
+workaround, whole-source fallback, bounded public news/price intake;221 research
+tests. Raw broker files remain local. P1 campaign completion is separate.
+
 ## R4b checkpoint — 21 October2026
 
 [Bounded campaigns](research/R4B_BOUNDED_CAMPAIGNS_2026_10_21.md) and
