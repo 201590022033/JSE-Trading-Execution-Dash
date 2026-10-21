@@ -1,3 +1,9 @@
+## R2a saved-source archive — 21 October 2026
+
+[R2a checkpoint](research/R2A_SOURCE_ARCHIVE_2026_10_21.md): finite saved public
+capture archive/query adapters and real replay evidence, delivered for review.
+R2b proposed next; P1 remains pending. No execution runtime change.
+
 ## R1 research foundation — 20 October 2026
 
 [Independent R1 checkpoint](research/R1_FOUNDATION_2026_10_20.md): dated

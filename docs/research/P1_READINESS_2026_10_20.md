@@ -1,3 +1,10 @@
+## R2a follow-up — 21 October 2026
+
+R2a is delivered for review for the bounded saved-capture subset; see
+[checkpoint](R2A_SOURCE_ARCHIVE_2026_10_21.md). R2b is proposed next with an
+explicit finite source/model budget. P1 still depends on remaining discovery,
+replay, metrics/campaign and learning work. Earlier preflights are historical.
+
 ## R1 follow-up — 20 October 2026
 
 Owner subsequently authorized R1; the research foundation is now delivered for

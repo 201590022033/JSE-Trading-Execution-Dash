@@ -1,3 +1,12 @@
+## R2a source archive delivered for review — 21 October 2026
+
+Owner authorized R2a and requested completion. The independent researcher now
+archives/queries bounded saved public captures with provenance, persistent budgets,
+dedup and replay. See [R2a checkpoint](../research/R2A_SOURCE_ARCHIVE_2026_10_21.md).
+Research44 and execution protected54 checks pass. No new downloads/model calls,
+runtime adoption or actual P1 campaign. R2b is proposed next; stop for review.
+R12 remains sole ACTIVE/PARTIAL; execution code/runtime remain unchanged.
+
 ## R1 research foundation delivered for review — 20 October 2026
 
 Owner authorized R1 after R0. The independent research app now implements the
