@@ -1,3 +1,13 @@
+## R3b follow-up — 21 October 2026
+
+R3b independent entry/exit/volume/timing/stop/risk interfaces and controlled
+comparisons are delivered for review; see
+[checkpoint](R3B_COMPONENT_POLICIES_2026_10_21.md). Qualification remains synthetic.
+R4a metrics/frozen outcome contracts are next on the daily track; R3c is a separate
+pending intraday/paired-clock study requiring genuine data. R4b/R5 and accepted
+real discovery/data/time/cost evidence still gate P1. R2b's real model result
+remains rejected. Local checkpoint only; no R3b push/runtime change.
+
 ## R3a follow-up — 21 October 2026
 
 R3a cash lifecycle adapter is delivered for review; see

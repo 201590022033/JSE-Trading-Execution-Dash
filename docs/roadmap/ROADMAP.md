@@ -1,3 +1,14 @@
+## R3b component policies delivered for review — 21 October 2026
+
+Owner authorized R3b. Independent research now has causal entry/exit/volume/
+timing/initial-stop/risk interfaces and controlled comparisons. See
+[checkpoint](../research/R3B_COMPONENT_POLICIES_2026_10_21.md). Research134 and
+protected54 pass;9 synthetic hand-answer comparisons;7 exact R3a regressions.
+Local checkpoint, no R3b push. Next daily card R4a metrics/outcome contracts;
+R3c remains a separate pending genuine intraday/paired-market study. Actual P1
+still needs R4/R5 and real discovery/data/time/cost qualification. R12 stays sole
+ACTIVE/PARTIAL; runtime unchanged. Earlier entries below are historical.
+
 ## R3a cash lifecycle replay delivered for review — 21 October 2026
 
 Owner authorized R3a. Independent research now has native Backtrader cash replay,

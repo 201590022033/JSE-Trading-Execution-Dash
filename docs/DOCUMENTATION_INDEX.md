@@ -1,3 +1,9 @@
+## R3b component policies — 21 October 2026
+
+[R3b checkpoint](research/R3B_COMPONENT_POLICIES_2026_10_21.md): local review
+checkpoint;134 research tests and9 synthetic controlled comparisons. Next daily
+card R4a; R3c remains pending genuine intraday data. No P1/strategy acceptance claim.
+
 ## R3a cash lifecycle replay — 21 October 2026
 
 [R3a checkpoint](research/R3A_CASH_REPLAY_2026_10_21.md): local implementation,
