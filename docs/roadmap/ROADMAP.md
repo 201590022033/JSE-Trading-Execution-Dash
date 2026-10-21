@@ -1,3 +1,12 @@
+## R2b software delivered; real trial rejected — 21 October 2026
+
+Owner authorized R2b and GitHub push. Research now has source-bound discovery,
+local-model budget/journal, strict event validation and proposed episode handoff.
+See [checkpoint](../research/R2B_DISCOVERY_2026_10_21.md). Research61 and protected54
+pass. One real local-model candidate failed numeric validation; none promoted.
+Empirical discovery qualification/P1 remain pending. R3a is proposed next code
+card; stop after authorized push. R12 stays sole ACTIVE/PARTIAL; runtime unchanged.
+
 ## R2a source archive delivered for review — 21 October 2026
 
 Owner authorized R2a and requested completion. The independent researcher now

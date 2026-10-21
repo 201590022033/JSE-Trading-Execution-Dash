@@ -1,3 +1,9 @@
+## R2b discovery/event validation — 21 October 2026
+
+[R2b checkpoint](research/R2B_DISCOVERY_2026_10_21.md): software delivered;
+single real-model trial rejected; no event promoted. Push authorized. R3a next
+proposed code card; empirical discovery and P1 remain pending.
+
 ## R2a saved-source archive — 21 October 2026
 
 [R2a checkpoint](research/R2A_SOURCE_ARCHIVE_2026_10_21.md): finite saved public

@@ -1,3 +1,11 @@
+## R2b follow-up — 21 October 2026
+
+R2b software is delivered for review with one rejected real-model trial; see
+[checkpoint](R2B_DISCOVERY_2026_10_21.md). No real candidate was accepted.
+Empirical model/source/time qualification is still required before P1, alongside
+remaining R3/R4/R5 work. R3a is the next proposed code card. Earlier records below
+are historical; no full campaign or profitable result is implied.
+
 ## R2a follow-up — 21 October 2026
 
 R2a is delivered for review for the bounded saved-capture subset; see
