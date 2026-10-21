@@ -1,3 +1,9 @@
+## R4a portfolio metrics/outcome contracts — 21 October 2026
+
+[R4a checkpoint](research/R4A_PORTFOLIO_OUTCOMES_2026_10_21.md): local review;
+171 research tests. Explicit thresholds, unavailable metrics and frozen matched
+baselines; no real performance/release acceptance. Next daily card R4b.
+
 ## R3b component policies — 21 October 2026
 
 [R3b checkpoint](research/R3B_COMPONENT_POLICIES_2026_10_21.md): local review

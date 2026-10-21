@@ -1,3 +1,13 @@
+## R4a metrics/outcome contracts delivered for review — 21 October 2026
+
+Owner authorized R4a. Independent research now has complete daily portfolio
+metrics, frozen numeric outcome contracts, matched baselines and bounded paired
+descriptive uncertainty. See [checkpoint](../research/R4A_PORTFOLIO_OUTCOMES_2026_10_21.md).
+Research171/protected54 pass. Illustrative thresholds only; no actual performance
+or accepted release. Local checkpoint, no R4a push. Next daily card R4b; R3c
+remains pending genuine intraday data. R5 and real discovery/data/time/cost still
+gate P1. R12 stays sole ACTIVE/PARTIAL; runtime unchanged. Earlier entries historical.
+
 ## R3b component policies delivered for review — 21 October 2026
 
 Owner authorized R3b. Independent research now has causal entry/exit/volume/

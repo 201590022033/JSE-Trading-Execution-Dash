@@ -1,3 +1,12 @@
+## R4a follow-up — 21 October 2026
+
+R4a portfolio metrics and frozen numeric outcome contracts are delivered for
+review; see [checkpoint](R4A_PORTFOLIO_OUTCOMES_2026_10_21.md). Qualification and
+thresholds remain synthetic/illustrative. No financial hurdle or accepted release
+is implied. Next daily card R4b; R3c needs genuine intraday data. R5 and accepted
+real discovery/data/time/cost evidence still gate P1. R2b's real trial remains
+rejected. Local checkpoint only; no R4a push/runtime change.
+
 ## R3b follow-up — 21 October 2026
 
 R3b independent entry/exit/volume/timing/stop/risk interfaces and controlled
