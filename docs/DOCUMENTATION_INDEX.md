@@ -1,3 +1,8 @@
+## R5b bounded refinement — 21 October2026
+
+See [research report](research/R5B_REFINEMENT_2026_10_21.md) and
+[change note](changes/R5B_REFINEMENT_2026_10_21.md).278 research tests;54 protected checks.
+
 ## R5a checkpoint — 21 October2026
 
 [Language sensitivity](research/R5A_LANGUAGE_SENSITIVITY_2026_10_21.md) and
