@@ -329,7 +329,8 @@ def main():
             elif args.command=='model':
                 runner.below_normal()
                 executable=Path(os.environ.get('LOCALAPPDATA',''))/'Programs/Ollama/ollama.exe'
-                result=execute_model(repo,now,folder,executable)
+                from scripts import radar_batch_screening as batch_worker
+                result=batch_worker.daily(repo,now,folder,executable) if batch_worker.active_release(repo,now) else execute_model(repo,now,folder,executable)
             elif args.command=='tick':result=radar.tick(repo,now)
             else:result=radar.status(repo,now)
             if args.command=='status':

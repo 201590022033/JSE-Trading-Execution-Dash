@@ -1,3 +1,11 @@
+## Source-specific batch radar — 27 October 2026
+
+[Implementation](changes/2026-10-27-source-specific-batch-radar.md),
+[ADR0083](adr/0083-source-specific-batch-radar.md),
+[operating notes](research/SOURCE_SPECIFIC_RADAR.md): two-item source screening
+is experimental after 5/8 development and 6/8 held-out assistant checks.
+1,557 offline / 99 focused / 54 protected checks passed. P1 remains open.
+
 ## Request and packet-width comparison — 27 October 2026
 
 [Native comparison](changes/2026-10-27-request-width-comparison.md),

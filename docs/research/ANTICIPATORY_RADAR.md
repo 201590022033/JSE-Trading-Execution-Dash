@@ -1,4 +1,22 @@
-## Current state: request/width diagnosis complete; batch fix planned
+## Current state: source-specific batch annotations are experimental
+
+27 October 2026. The two-item batch path is implemented and enabled for
+experimental source annotations. A daily parent preserves its source packet and
+allows up to four spent child calls; partial failures leave other assessments
+and all retained leads available. The dashboard identifies headline-only
+sources, explicit dates mentioned in text and confirmed calendar dates.
+
+Eight native validation calls over two disjoint eight-source packets matched
+assistant expectations 5/8 in development and 6/8 held out. Three false matches
+and two misses remain; no independent accuracy or forecasting skill is claimed.
+The previous broad request hold stays active. Today's daily slot was already
+spent, so the first new daily batch awaits the next eligible idle date. See
+[operating notes](SOURCE_SPECIFIC_RADAR.md),
+[ADR0083](../adr/0083-source-specific-batch-radar.md), and
+[native evidence](../evidence/source-specific-radar-validation.json).
+R12 remains active/partial and P1 remains open.
+
+## Earlier state: request/width diagnosis complete; batch fix planned
 
 27 October 2026. Four authorized native calls found that the existing broad
 request selected 2/2 expected items in the small packet, but 0/8 in the full

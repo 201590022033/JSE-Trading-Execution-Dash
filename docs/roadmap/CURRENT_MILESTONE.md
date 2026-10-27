@@ -1,3 +1,18 @@
+## Source-specific batch radar — 27 October 2026
+
+The new worker freezes up to eight source items and uses at most four two-item
+calls under one daily parent. Model errors affect individual annotations only;
+retained news and confirmed calendar leads remain visible. Two disjoint packets
+produced 5/8 development and 6/8 held-out matches against preregistered
+assistant assessments, with three false positives and two misses in total.
+The path is enabled as an experimental source annotation, not a qualified
+relevance model, forecast, watch generator or trading signal. The old broad
+request hold and today's spent slot remain. The first real daily batch is
+pending its next eligible idle date. 1,557 offline / 99 focused / 54 protected
+checks passed; R12 remains ACTIVE/PARTIAL and P1 remains open. See
+`docs/changes/2026-10-27-source-specific-batch-radar.md`, ADR0083 and
+`docs/research/SOURCE_SPECIFIC_RADAR.md`.
+
 ## Request and packet-width comparison — 27 October 2026
 
 The four approved local Qwen calls are complete. The existing broad request

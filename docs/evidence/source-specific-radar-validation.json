@@ -1,0 +1,175 @@
+{
+  "date": "2026-10-27",
+  "validation_contract_id": "radar-batch-validation-446847c57e74bc121cf7647dfe35363092a72d69b3b8171e4d6be7101cc267bb",
+  "version": "source-specific-radar-v1",
+  "model_digest": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+  "assessment_origin": "ASSISTANT_PREREGISTERED_NOT_HUMAN_GROUND_TRUTH_OR_TRAINING",
+  "packets_disjoint": true,
+  "development": {
+    "plan_id": "radar-batch-plan-e50945e2851e6d46f0ff1de53a38a9a91eb5a73dd2af3922e71c48b4e6bc5cb7",
+    "correct": 5,
+    "available": 8,
+    "decisions": [
+      {
+        "candidate_id": "C1",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "CATEGORY_NOT_SUPPORTED_BY_SOURCE",
+        "reported_type": "announcement"
+      },
+      {
+        "candidate_id": "C2",
+        "expected": false,
+        "observed": true,
+        "correct": false,
+        "source_admission": "CATEGORY_NOT_SUPPORTED_BY_SOURCE",
+        "reported_type": "announcement"
+      },
+      {
+        "candidate_id": "C3",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "reported_type": "announcement"
+      },
+      {
+        "candidate_id": "C4",
+        "expected": false,
+        "observed": true,
+        "correct": false,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "reported_type": "announcement"
+      },
+      {
+        "candidate_id": "C5",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "CATEGORY_NOT_SUPPORTED_BY_SOURCE",
+        "reported_type": "scheduled"
+      },
+      {
+        "candidate_id": "C6",
+        "expected": false,
+        "observed": false,
+        "correct": true,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "reported_type": "news"
+      },
+      {
+        "candidate_id": "C7",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "reported_type": "announcement"
+      },
+      {
+        "candidate_id": "C8",
+        "expected": true,
+        "observed": false,
+        "correct": false,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "reported_type": "unknown"
+      }
+    ]
+  },
+  "held_out": {
+    "plan_id": "radar-batch-plan-3e67a9a01124a357de164ef8f41848f0014b4155386f2ef41c6c5d44de0d7f5c",
+    "correct": 6,
+    "available": 8,
+    "decisions": [
+      {
+        "candidate_id": "C1",
+        "expected": false,
+        "observed": false,
+        "correct": true,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "reported_type": "unknown"
+      },
+      {
+        "candidate_id": "C2",
+        "expected": true,
+        "observed": false,
+        "correct": false,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "reported_type": "unknown"
+      },
+      {
+        "candidate_id": "C3",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "CATEGORY_NOT_SUPPORTED_BY_SOURCE",
+        "reported_type": "announcement"
+      },
+      {
+        "candidate_id": "C4",
+        "expected": false,
+        "observed": true,
+        "correct": false,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "reported_type": "announcement"
+      },
+      {
+        "candidate_id": "C5",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "reported_type": "announcement"
+      },
+      {
+        "candidate_id": "C6",
+        "expected": false,
+        "observed": false,
+        "correct": true,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "reported_type": "news"
+      },
+      {
+        "candidate_id": "C7",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "reported_type": "announcement"
+      },
+      {
+        "candidate_id": "C8",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "reported_type": "news"
+      }
+    ]
+  },
+  "confusion": {
+    "TP": 8,
+    "FP": 3,
+    "TN": 3,
+    "FN": 2
+  },
+  "raw_sha256": [
+    "22ebdda807296086506078270f53f125027e0945bdd64f01888542cd23f2805f",
+    "5bffa03ffe8e5789edd9c4e567ab17a341cafa6ef0c28e8df7066416384e1025",
+    "af154ffe42ccb5d112bab5fd3304ad224f3f6d288ba9259290f26740bf7d6894",
+    "ba8bc6158854704b9786fe70d376d489cdea828df72e3c0e368b1797472a7614",
+    "d9ebbdcdce2f13b381c3b02eca93532714c9d0bf6c064bace8cea81859eafd13",
+    "dcbfc379aa06908e632677219c6ed373ea534268c6d292a67ac2692b107354e4",
+    "ea30b26feacd5d8a94481589f5dc72ba9f8940757cfed7a3531dac7a90d93f3a",
+    "f9e4958f73febd8966e7ce9982aa757f5d8730ce91ceda88137b79f52f7ca228"
+  ],
+  "eight_native_calls": true,
+  "native_calls_on_delivery_review": 0,
+  "daily_slot_not_reset": true,
+  "broad_request_hold_unchanged": true,
+  "release": "EXPERIMENTAL_SOURCE_ANNOTATIONS_ONLY",
+  "model_watches_published": 0,
+  "training_labels": false,
+  "trading_weight": 0,
+  "p1_complete": false
+}

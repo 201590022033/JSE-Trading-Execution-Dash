@@ -95,6 +95,20 @@ def news_expiry(source):
     return min(clocks)+timedelta(hours=48)
 
 
+def explicit_future_dates(quote, now):
+    """Only fully written dates from the excerpt, with no inferred year or event."""
+    forms=re.findall(r'(?<!\w)(?:\d{4}-\d{2}-\d{2}|\d{1,2}\s+[A-Za-z]{3,9},?\s+\d{4})(?!\w)',quote)
+    found=set()
+    for form in forms:
+        parsed=None
+        for fmt in ('%Y-%m-%d','%d %B %Y','%d %b %Y'):
+            try:parsed=datetime.strptime(form.replace(',',''),fmt).date();break
+            except ValueError:pass
+        if parsed and parsed>cal._at(now).astimezone(SAST).date() and cal._date_in_quote(parsed,quote):
+            found.add(parsed.isoformat())
+    return sorted(found)[:3]
+
+
 def packet(repo, now, *, current_news=False):
     scope = ensure_scope(repo, now)
     # Distinct issuers get a turn ahead of repeated headlines from one issuer.
@@ -449,28 +463,47 @@ def status(repo, now):
     probes = [p for p in rows(repo,'probe-result',now) if contract and p.get('contract_id')==contract['record_id']]
     last_screen_review=screening_review(repo,now,request=RELEVANCE_REQUEST,
         model_digest=contract.get('model_digest') if contract else None)
+    batch_merges=[m for m in rows(repo,'batch-merge',now) if m.get('scope')=='DAILY']
+    latest_batch=max(batch_merges,key=lambda m:(m['received_at'],m.get('attempted_pairs',0),m['record_id']),default=None)
+    batch_reviews=rows(repo,'batch-validation-review',now)
+    latest_batch_review=max(batch_reviews,key=lambda r:r['received_at'],default=None)
+    batch_by_source={x['source_id']:x for x in (latest_batch or {}).get('assessments',[]) if not x.get('calendar_event_id')}
+    batch_by_event={x['calendar_event_id']:x for x in (latest_batch or {}).get('assessments',[]) if x.get('calendar_event_id')}
+    def public_assessment(x):
+        return {k:x.get(k) for k in ('state','display_type','explanation')} if x else None
     previews=[]
     for s in sources(repo,now):
         candidate=news_candidate(s,(scope or {}).get('members',{}))
         expires=news_expiry(s)
         if not candidate or expires<=now:continue
+        parts=s['body'].splitlines()
+        detail='HEADLINE_ONLY' if len(parts)<2 or all(p==parts[0] for p in parts[1:]) else 'HEADLINE_AND_RETAINED_EXCERPT'
         previews.append({**candidate,'source_url':s['url'],'source_receipt_id':s['receipt_id'],
             'published_at':s['published_at'],'available_at':s['available_at'],'expires_at':expires.isoformat(),
+            'source_kind':'SENS_HEADLINE' if 'sens' in s['url'].lower() else 'NEWS_HEADLINE_OR_EXCERPT',
+            'source_detail':detail,
+            'mentioned_future_dates':explicit_future_dates(candidate['quote'],now),
             'topic_sectors':topic_sectors(candidate['quote']),
+            'screening_assessment':public_assessment(batch_by_source.get(s['source_id'])),
             'state':'RETAINED_SOURCE_LEAD_NOT_MODEL_PREDICTION'})
         if len(previews)==8:break
     return {'state':'ADVISORY_ANTICIPATORY_RADAR','checked_at':now.isoformat(),
         'scope':scope, 'watches':public,'source_leads':previews,
-        'calendar_upcoming':[{k:e[k] for k in ('record_id','title','instrument_ids','event_date','anchor_at','source_url','source_quote','time_precision')} for e in calendar_view['upcoming']], 'windows':[{**w,'active':w['event_id'] in current and w['state']=='WATCH_READY'} for w in windows],
+        'calendar_upcoming':[{**{k:e[k] for k in ('record_id','title','instrument_ids','event_date','anchor_at','source_url','source_quote','time_precision')},
+            'source_available_at':(repo.paper_record(e['source_receipt_id']) or {}).get('received_at'),
+            'screening_assessment':public_assessment(batch_by_event.get(e['record_id']))} for e in calendar_view['upcoming']], 'windows':[{**w,'active':w['event_id'] in current and w['state']=='WATCH_READY'} for w in windows],
         'latest_capture':captures[0] if captures else None,
         'source_freshness':'CURRENT_CAPTURE' if captures and captures[0].get('state')=='CAPTURED' and now-cal._at(captures[0]['received_at'])<timedelta(hours=12) else 'STALE_OR_UNAVAILABLE',
         'model':{'qualification':max(qualified,key=lambda q:q['received_at']) if qualified else None,'latest_result':results[0] if results else None,
+                 'batch_screening':{k:latest_batch.get(k) for k in ('state','attempted_pairs','total_pairs','received_at')} if latest_batch else None,
+                 'batch_validation':{k:latest_batch_review.get(k) for k in ('state','correct','total','heldout_correct','heldout_total','reviewer_origin')} if latest_batch_review else None,
                  'screening_review':{k:last_screen_review.get(k) for k in ('record_id','state','model_selected_count',
                     'candidate_count','assistant_disagreement_count','reviewer_origin','hold_identical_request')} if last_screen_review else None,
                  'corrective_contract':{'record_id':contract['record_id'],'version':contract['version'],
                     'maximum_generation_calls':contract['maximum_generation_calls'],'passed_probes':sum(p['state']=='PASS' for p in probes),
                     'failed_probes':sum(p['state']!='PASS' for p in probes)} if contract else None,
-                 'attempts':len(attempts),'unresolved':sum(not repo.paper_record('radar-model-result-'+cal._hash(a['record_id'])) for a in attempts)},
+                 'attempts':sum(a.get('mode')!='source_specific_daily_parent' for a in attempts),
+                 'unresolved':sum(not repo.paper_record('radar-model-result-'+cal._hash(a['record_id'])) for a in attempts if a.get('mode')!='source_specific_daily_parent')},
         'metrics':{'frozen_watch_count':len(watches),'reviewed_watch_count':len(reviewed),
             'occurred':sum(r['verdict']=='OCCURRED' for r in reviewed.values()),
             'not_observed':sum(r['verdict']=='NOT_OBSERVED' for r in reviewed.values()),
