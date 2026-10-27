@@ -49,3 +49,14 @@ Sector-only themes also receive literal topic-navigation labels (for example gol
 news under Mining) without assigning any affected share. Packet selection gives
 issuer diversity first, then published sector-topic excerpts, then latest context.
 This avoids unknown-publication-time SENS headings crowding out all sector news.
+
+## Corrective qualification v2
+
+The first real call ran successfully but failed its ambiguous array-output probe.
+ADR0078 replaces that probe with typed decision/date/source/quote fields. A separate
+three-case contract retains the original failure and binds every corrective attempt
+and qualification pass. `scripts/anticipatory_radar.py qualify-register` freezes it
+without inference; the existing hourly idle worker then runs its bounded cases.
+Read-only status exposes its ID, version, budget and passed/failed counts, never
+source packets or expected answers. At installation v2 is registered with zero
+native checks completed. The dashboard distinguishes this from the old failure.

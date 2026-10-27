@@ -1,0 +1,25 @@
+{
+  "checked_at": "2026-10-27T12:25:56.207063+00:00",
+  "contract_id": "radar-qualification-contract-5108c68b9620828415a45eba5c7bc9552792515e65bc104b6f21d1259262def1",
+  "contract_version": "real-source-qualification-v2-typed",
+  "maximum_corrective_calls": 3,
+  "cases_sha256": "af0ce764212141bdfb061099d842f75ea2ad4f707424581d680aad420714b66f",
+  "source_bindings": "PASS",
+  "original_failed_attempts_retained": 1,
+  "original_record_sha256": "1ce101e20891e9339e716bfe4cedbfabb90630be0e796a0d0c3c3f4e1a187b11",
+  "original_response_sha256": "46b54d28d80b3b13ce11c0f2a6f6ef4b41b8bc08d26042e37e36ef1d3b9b8d29",
+  "observed_bad_response_rejected_by_corrected_validator": true,
+  "corrective_attempts": 0,
+  "corrective_completed_calls": 0,
+  "corrective_progress": {
+    "record_id": "radar-qualification-contract-5108c68b9620828415a45eba5c7bc9552792515e65bc104b6f21d1259262def1",
+    "version": "real-source-qualification-v2-typed",
+    "maximum_generation_calls": 3,
+    "passed_probes": 0,
+    "failed_probes": 0
+  },
+  "paired_definition_preserved": true,
+  "idle_seconds_observed": 36,
+  "free_ram_gib": 3.92,
+  "new_model_calls_in_audit": 0
+}

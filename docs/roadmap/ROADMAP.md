@@ -1,3 +1,15 @@
+## Radar citation correction — 27 October 2026
+
+Owner authorized fixing the observed Qwen response failure. Typed named fields
+replace the ambiguous string-array probe; exact date/source/quote checks remain.
+The original failed generation is retained. Corrective v2 has one immutable
+three-probe contract, with reservations and passes scoped to that contract.
+1,510 offline tests and 54 protected checks pass. Native v2 validation is still
+0/3, waiting for ten minutes idle; no corrected-model success or forecast skill
+is claimed. Memory/profile/idle controls and daily discovery budget are unchanged.
+R12 remains ACTIVE/PARTIAL; P1 remains open. See ADR0078 and
+`docs/changes/2026-10-27-radar-citation-correction.md`.
+
 ## Anticipatory advisory radar — 27 October 2026
 
 Owner authorized the first radar integration slice. The existing calendar and

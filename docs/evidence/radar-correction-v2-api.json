@@ -1,0 +1,15 @@
+{
+  "http_status": 200,
+  "state": "ADVISORY_ANTICIPATORY_RADAR",
+  "model_calls_on_read": 0,
+  "corrective_contract": {
+    "failed_probes": 0,
+    "maximum_generation_calls": 3,
+    "passed_probes": 0,
+    "record_id": "radar-qualification-contract-5108c68b9620828415a45eba5c7bc9552792515e65bc104b6f21d1259262def1",
+    "version": "real-source-qualification-v2-typed"
+  },
+  "retained_attempts": 1,
+  "retained_latest_result": "QUALIFICATION_PROBE_FAILED",
+  "live_execution": false
+}

@@ -282,12 +282,18 @@ def status(repo, now):
     captures = sorted(rows(repo,'capture-result',now),key=lambda x:x['received_at'],reverse=True)
     attempts = rows(repo,'model-attempt',now)
     results = sorted(rows(repo,'model-result',now),key=lambda x:x['received_at'],reverse=True)
-    qualified = rows(repo,'qualification',now)
+    contracts = rows(repo,'qualification-contract',now)
+    contract = max(contracts,key=lambda c:c['received_at'],default=None)
+    qualified = [q for q in rows(repo,'qualification',now) if not contract or q.get('contract_id')==contract['record_id']]
+    probes = [p for p in rows(repo,'probe-result',now) if contract and p.get('contract_id')==contract['record_id']]
     return {'state':'ADVISORY_ANTICIPATORY_RADAR','checked_at':now.isoformat(),
         'scope':scope, 'watches':public, 'windows':[{**w,'active':w['event_id'] in current and w['state']=='WATCH_READY'} for w in windows],
         'latest_capture':captures[0] if captures else None,
         'source_freshness':'CURRENT_CAPTURE' if captures and captures[0].get('state')=='CAPTURED' and now-cal._at(captures[0]['received_at'])<timedelta(hours=12) else 'STALE_OR_UNAVAILABLE',
         'model':{'qualification':max(qualified,key=lambda q:q['received_at']) if qualified else None,'latest_result':results[0] if results else None,
+                 'corrective_contract':{'record_id':contract['record_id'],'version':contract['version'],
+                    'maximum_generation_calls':contract['maximum_generation_calls'],'passed_probes':sum(p['state']=='PASS' for p in probes),
+                    'failed_probes':sum(p['state']!='PASS' for p in probes)} if contract else None,
                  'attempts':len(attempts),'unresolved':sum(not repo.paper_record('radar-model-result-'+cal._hash(a['record_id'])) for a in attempts)},
         'metrics':{'frozen_watch_count':len(watches),'reviewed_watch_count':len(reviewed),
             'occurred':sum(r['verdict']=='OCCURRED' for r in reviewed.values()),
