@@ -1,4 +1,29 @@
-## Current operation: host-grounded sources and v3 selection
+## Current v4 boolean relevance — natively qualified
+
+27 October 2026. The same bounded request/evidence/boolean schema now serves
+qualification and daily discovery. Every candidate needs true or false; only true
+IDs map to retained host facts, capped at five in host order. Reject omitted or
+invented IDs, duplicate keys and non-boolean substitutes. No generated date,
+quotation or issuer link replaces the host-validated record.
+
+All eight frozen native checks passed (five supported matches and seven rejected
+boolean decisions across two retained sources). Matching, unrelated, same issuer /
+wrong event, unsupported precision and reversed order are covered. Prior failures
+remain. This qualifies narrow source relevance only, not broad news accuracy,
+free-text date extraction, learning gains, forecasting or P1.
+
+The owner's separate eight-call foreground allowance is spent. One memory wait
+resumed only unattempted cases; replay makes no ninth call. The original four-call
+allowance also remains spent. Routine screening keeps ten-minute idle, two CPU
+threads, no GPU and unchanged memory limits; today's previously spent discovery
+slot cannot reset. Next eligible daily screening uses v4, with independent source
+leads/calendar dates remaining visible. Source/watch expiry and observation rules
+are unchanged. See [operating result](../changes/2026-10-27-qwen-boolean-relevance.md)
+and [ADR0080](../adr/0080-explicit-boolean-radar-relevance.md).
+
+The earlier checkpoints below retain the failed protocols and installation state.
+
+## Earlier v3 checkpoint: host-grounded sources and selection
 
 27 October 2026. Confirmed schedules and up to eight recent source leads now
 remain visible independently of Qwen. The host freezes exact dates, quotations

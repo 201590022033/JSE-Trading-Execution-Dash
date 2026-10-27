@@ -1,3 +1,17 @@
+## Qwen relevance correction verified — 27 October 2026
+
+The explicit boolean protocol passes all eight frozen native source-relevance
+checks, including unrelated issuer, wrong event, unsupported facts and reversed
+candidate order. Exactly eight newly approved foreground calls were used; the
+same batch resumes after a memory wait and cannot make a ninth call. Earlier
+six attempts and today's spent discovery slot remain. No model weights or
+trading defaults changed. 1,526 full offline tests, 67 focused tests and 54
+protected checks pass. The live local dashboard shows 8/8 checks, two confirmed
+calendar events and eight source leads. Narrow relevance qualification is
+established; broad news accuracy, forecasts and P1 acceptance remain open.
+R12 stays sole ACTIVE/PARTIAL. See
+`docs/changes/2026-10-27-qwen-boolean-relevance.md` and ADR0080.
+
 ## Source radar restored; Qwen selection unqualified — 27 October 2026
 
 Confirmed calendar dates and recent retained source leads now appear independently

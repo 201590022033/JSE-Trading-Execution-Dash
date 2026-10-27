@@ -684,7 +684,7 @@ async function refreshAnticipatoryRadar() {
     const members = d.scope?.members || {};
     const readable = s => (s || 'not run').replaceAll('_',' ').toLowerCase();
     const correction=d.model.corrective_contract;
-    const modelState=(d.model.qualification ? 'candidate selection checks passed; date extraction remains unqualified' : null) || (correction ? `${correction.passed_probes}/3 corrective checks passed${correction.failed_probes ? '; failed check needs review' : '; awaiting eligible idle run'}` : d.model.latest_result?.state || 'waiting for first idle qualification');
+    const modelState=(d.model.qualification ? `${correction ? correction.passed_probes+'/'+correction.maximum_generation_calls+' ' : ''}source relevance checks passed; forecast accuracy remains unvalidated` : null) || (correction ? `${correction.passed_probes}/${correction.maximum_generation_calls} corrective checks passed${correction.failed_probes ? '; failed check needs review' : '; awaiting eligible check'}` : d.model.latest_result?.state || 'waiting for first idle qualification');
     $('#anticipatory-radar-status').textContent = `${Object.keys(members).length} issuers · ${readable(d.source_freshness)} · Qwen 1.5B: ${readable(modelState)} · latest capture ${d.latest_capture ? when(d.latest_capture.received_at) : 'none'}`;
     $('#anticipatory-radar-scope').textContent = [...new Set(Object.values(members).map(m => m.sector))].sort().join(' · ');
     const windows = d.windows.filter(w => w.active);

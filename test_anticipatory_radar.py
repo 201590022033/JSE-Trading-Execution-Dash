@@ -164,23 +164,31 @@ class RadarTests(unittest.TestCase):
         e=cal.propose_event(self.repo,{'event_key':'mpc','title':'MPC','instrument_ids':[],
             'source_receipt_id':source['record_id'],'source_quote':source['body'],'event_date':'2026-11-19','timezone':'Africa/Johannesburg'},NOW)
         cal.confirm_event(self.repo,e['record_id'],'test',NOW)
+        source=cal.import_source(self.repo,{'source_url':'https://sasol.com/investor-calendar','title':'Sasol AGM',
+            'body':'Sasol annual general meeting 13 November 2026','captured_at':NOW.isoformat(),'provenance':'TEST_FIXTURE'},NOW)
+        e=cal.propose_event(self.repo,{'event_key':'sasol-agm','title':'Sasol annual general meeting','instrument_ids':['SASOL'],
+            'source_receipt_id':source['record_id'],'source_quote':source['body'],'event_date':'2026-11-13','timezone':'Africa/Johannesburg'},NOW)
+        cal.confirm_event(self.repo,e['record_id'],'test',NOW)
 
-    def test_qualification_three_probes_then_daily_discovery_budget(self):
+    def test_qualification_eight_probes_then_daily_discovery_budget(self):
         self.qualify_fixture()
         def generate(p,*a,**kw):
-            content=json.dumps(p['expected']) if 'expected' in p else json.dumps({'selected_ids':['C1']})
+            content=json.dumps(p['expected']) if 'expected' in p else json.dumps({'matches':{c['candidate_id']:i==0 for i,c in enumerate(p['host_candidates'])}})
             return b'{}',content,NOW,NOW
         with patch.object(runner,'utcnow',return_value=NOW):
-            for _ in range(3):
+            for _ in range(worker.RELEVANCE_CASES):
                 r=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,generator=generate)
                 self.assertEqual(r['state'],'QUALIFICATION_PROBE_PASSED')
             r=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,generator=generate)
             self.assertEqual(r['state'],'SMALL_MODEL_QUALIFIED_FOR_ADVISORY_DISCOVERY')
             r=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,generator=generate)
             self.assertEqual(r['state'],'CITED_CANDIDATES')
+            replay=worker.relevance_checks(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,
+                generator=lambda *a,**k:self.fail('completed qualification cannot repeat'))
+            self.assertEqual(replay['generation_call_upper_bound'],worker.RELEVANCE_CASES)
             r=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,generator=lambda *a,**k:1/0)
             self.assertEqual(r['state'],'MODEL_BUDGET_ALREADY_SPENT')
-        self.assertEqual(len(radar.rows(self.repo,'model-attempt',NOW)),4)
+        self.assertEqual(len(radar.rows(self.repo,'model-attempt',NOW)),worker.RELEVANCE_CASES+1)
         self.assertEqual(len(radar.rows(self.repo,'watch',NOW)),1)
 
     def test_sector_topic_routes_without_inventing_share_exposure(self):
@@ -213,13 +221,13 @@ class RadarTests(unittest.TestCase):
         self.qualify_fixture()
         old=radar.save(self.repo,'probe-result',['real-source-qualification-v1',0],
             {'state':'FAIL','index':0,'attempt_id':'retained-original-attempt'},NOW)
-        contract=worker.qualification_contract(self.repo,NOW)
+        contract=worker.qualification_contract(self.repo,NOW,worker.QUALIFICATION_VERSION)
         self.assertEqual(contract['maximum_generation_calls'],3)
-        self.assertEqual(worker.qualification_contract(self.repo,NOW+timedelta(seconds=1)),contract)
+        self.assertEqual(worker.qualification_contract(self.repo,NOW+timedelta(seconds=1),worker.QUALIFICATION_VERSION),contract)
         with patch.object(runner,'utcnow',return_value=NOW):
             for i in range(3):
                 r=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,
-                    generator=lambda p,*a,**k:(b'{}',json.dumps(p['expected']),NOW,NOW))
+                    generator=lambda p,*a,**k:(b'{}',json.dumps(p['expected']),NOW,NOW),contract_version=worker.QUALIFICATION_VERSION)
                 self.assertEqual(r['state'],'QUALIFICATION_PROBE_PASSED')
         self.assertEqual(self.repo.paper_record(old['record_id']),old)
         self.assertEqual(len(radar.rows(self.repo,'model-attempt',NOW)),3)
@@ -340,7 +348,7 @@ class RadarTests(unittest.TestCase):
         self.assertEqual(radar.rows(self.repo,'qualification',NOW),[])
         self.assertEqual(radar.rows(self.repo,'watch',NOW),[])
         result=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,
-            generator=lambda *a,**k:self.fail('routine retry forbidden'))
+            generator=lambda *a,**k:self.fail('routine retry forbidden'),contract_version=worker.QUALIFICATION_VERSION)
         self.assertEqual(result['state'],'QUALIFICATION_FAILED_REQUIRES_REVIEW')
 
     def test_retained_news_visible_without_model_and_read_does_not_refresh_expiry(self):
@@ -367,6 +375,101 @@ class RadarTests(unittest.TestCase):
         later=NOW+timedelta(days=8)
         capture_news_snapshot(self.repo,json.dumps(raw).encode(),later)
         self.assertEqual(radar.status(self.repo,later)['source_leads'],[])
+
+    def test_boolean_contract_discriminates_and_reverses_candidate_order(self):
+        self.qualify_fixture();contract=worker.qualification_contract(self.repo,NOW)
+        self.assertEqual(contract['maximum_generation_calls'],8)
+        self.assertEqual([c['split'] for c in contract['cases']],['DEVELOPMENT']*4+['FROZEN_CHECK']*4)
+        for c in contract['cases']:
+            self.assertTrue(worker.qualification_passed(json.dumps(c['expected']),c))
+            flipped={'matches':{k:not v for k,v in c['expected']['matches'].items()}}
+            self.assertFalse(worker.qualification_passed(json.dumps(flipped),c))
+            self.assertNotIn('expected',c['prompt'])
+        for constant in (True,False):
+            self.assertFalse(all(worker.qualification_passed(json.dumps({'matches':{
+                c['candidate_id']:constant for c in p['candidates']}}),p) for p in contract['cases']))
+        self.assertEqual(contract['cases'][4]['expected'],{'matches':{'C1':False,'C2':True}})
+        self.assertEqual(contract['cases'][5]['expected'],{'matches':{'C1':True,'C2':False}})
+
+    def test_boolean_parser_requires_every_real_boolean_and_rejects_extra_ids(self):
+        for raw in ('{"matches":{"C1":"false"}}','{"matches":{"C1":0}}','{"matches":{}}',
+                    '{"matches":{"C1":true,"C2":false}}','{"matches":{"C1":false,"C1":true}}',
+                    '{"matches":{"C1":false},"selected_ids":["C1"]}'):
+            with self.subTest(raw=raw),self.assertRaises(ValueError):radar.relevance_ids(raw,['C1'])
+        self.assertEqual(radar.relevance_ids('{"matches":{"C1":false,"C2":true}}',['C1','C2']),['C2'])
+
+    def test_boolean_campaign_is_eight_calls_only_and_does_not_spend_discovery(self):
+        self.qualify_fixture();calls=[]
+        def generate(p,*a,**kw):
+            calls.append(p);self.assertNotIn('required_idle_seconds',kw)
+            return b'{}',json.dumps(p['expected']),NOW,NOW
+        with patch.object(runner,'utcnow',return_value=NOW):
+            first=worker.relevance_checks(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,generator=generate)
+            second=worker.relevance_checks(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,generator=generate)
+        self.assertEqual(first['state'],'SMALL_MODEL_QUALIFIED_FOR_ADVISORY_DISCOVERY')
+        self.assertEqual(second['generation_call_upper_bound'],8);self.assertEqual(len(calls),8)
+        self.assertTrue(all(a['mode']=='qualification' for a in radar.rows(self.repo,'model-attempt',NOW)))
+        self.assertEqual(radar.rows(self.repo,'watch',NOW),[])
+
+    def test_boolean_packet_applies_only_true_ids_with_unchanged_source_facts(self):
+        self.qualify_fixture();p=radar.selection_packet(self.repo,NOW,relevance=True)
+        self.assertEqual(p['response_format'],'HOST_GROUNDED_BOOLEAN_V4')
+        ids=[c['candidate_id'] for c in p['host_candidates']]
+        raw=json.dumps({'matches':{k:i==1 for i,k in enumerate(ids)}})
+        run=radar.record_selection(self.repo,p,raw,NOW)
+        self.assertEqual(len(run['items']),1)
+        self.assertEqual(run['items'][0]['quote'],p['host_candidates'][1]['quote'])
+        self.assertEqual(run['items'][0]['event_date'],p['host_candidates'][1]['event_date'])
+        self.assertLessEqual(len(radar.selection_prompt(p))+len(json.dumps(radar.relevance_schema(ids))),12000)
+
+    def test_boolean_campaign_keeps_idle_memory_and_failed_attempt_bounds(self):
+        self.qualify_fixture();forbidden=lambda *a,**k:self.fail('generation forbidden')
+        with patch.object(runner,'utcnow',return_value=NOW):
+            r=worker.relevance_checks(self.repo,NOW,self.folder,'x',idle=lambda:0,memory=lambda:8*runner.GIB,generator=forbidden)
+            self.assertEqual(r['state'],'WAITING_FOR_10_MINUTES_IDLE')
+            r=worker.relevance_checks(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:3*runner.GIB,generator=forbidden)
+            self.assertEqual(r['state'],'WAITING_FOR_SMALL_MODEL_MEMORY')
+            r=worker.relevance_checks(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,
+                generator=lambda p,*a,**k:(b'{}',json.dumps({'matches':{c['candidate_id']:True for c in p['candidates']}}),NOW,NOW))
+            self.assertEqual(r['state'],'QUALIFICATION_FAILED_REQUIRES_REVIEW')
+            self.assertEqual(r['generation_call_upper_bound'],8)
+            r=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,generator=forbidden)
+            self.assertEqual(r['state'],'QUALIFICATION_FAILED_REQUIRES_REVIEW')
+        self.assertEqual(radar.rows(self.repo,'qualification',NOW),[])
+
+    def test_boolean_foreground_approval_cannot_repeat_cases_or_reset_spent_day(self):
+        self.qualify_fixture();calls=[]
+        spent=radar.save(self.repo,'model-attempt',['discovery',NOW.astimezone(radar.SAST).date().isoformat()],
+            {'mode':'diagnostic_discovery','state':'RESERVED_NO_AUTOMATIC_RETRY'},NOW)
+        def generate(p,*a,**kw):
+            self.assertEqual(kw['required_idle_seconds'],0)
+            calls.append(p);return b'{}',json.dumps(p['expected']),NOW,NOW
+        with patch.object(runner,'utcnow',return_value=NOW):
+            r=worker.relevance_checks(self.repo,NOW,self.folder,'x',foreground=True,idle=lambda:0,
+                memory=lambda:8*runner.GIB,generator=generate)
+            self.assertEqual(r['generation_call_upper_bound'],8)
+            worker.relevance_checks(self.repo,NOW,self.folder,'x',foreground=False,idle=lambda:601,
+                memory=lambda:8*runner.GIB,generator=lambda *a,**k:self.fail('repeat forbidden'))
+            r=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,
+                generator=lambda *a,**k:self.fail('spent discovery day cannot reset'))
+        self.assertEqual(r['state'],'MODEL_BUDGET_ALREADY_SPENT')
+        self.assertEqual(len(calls),8)
+        self.assertEqual(self.repo.paper_record(spent['record_id']),spent)
+
+    def test_discovery_parse_failure_retains_response_archive_and_spends_day(self):
+        self.qualify_fixture()
+        contract=worker.qualification_contract(self.repo,NOW)
+        radar.save(self.repo,'qualification',[contract['record_id'],worker.DIGEST],{
+            'state':'PASSED_REAL_SOURCE_CONTRACT_PROBES','contract_id':contract['record_id'],
+            'model_digest':worker.DIGEST,'scope':'TEST_FIXTURE'},NOW)
+        with patch.object(runner,'utcnow',return_value=NOW):
+            r=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,
+                generator=lambda *a,**k:(b'{"response":"bad"}','not-json',NOW,NOW))
+            second=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,
+                generator=lambda *a,**k:self.fail('failed discovery must remain spent'))
+        self.assertEqual(r['state'],'MODEL_FAILED_NO_AUTOMATIC_RETRY')
+        self.assertEqual(second['state'],'MODEL_BUDGET_ALREADY_SPENT')
+        self.assertEqual((self.folder/r['raw_archive']['name']).read_bytes(),b'{"response":"bad"}')
 
 
 if __name__=='__main__':unittest.main()

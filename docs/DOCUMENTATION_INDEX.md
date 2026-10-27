@@ -1,3 +1,9 @@
+## Qwen relevance correction verified — 27 October 2026
+
+[Native result](changes/2026-10-27-qwen-boolean-relevance.md),
+[ADR0080](adr/0080-explicit-boolean-radar-relevance.md): 8/8 native checks;
+1,526 offline / 54 protected checks. P1 remains open.
+
 ## Source radar and native Qwen checks — 27 October 2026
 
 [Operating result](changes/2026-10-27-host-grounded-radar.md),

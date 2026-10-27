@@ -70,6 +70,8 @@ def capture(repo, now, folder, fetch=public_feed):
 
 
 QUALIFICATION_VERSION = 'real-source-qualification-v3-selection'
+RELEVANCE_VERSION = 'real-source-qualification-v4-boolean'
+RELEVANCE_CASES = 8
 
 
 def qualification_case(repo, now, index):
@@ -92,38 +94,81 @@ def qualification_case(repo, now, index):
 
 
 def qualification_passed(content, p):
+    if p.get('qualification_version')==RELEVANCE_VERSION:
+        try:
+            ids=radar.relevance_ids(content,[c['candidate_id'] for c in p['candidates']])
+            expected=[k for k,v in p['expected']['matches'].items() if v]
+            return ids==expected
+        except (ValueError,TypeError,KeyError):return False
     try:ids=radar.selected_ids(content,['C1'],maximum=1)
     except (ValueError,TypeError,KeyError):return False
     return ids==p['expected']['selected_ids']
 
 
-def qualification_contract(repo, now):
+def relevance_case(repo,now,index):
+    """Four development checks and four frozen discrimination/order checks."""
+    upcoming=cal.status(repo,now)['upcoming']
+    mpc=next(e for e in upcoming if 'resbank.co.za' in e['source_url'])
+    agm=next(e for e in upcoming if 'sasol.com' in e['source_url'] and 'annual general meeting' in e['title'].lower())
+    plans=[
+        ('single_mpc_match','The Monetary Policy Committee briefing.',[mpc],[True]),
+        ('single_wrong_issuer','A Sasol earnings release.',[mpc],[False]),
+        ('unsupported_precision','An exact SENS release time and a share-price direction.',[mpc],[False]),
+        ('single_agm_match','The Sasol annual general meeting.',[agm],[True]),
+        ('mixed_mpc','The Monetary Policy Committee briefing.',[agm,mpc],[False,True]),
+        ('reversed_mpc','The Monetary Policy Committee briefing.',[mpc,agm],[True,False]),
+        ('mixed_agm','The Sasol annual general meeting.',[mpc,agm],[False,True]),
+        ('same_issuer_wrong_event','A Sasol earnings release.',[agm,mpc],[False,False])]
+    name,request,events,expected=plans[index]
+    items=[{'candidate_id':'C'+str(i+1),'title':e['title'],'event_date':e['event_date'],
+        'evidence':e['source_quote']} for i,e in enumerate(events)]
+    receipts=[cal._source(repo,e['source_receipt_id'],now) for e in events]
+    return {'index':index,'case':name,'split':'DEVELOPMENT' if index<4 else 'FROZEN_CHECK',
+        'qualification_version':RELEVANCE_VERSION,'request':request,'candidates':items,
+        'source_receipt_id':receipts[0]['record_id'],
+        'sources':[{'record_id':s['record_id'],'body_sha256':s['body_sha256']} for s in receipts],
+        'prompt':radar.relevance_prompt(request,items),
+        'schema':radar.relevance_schema([c['candidate_id'] for c in items]),
+        'expected':{'matches':{c['candidate_id']:v for c,v in zip(items,expected)}}}
+
+
+def qualification_contract(repo, now, version=None):
     """Owner-authorized corrective contract; prior failed contract stays spent."""
-    identity=[QUALIFICATION_VERSION,MODEL,DIGEST]
+    version=version or RELEVANCE_VERSION
+    if version not in (QUALIFICATION_VERSION,RELEVANCE_VERSION):raise ValueError('Unknown qualification protocol')
+    identity=[version,MODEL,DIGEST]
     rid='radar-qualification-contract-'+cal._hash(identity)
     previous=repo.paper_record(rid)
     if previous:return previous
-    cases=[qualification_case(repo,now,i) for i in range(3)]
+    cases=([relevance_case(repo,now,i) for i in range(RELEVANCE_CASES)] if version==RELEVANCE_VERSION
+        else [qualification_case(repo,now,i) for i in range(3)])
     return radar.save(repo,'qualification-contract',identity,{
-        'version':QUALIFICATION_VERSION,'model':MODEL,'model_digest':DIGEST,
-        'maximum_generation_calls':3,'cases':cases,'cases_sha256':cal._hash(cases),
-        'supersedes':'real-source-qualification-v2-typed',
+        'version':version,'model':MODEL,'model_digest':DIGEST,
+        'maximum_generation_calls':len(cases),'cases':cases,'cases_sha256':cal._hash(cases),
+        'supersedes':QUALIFICATION_VERSION if version==RELEVANCE_VERSION else 'real-source-qualification-v2-typed',
         'authorization':'Owner requested radar issue correction on 27 October 2026; retain original failure',
-        'acceptance':'ONE_MATCH_TWO_NONMATCHES_CANDIDATE_SELECTION_NOT_FREE_EXTRACTION',
+        'acceptance':'ALL_FROZEN_CASES_PASS_RELEVANCE_ONLY_NOT_EXTRACTION_OR_FORECASTING',
         'minimum_start_free_ram_bytes':7*runner.GIB//2,'idle_seconds':600},now)
 
 
-def execute_model(repo, now, folder, executable, *, idle=None, memory=None, generator=None, supervised_run_id=None):
+def execute_model(repo, now, folder, executable, *, idle=None, memory=None, generator=None, supervised_run_id=None, contract_version=None):
     idle=idle or runner.windows_idle_seconds;memory=memory or runner.available_memory_bytes
+    version=contract_version or RELEVANCE_VERSION
+    idle_floor=600;authorization=None
     if supervised_run_id:
         authorization=repo.paper_record(supervised_run_id)
-        if not authorization or not supervised_run_id.startswith('radar-supervised-check-') or authorization.get('maximum_generation_calls')!=4:
+        expected_budget=RELEVANCE_CASES if version==RELEVANCE_VERSION else 4
+        if (not authorization or not supervised_run_id.startswith('radar-supervised-check-')
+                or authorization.get('maximum_generation_calls')!=expected_budget
+                or authorization.get('contract_version',QUALIFICATION_VERSION)!=version):
             raise ValueError('Explicit bounded foreground authorization required')
-    if not supervised_run_id and idle()<600:
+        idle_floor=authorization.get('idle_seconds_required',0)
+        if idle_floor not in (0,600):raise ValueError('Unsupported idle policy')
+    if idle()<idle_floor:
         return {'state':'WAITING_FOR_10_MINUTES_IDLE','model_calls':0}
     if memory()<7*runner.GIB//2:
         return {'state':'WAITING_FOR_SMALL_MODEL_MEMORY','model_calls':0}
-    contract=qualification_contract(repo,now)
+    contract=qualification_contract(repo,now,version)
     contract_id=contract['record_id']
     if cal._hash(contract['cases'])!=contract['cases_sha256']:
         raise ValueError('Frozen qualification contract changed')
@@ -131,37 +176,44 @@ def execute_model(repo, now, folder, executable, *, idle=None, memory=None, gene
     qualified=any(q.get('state')=='PASSED_REAL_SOURCE_CONTRACT_PROBES' and q.get('model_digest')==DIGEST
         and q.get('contract_id')==contract_id for q in qualifications)
     mode='discovery' if qualified else 'qualification'
+    if qualified and authorization and version==RELEVANCE_VERSION:
+        return {'state':'SMALL_MODEL_QUALIFIED_FOR_ADVISORY_DISCOVERY','model_calls':0}
     if not qualified:
         results=[r for r in radar.rows(repo,'probe-result',now) if r.get('contract_id')==contract_id]
         failed=any(r['state']!='PASS' for r in results)
         if failed and not supervised_run_id:
             return {'state':'QUALIFICATION_FAILED_REQUIRES_REVIEW','model_calls':0}
         completed={r['index'] for r in results}
-        index=next((i for i in range(3) if i not in completed),None)
+        index=next((i for i in range(len(contract['cases'])) if i not in completed),None)
         if index is None and failed:
+            if version==RELEVANCE_VERSION:
+                return {'state':'QUALIFICATION_FAILED_REQUIRES_REVIEW','model_calls':0}
             mode='diagnostic_discovery'
         elif index is None:
             radar.save(repo,'qualification',[contract_id,DIGEST],{'state':'PASSED_REAL_SOURCE_CONTRACT_PROBES','contract_id':contract_id,
                 'model':MODEL,'model_digest':DIGEST,'probe_ids':[r['record_id'] for r in results],
-                'scope':'GROUNDED_CANDIDATE_SELECTION_ONLY_NOT_DATE_EXTRACTION_OR_FORECASTING'},now)
+                'scope':'BOOLEAN_RELEVANCE_ONLY_NOT_DATE_EXTRACTION_OR_FORECASTING' if version==RELEVANCE_VERSION else
+                    'GROUNDED_CANDIDATE_SELECTION_ONLY_NOT_DATE_EXTRACTION_OR_FORECASTING'},now)
             return {'state':'SMALL_MODEL_QUALIFIED_FOR_ADVISORY_DISCOVERY','model_calls':0}
         if index is not None:
             p=contract['cases'][index];prompt=p['prompt'];schema=p['schema']
             identity=[contract_id,index]
     if mode!='qualification':
-        p=radar.selection_packet(repo,now)
+        p=radar.selection_packet(repo,now,relevance=version==RELEVANCE_VERSION)
         if not p['host_candidates']:
             return {'state':'NO_RETAINED_SOURCES','model_calls':0}
-        prompt=radar.selection_prompt(p);schema=radar.selection_schema([c['candidate_id'] for c in p['host_candidates']])
+        prompt=radar.selection_prompt(p)
+        schema=(radar.relevance_schema([c['candidate_id'] for c in p['host_candidates']]) if version==RELEVANCE_VERSION else
+            radar.selection_schema([c['candidate_id'] for c in p['host_candidates']]))
         identity=['discovery',cal._at(now).astimezone(radar.SAST).date().isoformat()]
     rid='radar-model-attempt-'+cal._hash(identity)
     with repo.transaction():
         if repo.backend=='postgresql':repo._job_sql('SELECT pg_advisory_xact_lock(?)',(4271028,),rows=True)
         if repo.paper_record(rid):return {'state':'MODEL_BUDGET_ALREADY_SPENT','model_calls':0}
-        if supervised_run_id and sum(a.get('supervised_run_id')==supervised_run_id for a in radar.rows(repo,'model-attempt',now))>=4:
+        if supervised_run_id and sum(a.get('supervised_run_id')==supervised_run_id for a in radar.rows(repo,'model-attempt',now))>=authorization['maximum_generation_calls']:
             return {'state':'SUPERVISED_BUDGET_SPENT','model_calls':0}
         a=radar.save(repo,'model-attempt',identity,{'supervised_run_id':supervised_run_id,
-            'observed_idle_seconds':idle(),'idle_policy':'OWNER_AUTHORIZED_FOREGROUND_CHECK' if supervised_run_id else '10_MINUTES_IDLE',
+            'observed_idle_seconds':idle(),'idle_policy':'OWNER_AUTHORIZED_FOREGROUND_CHECK' if idle_floor==0 else '10_MINUTES_IDLE',
             'state':'RESERVED_NO_AUTOMATIC_RETRY','mode':mode,
             'model':MODEL,'model_digest':DIGEST,'qualification_contract_id':contract_id,'packet':p,'input_sha256':cal._hash(p),
             'prompt_sha256':cal._hash(prompt)},now)
@@ -169,7 +221,7 @@ def execute_model(repo, now, folder, executable, *, idle=None, memory=None, gene
         with candidate_profile():
             runner.MIN_START_MEMORY=7*runner.GIB//2
             kwargs={'idle':idle,'memory':memory}
-            if supervised_run_id:kwargs['required_idle_seconds']=0
+            if idle_floor==0:kwargs['required_idle_seconds']=0
             raw,content,started,completed=(generator or runner.generate)(p,prompt,schema,executable,Path(folder),**kwargs)
         archive=runner._private_archive(Path(folder),'radar-response',raw)
         now=runner.utcnow()
@@ -193,6 +245,8 @@ def execute_model(repo, now, folder, executable, *, idle=None, memory=None, gene
     except Exception as exc:
         now=runner.utcnow()
         details={'state':'MODEL_FAILED_NO_AUTOMATIC_RETRY','model_calls_upper_bound':1,'error_type':type(exc).__name__}
+        if 'archive' in locals():details['raw_archive']=archive
+        elif isinstance(exc,runner.ModelResponseError):details['raw_archive']=exc.archive
         if mode=='qualification':radar.save(repo,'probe-result',identity,{'state':'FAIL','index':p['index'],'attempt_id':a['record_id'],'contract_id':contract_id},now)
     return radar.save(repo,'model-result',a['record_id'],details,now)
 
@@ -205,7 +259,7 @@ def supervised_checks(repo, now, folder, executable, *, generator=None, idle=Non
     states=[]
     for _ in range(5):
         result=execute_model(repo,runner.utcnow(),folder,executable,generator=generator,idle=idle,memory=memory,
-            supervised_run_id=authorization['record_id'])
+            supervised_run_id=authorization['record_id'],contract_version=QUALIFICATION_VERSION)
         states.append(result['state'])
         if result['state'] not in {'QUALIFICATION_PROBE_PASSED','QUALIFICATION_PROBE_FAILED','SMALL_MODEL_QUALIFIED_FOR_ADVISORY_DISCOVERY'}:break
     attempts=[a for a in radar.rows(repo,'model-attempt',runner.utcnow()) if a.get('supervised_run_id')==authorization['record_id']]
@@ -213,9 +267,31 @@ def supervised_checks(repo, now, folder, executable, *, generator=None, idle=Non
         'generation_call_upper_bound':len(attempts),'maximum_generation_calls':4,'routine_idle_policy_unchanged':True}
 
 
+def relevance_checks(repo,now,folder,executable,*,foreground=False,generator=None,idle=None,memory=None):
+    """Eight frozen calls only. Never spend/reset the daily discovery budget."""
+    authorization=radar.save(repo,'supervised-check',['owner-2026-10-27-v4-boolean',foreground],{
+        'maximum_generation_calls':RELEVANCE_CASES,'contract_version':RELEVANCE_VERSION,
+        'authorization':('Owner explicitly approved eight foreground checks on 27 October 2026' if foreground else
+            'Owner requested fixing unrelated Qwen selection on 27 October 2026; retain ten-minute idle'),
+        'idle_seconds_required':0 if foreground else 600,
+        'scope':'EIGHT_FROZEN_BOOLEAN_RELEVANCE_CHECKS_ONLY','routine_idle_policy_unchanged':True},now)
+    states=[]
+    for _ in range(RELEVANCE_CASES+1):
+        result=execute_model(repo,runner.utcnow(),folder,executable,generator=generator,idle=idle,memory=memory,
+            supervised_run_id=authorization['record_id'],contract_version=RELEVANCE_VERSION)
+        states.append(result['state'])
+        if result['state'] not in {'QUALIFICATION_PROBE_PASSED','QUALIFICATION_PROBE_FAILED'}:break
+    contract=qualification_contract(repo,runner.utcnow())
+    attempts=[a for a in radar.rows(repo,'model-attempt',runner.utcnow())
+        if a.get('qualification_contract_id')==contract['record_id'] and a.get('mode')=='qualification']
+    return {'state':states[-1],'states':states,'authorization_id':authorization['record_id'],
+        'generation_call_upper_bound':len(attempts),'maximum_generation_calls':RELEVANCE_CASES,'routine_idle_policy_unchanged':True}
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command',choices=('capture','model','status','tick','qualify-register','verify-now'))
+    parser.add_argument('command',choices=('capture','model','status','tick','qualify-register','verify-now','relevance-checks'))
+    parser.add_argument('--foreground',action='store_true',help='Only with explicit new owner approval for this eight-call check')
     args=parser.parse_args()
     from scripts.run_local_pc import FOLDER,start_database
     from scripts.local_runtime import configuration,verify_database,process_lock
@@ -228,7 +304,7 @@ def main():
     url,identity=configuration(env,json.loads((FOLDER/'bootstrap-acceptance.json').read_text()),now)
     start_database();verify_database(url,identity)
     folder=FOLDER/'anticipatory-radar'
-    with process_lock(FOLDER/('heavy-research.lock' if args.command in ('model','verify-now') else 'anticipatory-radar.lock')):
+    with process_lock(FOLDER/('heavy-research.lock' if args.command in ('model','verify-now','relevance-checks') else 'anticipatory-radar.lock')):
         repo=runtime_repository(database_url=url)
         try:
             if args.command=='qualify-register':
@@ -243,6 +319,10 @@ def main():
                 runner.below_normal()
                 executable=Path(os.environ.get('LOCALAPPDATA',''))/'Programs/Ollama/ollama.exe'
                 result=supervised_checks(repo,now,folder,executable)
+            elif args.command=='relevance-checks':
+                runner.below_normal()
+                executable=Path(os.environ.get('LOCALAPPDATA',''))/'Programs/Ollama/ollama.exe'
+                result=relevance_checks(repo,now,folder,executable,foreground=args.foreground)
             elif args.command=='model':
                 runner.below_normal()
                 executable=Path(os.environ.get('LOCALAPPDATA',''))/'Programs/Ollama/ollama.exe'
