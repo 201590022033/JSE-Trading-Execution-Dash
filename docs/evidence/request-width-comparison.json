@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-27",
+  "campaign_id": "radar-request-width-contract-a0fbde75e3c9dffdbf41de05d9dabf61b40bfa96b93e73bfb887a4ed0eefb186",
+  "original_packet_id": "radar-input-8a13ea85b4e71abbdf70ddb72e474b15f10519182b049bf4b782a0d6e9cad0cd",
+  "model": "qwen2.5:1.5b",
+  "model_digest": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+  "expected_values_origin": "ASSISTANT_PREREGISTERED_EXPECTATIONS_NOT_HUMAN_GROUND_TRUTH_OR_TRAINING_LABELS",
+  "constant_context": "Original event titles were supplied from existing host metadata in all four cases; source quotes, receipts and original source packet were unchanged.",
+  "cases": {
+    "A": {"request": "unchanged broad", "candidate_count": 2, "candidate_ids": ["C1", "C6"], "expected_ids": ["C1", "C6"], "selected_ids": ["C1", "C6"], "seconds": 10.314, "raw_sha256": "bcdf29c3fb8f29ba1c96ab31816304a3a78d6c709047db41498f145d0e6d24b0"},
+    "B": {"request": "unchanged broad", "candidate_count": 8, "expected_ids": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8"], "selected_ids": [], "seconds": 22.565, "raw_sha256": "8efde7497f0fb456a6dd94914a65e094e25cdaec28637c6bec908e3888bb2c28"},
+    "C": {"request": "explicit Sasol AGM", "candidate_count": 2, "candidate_ids": ["C1", "C6"], "expected_ids": ["C1"], "selected_ids": ["C1"], "seconds": 10.508, "raw_sha256": "e62bee66b7142f1bef725d227bf245591efb4974ed2ead26a674594197e218bb"},
+    "D": {"request": "explicit Sasol AGM", "candidate_count": 8, "expected_ids": ["C1"], "selected_ids": ["C1"], "seconds": 22.670, "raw_sha256": "48ded632fb78383437c36ce46f0efeddfa1767d8b4f7e36f6d40465d065a9c9a"}
+  },
+  "conclusion": "BROAD_REQUEST_SIZE_SENSITIVITY_EXPLICIT_REQUEST_PASSED_BOTH",
+  "limitations": ["One retained packet", "Broad two-item case contained only positives", "Assistant assessment, not independently adjudicated market ground truth", "One old Naspers item was stale for current admission and remained in the retrospective diagnostic only"],
+  "budget": {"authorized": 4, "reserved": 4, "replay_additional_calls": 0, "daily_discovery_reset": false},
+  "prior_broad_response_sha256": "00fef55cc5e1d8d733175bd9b502abd09aa0f91610073b3dc947969d9d6c728b",
+  "original_hold_still_active": true,
+  "watches_published": 0,
+  "live_execution": false,
+  "p1_complete": false
+}

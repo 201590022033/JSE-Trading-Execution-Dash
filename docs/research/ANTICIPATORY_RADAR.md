@@ -1,4 +1,22 @@
-## Current state: real broad-request review failed; sources remain available
+## Current state: request/width diagnosis complete; batch fix planned
+
+27 October 2026. Four authorized native calls found that the existing broad
+request selected 2/2 expected items in the small packet, but 0/8 in the full
+packet. A specific Sasol AGM request selected the correct candidate at both
+widths, including negative issuer/event controls. The broad small packet had
+only positives, and all expectations are preregistered assistant assessments.
+This is an observed interaction on one retained packet, not an accuracy or
+forecast claim. The original broad-request hold and source leads remain.
+
+The next planned fix asks explicit source-specific questions in batches of up
+to two, merges results back into the full daily packet, and preserves useful
+source leads if a model call fails. Its proposed future model budget, held-out
+comparison and per-item admission are described in
+[the fix plan](REAL_SCREEN_BATCH_FIX_PLAN.md). See
+[ADR0082](../adr/0082-request-width-diagnosis.md) and
+[native evidence](../evidence/request-width-comparison.json). P1 remains open.
+
+## Earlier state: real broad-request review failed; sources remain available
 
 27 October 2026. The separately approved one-call real-source screen selected
 0/8 candidates. The earlier eight passes tested literal event requests on one

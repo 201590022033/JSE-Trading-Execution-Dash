@@ -1,3 +1,18 @@
+## Request and packet-width comparison — 27 October 2026
+
+The four approved local Qwen calls are complete. The existing broad request
+selected both candidates in the two-item packet but 0/8 in the full packet;
+the explicit Sasol AGM request selected the correct item at both widths. This
+is one retained packet with assistant assessments, not independent accuracy
+or forecasting evidence. The broad two-item case had no negative controls.
+Earlier responses, the spent daily slot and the exact-request hold remain.
+The separately documented next fix plans source-specific tasks in two-item batches,
+per-item failure handling and a complete merged eight-item validation. No future
+model calls were authorized by the completed comparison. R12 remains the sole
+ACTIVE/PARTIAL milestone; P1 remains open. See
+`docs/changes/2026-10-27-request-width-comparison.md`, ADR0082 and
+`docs/research/REAL_SCREEN_BATCH_FIX_PLAN.md`.
+
 ## First real screening reviewed — 27 October 2026
 
 The owner-approved one-call real packet returned 0/8 matches despite the 8/8

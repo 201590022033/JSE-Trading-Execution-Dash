@@ -1,3 +1,11 @@
+## Request and packet-width comparison — 27 October 2026
+
+[Native comparison](changes/2026-10-27-request-width-comparison.md),
+[ADR0082](adr/0082-request-width-diagnosis.md),
+[next fix plan](research/REAL_SCREEN_BATCH_FIX_PLAN.md): the broad request
+passed on two candidates and abstained on eight; the explicit AGM request
+passed both sizes. 1,544 offline / 85 focused / 54 protected checks. P1 remains open.
+
 ## First real screening reviewed — 27 October 2026
 
 [Source review](changes/2026-10-27-first-real-screen-review.md),
