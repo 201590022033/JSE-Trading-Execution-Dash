@@ -1,3 +1,26 @@
+## Current operation: host-grounded sources and v3 selection
+
+27 October 2026. Confirmed schedules and up to eight recent source leads now
+remain visible independently of Qwen. The host freezes exact dates, quotations
+and direct issuer links; the model selects IDs. Source leads are literal
+issuer/topic navigation, carry actual first-receipt/publication clocks and expire
+48 hours after first receipt. Repeated capture cannot revive an identical old
+lead. Reading status creates no model input, watch, inference or labels.
+
+All four explicitly approved foreground calls completed: the v3 matching case
+passed, both nonmatching cases failed, and the real eight-candidate packet stayed
+private/diagnostic. No model qualification or watch was published. Both previous
+native failures remain. Routine workers still require ten-minute idle and stop
+for review on the failed contract. The persistent foreground receipt is spent;
+repeating verify-now makes no fifth call. See
+[operating result](../changes/2026-10-27-host-grounded-radar.md) and
+[ADR0079](../adr/0079-host-grounded-radar-selection.md). Recognition, free-text
+extraction and forecast quality remain separate claims; none is inferred from
+an enabled schedule or a deterministic source lead.
+
+The installation notes below describe the prior v1/v2 checkpoints. Their pending
+native status is superseded by the recorded results above.
+
 # Anticipatory radar â€” 27 October 2026
 
 Owner authorized implementing the audited missing integration. This is an advisory

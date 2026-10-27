@@ -288,9 +288,12 @@ def _session():
 
 def generate(packet, prompt, schema, executable, folder, *, idle=windows_idle_seconds,
              memory=None, session_factory=_session, owner_factory=OwnedOllama,
-             clock=time.monotonic, sleep=time.sleep):
+             clock=time.monotonic, sleep=time.sleep, required_idle_seconds=None):
     """Exactly one local generation request; caller must already reserve its budget."""
-    if idle() < IDLE_SECONDS:
+    if required_idle_seconds not in (None,0):
+        raise ValueError('Only explicit supervised zero-idle override is supported')
+    idle_floor=IDLE_SECONDS if required_idle_seconds is None else required_idle_seconds
+    if idle() < idle_floor:
         raise InterruptedError("User input returned before model start")
     memory = memory or available_memory_bytes
     if memory() < MIN_START_MEMORY:
@@ -299,7 +302,7 @@ def generate(packet, prompt, schema, executable, folder, *, idle=windows_idle_se
     with owner_factory(executable, folder) as owner, session_factory() as session:
         # GET readiness only. No model load/download occurs until the one POST.
         while True:
-            if idle() < IDLE_SECONDS:
+            if idle() < idle_floor:
                 raise InterruptedError("User input returned during startup")
             if memory() < MIN_RUNNING_MEMORY:
                 raise ResourcePressure("Memory pressure during model startup")
@@ -323,7 +326,7 @@ def generate(packet, prompt, schema, executable, folder, *, idle=windows_idle_se
                     sleep(.5)
                 else:
                     raise
-        if idle() < IDLE_SECONDS:
+        if idle() < idle_floor:
             raise InterruptedError("User input returned before generation")
         if not owner.owns_listener():
             raise RuntimeError("Owned local listener disappeared before generation")
@@ -356,14 +359,14 @@ def generate(packet, prompt, schema, executable, folder, *, idle=windows_idle_se
         thread = threading.Thread(target=request, daemon=True)
         thread.start()
         while thread.is_alive():
-            if idle() < IDLE_SECONDS:
+            if idle() < idle_floor:
                 raise InterruptedError("User input returned; owned model process tree terminated")
             if clock() >= deadline:
                 raise TimeoutError("Owned local model deadline exceeded")
             if memory() < MIN_RUNNING_MEMORY:
                 raise ResourcePressure("Memory pressure; owned model process tree terminated")
             thread.join(.5)
-        if idle() < IDLE_SECONDS:
+        if idle() < idle_floor:
             raise InterruptedError("User input returned before accepting generation")
         if "error" in box:
             raise box["error"]

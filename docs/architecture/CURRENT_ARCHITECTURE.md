@@ -1,3 +1,16 @@
+## Source radar restored; Qwen selection unqualified — 27 October 2026
+
+Confirmed calendar dates and recent retained source leads now appear independently
+of failed model extraction. Native verification completed exactly four approved
+foreground calls: one selection pass, two abstention failures, one private real
+packet diagnostic. No model watch or qualification was published; both historical
+failures remain. A repeat invocation makes no fifth call. Routine ten-minute
+idle, two CPU threads and memory limits remain unchanged. Two sourced calendar
+events and eight news leads are visible; 1,519 offline tests and 54 protected
+checks pass. The Sasol paired definition remains intact. R12 stays the sole
+ACTIVE/PARTIAL milestone; P1 remains open. See
+`docs/changes/2026-10-27-host-grounded-radar.md` and ADR0079.
+
 ## Radar citation correction — 27 October 2026
 
 Owner authorized fixing the observed Qwen response failure. Typed named fields

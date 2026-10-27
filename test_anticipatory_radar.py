@@ -168,7 +168,7 @@ class RadarTests(unittest.TestCase):
     def test_qualification_three_probes_then_daily_discovery_budget(self):
         self.qualify_fixture()
         def generate(p,*a,**kw):
-            content=json.dumps(p['expected']) if 'expected' in p else self.output()
+            content=json.dumps(p['expected']) if 'expected' in p else json.dumps({'selected_ids':['C1']})
             return b'{}',content,NOW,NOW
         with patch.object(runner,'utcnow',return_value=NOW):
             for _ in range(3):
@@ -234,16 +234,45 @@ class RadarTests(unittest.TestCase):
         self.assertFalse(worker.qualification_passed(json.dumps(forged),p))
         self.assertTrue(worker.qualification_passed(json.dumps(p['expected']),p))
 
-    def test_corrective_host_checks_remain_semantic_not_schema_supplied_answers(self):
+    def test_recognition_checks_reject_always_abstain_and_always_select(self):
         self.qualify_fixture();positive=worker.qualification_case(self.repo,NOW,0)
-        self.assertNotIn(positive['expected']['event_date'],json.dumps(positive['schema']))
-        self.assertNotIn(positive['expected']['quote'],json.dumps(positive['schema']))
-        for change in ({'event_date':'2026-11-20'},{'source_id':'invented'},{'quote':None},{'extra':'injected'}):
-            self.assertFalse(worker.qualification_passed(json.dumps({**positive['expected'],**change}),positive))
+        self.assertFalse(worker.qualification_passed('{"selected_ids":[]}',positive))
+        self.assertTrue(worker.qualification_passed('{"selected_ids":["C1"]}',positive))
         for i in (1,2):
             negative=worker.qualification_case(self.repo,NOW,i)
-            self.assertTrue(worker.qualification_passed(json.dumps(negative['expected']),negative))
-            self.assertFalse(worker.qualification_passed(json.dumps(positive['expected']),negative))
+            self.assertTrue(worker.qualification_passed('{"selected_ids":[]}',negative))
+            self.assertFalse(worker.qualification_passed('{"selected_ids":["C1"]}',negative))
+        for response in ('{"selected_ids":["C2"]}','{"selected_ids":["C1","C1"]}',
+                         '{"selected_ids":["C1"],"date":"invented"}'):
+            self.assertFalse(worker.qualification_passed(response,positive))
+
+    def test_host_grounded_packet_freezes_dates_quotes_and_links(self):
+        self.qualify_fixture();p=radar.selection_packet(self.repo,NOW)
+        self.assertLessEqual(len(p['sources']),8)
+        c=p['host_candidates'][0]
+        self.assertEqual(c['event_date'],'2026-10-30')
+        self.assertEqual(c['quote'],self.body)
+        self.assertEqual(c['instrument_ids'],['NPN'])
+        run=radar.record_selection(self.repo,p,json.dumps({'selected_ids':[c['candidate_id']]}),NOW)
+        self.assertEqual(run['items'][0]['quote'],self.body)
+        self.assertEqual(run['items'][0]['event_date'],'2026-10-30')
+        self.assertEqual(run['items'][0]['instrument_ids'],['NPN'])
+
+    def test_selector_cannot_change_or_invent_facts(self):
+        p=radar.selection_packet(self.repo,NOW)
+        for response in ('{"selected_ids":["invented"]}', '{"selected_ids":[],"event_date":"2026-10-31"}',
+                         '{"selected_ids":["C1","C1"]}'):
+            with self.assertRaises(ValueError):radar.record_selection(self.repo,p,response,NOW)
+        tampered={**p,'host_candidates':[]}
+        with self.assertRaises(ValueError):radar.record_selection(self.repo,tampered,'{"selected_ids":[]}',NOW)
+        self.assertEqual(radar.rows(self.repo,'watch',NOW),[])
+
+    def test_confirmed_calendar_is_visible_despite_failed_extraction(self):
+        radar.save(self.repo,'probe-result','v2-failure',{'state':'FAIL','index':0,'contract_id':'old'},NOW)
+        view=radar.status(self.repo,NOW)
+        self.assertEqual(view['calendar_upcoming'][0]['record_id'],self.event['record_id'])
+        self.assertEqual(view['watches'],[])
+        self.assertEqual(view['model_calls_on_read'],0)
 
     def test_wrong_contract_cannot_qualify_the_corrective_runner(self):
         self.qualify_fixture()
@@ -264,6 +293,80 @@ class RadarTests(unittest.TestCase):
             r=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB)
             self.assertEqual(r['state'],'QUALIFICATION_FAILED_REQUIRES_REVIEW')
         self.assertEqual(radar.rows(self.repo,'qualification',NOW),[])
+
+    def test_supervised_campaign_runs_four_calls_and_cannot_repeat(self):
+        self.qualify_fixture();calls=[]
+        def generate(p,*args,**kwargs):
+            self.assertEqual(kwargs['required_idle_seconds'],0)
+            calls.append(p)
+            answer=p.get('expected',{'selected_ids':['C1']})
+            return b'{}',json.dumps(answer),NOW,NOW
+        with patch.object(runner,'utcnow',return_value=NOW):
+            first=worker.supervised_checks(self.repo,NOW,self.folder,'x',idle=lambda:0,
+                memory=lambda:8*runner.GIB,generator=generate)
+            self.assertEqual(first['state'],'CITED_CANDIDATES')
+            self.assertEqual(first['generation_call_upper_bound'],4)
+            second=worker.supervised_checks(self.repo,NOW,self.folder,'x',idle=lambda:0,
+                memory=lambda:8*runner.GIB,generator=generate)
+        self.assertEqual(len(calls),4)
+        self.assertEqual(second['state'],'MODEL_BUDGET_ALREADY_SPENT')
+        self.assertTrue(all(a['observed_idle_seconds']==0 for a in radar.rows(self.repo,'model-attempt',NOW)))
+        self.assertEqual(len(radar.rows(self.repo,'watch',NOW)),1)
+
+    def test_foreground_exception_requires_receipt_and_keeps_memory_and_routine_idle(self):
+        forbidden=lambda *a,**k:self.fail('generation forbidden')
+        with self.assertRaises(ValueError):
+            worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:0,memory=lambda:8*runner.GIB,
+                generator=forbidden,supervised_run_id='radar-supervised-check-missing')
+        result=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:0,
+            memory=lambda:8*runner.GIB,generator=forbidden)
+        self.assertEqual(result['state'],'WAITING_FOR_10_MINUTES_IDLE')
+        with patch.object(runner,'utcnow',return_value=NOW):
+            result=worker.supervised_checks(self.repo,NOW,self.folder,'x',idle=lambda:0,
+                memory=lambda:3*runner.GIB,generator=forbidden)
+        self.assertEqual(result['state'],'WAITING_FOR_SMALL_MODEL_MEMORY')
+        self.assertEqual(result['generation_call_upper_bound'],0)
+
+    def test_failed_supervised_probes_allow_diagnostics_but_never_watches(self):
+        self.qualify_fixture();calls=[]
+        def generate(p,*a,**kw):
+            calls.append(p)
+            return b'{}','{"selected_ids":["C1"]}',NOW,NOW
+        with patch.object(runner,'utcnow',return_value=NOW):
+            result=worker.supervised_checks(self.repo,NOW,self.folder,'x',idle=lambda:0,
+                memory=lambda:8*runner.GIB,generator=generate)
+        self.assertEqual(result['state'],'UNQUALIFIED_DIAGNOSTIC_ONLY')
+        self.assertEqual(len(calls),4)
+        self.assertEqual(radar.rows(self.repo,'qualification',NOW),[])
+        self.assertEqual(radar.rows(self.repo,'watch',NOW),[])
+        result=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,
+            generator=lambda *a,**k:self.fail('routine retry forbidden'))
+        self.assertEqual(result['state'],'QUALIFICATION_FAILED_REQUIRES_REVIEW')
+
+    def test_retained_news_visible_without_model_and_read_does_not_refresh_expiry(self):
+        from market_intelligence.hermes import capture_news_snapshot
+        capture_news_snapshot(self.repo,self.feed(),NOW)
+        radar.save(self.repo,'probe-result','failed-model',{'state':'FAIL','index':0,'contract_id':'old'},NOW)
+        before=self.repo._job_sql('SELECT COUNT(*) FROM paper_records',rows=True)[0][0]
+        view=radar.status(self.repo,NOW+timedelta(hours=1))
+        self.assertEqual(len(view['source_leads']),1)
+        lead=view['source_leads'][0]
+        self.assertEqual(lead['state'],'RETAINED_SOURCE_LEAD_NOT_MODEL_PREDICTION')
+        self.assertEqual(lead['event_date'],None)
+        self.assertEqual(lead['available_at'],NOW.isoformat())
+        self.assertEqual(lead['quote'],'Naspers schedules results\n'+self.body)
+        self.assertEqual(self.repo._job_sql('SELECT COUNT(*) FROM paper_records',rows=True)[0][0],before)
+        self.assertEqual(radar.status(self.repo,NOW+timedelta(hours=49))['source_leads'],[])
+
+    def test_repeat_of_old_unknown_publication_news_cannot_revive_lead(self):
+        from market_intelligence.hermes import capture_news_snapshot
+        raw=json.loads(self.feed());item=raw['data']['items'][0]
+        item['timestamp']=None;item['timestamp_kind']='unknown'
+        capture_news_snapshot(self.repo,json.dumps(raw).encode(),NOW)
+        raw['data']['updated_at']='later capture'
+        later=NOW+timedelta(days=8)
+        capture_news_snapshot(self.repo,json.dumps(raw).encode(),later)
+        self.assertEqual(radar.status(self.repo,later)['source_leads'],[])
 
 
 if __name__=='__main__':unittest.main()

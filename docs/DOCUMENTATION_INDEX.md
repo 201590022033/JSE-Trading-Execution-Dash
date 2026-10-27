@@ -1,3 +1,9 @@
+## Source radar and native Qwen checks — 27 October 2026
+
+[Operating result](changes/2026-10-27-host-grounded-radar.md),
+[ADR0079](adr/0079-host-grounded-radar-selection.md): source radar restored;
+four native calls, model selection unqualified; 1,519 offline / 54 protected checks.
+
 ## P1 conditional pilot — 21 October2026
 
 See [pilot report](research/P1_PILOT_2026_10_21.md) and

@@ -175,6 +175,19 @@ class CalendarOllamaTests(unittest.TestCase):
         self.assertEqual(session.posts, [])
         self.assertTrue(Owner.closed)
 
+    def test_explicit_foreground_idle_override_keeps_default_and_memory_checks(self):
+        session=Session()
+        with self.assertRaises(InterruptedError):
+            runner.generate({},'prompt',{},'x',self.folder,idle=lambda:0,
+                session_factory=lambda:session,owner_factory=Owner)
+        self.assertEqual(session.posts,[])
+        runner.generate({},'prompt',{},'x',self.folder,idle=lambda:0,required_idle_seconds=0,
+            session_factory=lambda:session,owner_factory=Owner)
+        self.assertEqual(len(session.posts),1)
+        with self.assertRaises(runner.ResourcePressure):
+            runner.generate({},'prompt',{},'x',self.folder,idle=lambda:0,required_idle_seconds=0,
+                memory=lambda:runner.GIB,session_factory=lambda:session,owner_factory=Owner)
+
     def test_listener_ownership_failure_does_not_send_http(self):
         class WrongOwner(Owner):
             def owns_listener(self): raise RuntimeError("wrong PID")
