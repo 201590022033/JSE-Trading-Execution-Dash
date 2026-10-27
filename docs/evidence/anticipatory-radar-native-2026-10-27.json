@@ -1,0 +1,74 @@
+{
+  "verified_at": "2026-10-27T08:34:47.384683+00:00",
+  "backend": "postgresql",
+  "scope_issuers": 18,
+  "sectors": [
+    "Consumer",
+    "Energy",
+    "Financial Services",
+    "Investment",
+    "Luxury Goods",
+    "Mining",
+    "Retail",
+    "Technology",
+    "Telecommunications"
+  ],
+  "scope_id": "radar-scope-b03bd439bd8d0a67a84ee8bdaae6dee0b9f564056926b0625228a35e0af39e60",
+  "postgres_idempotence": "PASS",
+  "paired_frozen_definition_matches": true,
+  "latest_capture": {
+    "capture_id": "hermes-news-input-8dcb9ed60e4de1162220e6bc93edeb04d60b106bb898643c949f8eac42ef7e7d",
+    "fresh_fetch_at": "2026-10-27T08:29:55.375826+00:00",
+    "live_execution": false,
+    "new_article_identities": 23,
+    "raw_sha256": "8dcb9ed60e4de1162220e6bc93edeb04d60b106bb898643c949f8eac42ef7e7d",
+    "received_at": "2026-10-27T08:29:55.375826+00:00",
+    "record_id": "radar-capture-result-992e9335ab3be30363854f4b574e2cd9b0bb93de361425c99bb4fd9a041a0237",
+    "repeated_article_identities": 2,
+    "retained": 25,
+    "retained_receipt_at": "2026-10-27T08:29:55.375826+00:00",
+    "schema": "anticipatory-radar-v1",
+    "sources": {
+      "Moneyweb": "AVAILABLE",
+      "NewsAPI": "NOT_CONFIGURED",
+      "SENS": "AVAILABLE"
+    },
+    "state": "CAPTURED",
+    "trading_weight": 0
+  },
+  "source_freshness": "CURRENT_CAPTURE",
+  "model": {
+    "qualification": null,
+    "latest_result": null,
+    "attempts": 0,
+    "unresolved": 0
+  },
+  "metrics": {
+    "frozen_watch_count": 0,
+    "reviewed_watch_count": 0,
+    "occurred": 0,
+    "not_observed": 0,
+    "incorrect_links": 0,
+    "expired_unreviewed": 0,
+    "missed_windows": 2,
+    "timely_windows": 0,
+    "warning_lead_hours": [],
+    "coverage_denominator": "RETAINED_CONFIRMED_CALENDAR_AND_MODEL_WATCHES_NOT_ALL_MARKET_EVENTS",
+    "price_skill": "NOT_ESTABLISHED"
+  },
+  "qualification_source_receipt": "calendar-source-07a3bc8c9d80628fff75bb7784b49656fe52a020dd3b6941009443894f856ef2",
+  "qualification_prompt_characters": [
+    304,
+    297,
+    333
+  ],
+  "legacy_48h_receipts": [
+    {
+      "record_id": "calendar-warning-3c66ca4c4677d61fb4cf4f1a2797776b8beb69c733f4b833bb487448bcc85b94",
+      "state": "MISSED_EVENT_PASSED",
+      "received_at": "2026-10-27T08:31:42.695673+00:00"
+    }
+  ],
+  "model_calls": 0,
+  "live_execution": false
+}

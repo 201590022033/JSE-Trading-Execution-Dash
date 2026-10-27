@@ -1,0 +1,18 @@
+[
+  {
+    "path": "/api/market-intelligence/anticipatory-radar",
+    "http_status": 200,
+    "response_sha256": "f69a6046e98aff27c0358d5455b40dc30ea210f01989454acf212f257ab234ea",
+    "state": "ADVISORY_ANTICIPATORY_RADAR",
+    "model_calls_on_read": 0,
+    "live_execution": false
+  },
+  {
+    "path": "/api/market-intelligence/sasol-refinement",
+    "http_status": 200,
+    "response_sha256": "3b85cb1098db9b22470e13efe5b90ebaba2a7eeda4299f649d67de0d36d712ad",
+    "state": "OPERATIONAL_SHADOW_ONLY",
+    "model_calls_on_read": null,
+    "live_execution": false
+  }
+]

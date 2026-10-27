@@ -1,3 +1,27 @@
+## Anticipatory advisory radar — 27 October 2026
+
+Owner authorized the first radar integration slice. The existing calendar and
+Hermes source archive now feed a separate cited discovery/watch lane and the
+Market AI / News radar panel. Recurring public captures run at 08:00/12:00/16:00
+SAST; the first real capture retained 25 articles (23 new identities). Scope is
+18 curated issuers across nine sectors. Literal sector-topic navigation also
+supports macro/industry watches without inventing affected issuer links.
+
+The small Qwen worker is installed with 3.5-GiB free-memory and ten-minute idle
+requirements, owned-process cancellation and bounded real-source qualification.
+Native qualification is still pending idle: no production discovery or forecast
+accuracy is claimed. Daily discovery has a spent-on-reservation budget; failed
+attempts remain visible. Confirmed dates get immutable 48h/24h radar preparation;
+unconfirmed dates and unscheduled watches stay distinct. Read-only UI/API never
+starts model work. R12 remains the sole ACTIVE/PARTIAL milestone; P1 stays open.
+
+The original calendar core is frozen by the Sasol paired experiment and remains
+byte-identical. Extra warning preparation lives in the radar extension. Native
+verification confirms the paired definition matches and the operational UI is
+restored. One intermediate missed 48h legacy receipt from browser verification
+is retained honestly; no experiment definition or old attempt was rewritten.
+See docs/research/ANTICIPATORY_RADAR.md, ADR0077 and the operating checkpoint.
+
 ## Operational Sasol paired refinement — 20 October 2026
 
 The fixed baseline/candidate numerical shadow loop is implemented and active on real local source data. One change only: relative-volume threshold>1.2 versus>1.0; other1.1/1.2 rules fixed,3-observed-session horizon. The existing five-minute clock records controls, paired outcomes and comparative reviews. Native:1episode, bothNO_SETUP,0/20informative pairs; no further software prerequisite to collecting this experiment. Source dates/actual receipts, whole feature dependencies, executable hashes and revision exclusions are frozen; independent source/time and integration reviews passed.1355safe tests/54protected checks pass; dashboard verified. This is sampled-path exploratory numerical research with assumed costs, no model training, promotion or Live execution. R12 remains the sole ACTIVE/PARTIAL milestone for broader news/historical/execution evidence. See [operating record](research/SASOL_PAIRED_REFINEMENT_2026_10_20.md) and ADR0070. Earlier checkpoints below remain historical.

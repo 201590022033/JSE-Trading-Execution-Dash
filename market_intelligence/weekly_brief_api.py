@@ -43,6 +43,15 @@ def create_weekly_brief_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get("/api/market-intelligence/anticipatory-radar")
+    def read_anticipatory_radar():
+        from .anticipatory_radar import status as radar_status
+        repository = factory()
+        try:
+            return jsonify(radar_status(repository, datetime.now(timezone.utc)))
+        finally:
+            repository.close()
+
     @bp.get("/api/market-intelligence/research-data-requests")
     def read_data_requests():
         from application.opportunities.research_data_requests import status as data_status
@@ -155,6 +164,15 @@ def create_weekly_brief_blueprint(factory):
         repository = factory()
         now = datetime.now(timezone.utc)
         try:
+            if kind == 'radar-review':
+                from .anticipatory_radar import review
+                if not isinstance(payload, dict):
+                    raise ValueError('Explicit radar review required')
+                return jsonify(review(repository, payload['watch_id'], payload['verdict'],
+                    payload['note'], 'local-operator', now)), 202
+            if kind == 'radar-calendar-propose':
+                from .anticipatory_radar import propose_calendar_watch
+                return jsonify(propose_calendar_watch(repository, payload['watch_id'], now)), 202
             if kind == "hermes-cycle-run":
                 if payload != {}:
                     raise ValueError("Coordinator takes only its actual stored evidence")

@@ -1,3 +1,11 @@
+## Anticipatory radar implementation update — 27 October 2026
+
+The advisory calendar/news radar slice is implemented separately from financial
+strategy qualification. See ../research/ANTICIPATORY_RADAR.md. Recurring public
+capture, cited candidates, sector-topic navigation, 48h/24h packets and the UI are
+installed. Real-source small-model qualification and prospective observed quality
+remain pending; neither model weights nor trading defaults changed.
+
 # Target architecture — local research and selective cloud memory
 
 This document is a proposal for the next phase, not a description of implemented capabilities. Compare with [current architecture](CURRENT_ARCHITECTURE.md), [current state](../CURRENT_STATE.md), and [six swing hypotheses](../research/SIX_SWING_HYPOTHESES.md). Original target plans remain in [the dated archive](../history/TARGET_ARCHITECTURE_PRE_2026-10-05.md).

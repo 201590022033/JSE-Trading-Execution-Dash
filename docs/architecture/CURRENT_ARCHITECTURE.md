@@ -1,3 +1,27 @@
+## Anticipatory advisory radar — 27 October 2026
+
+Owner authorized the first radar integration slice. The existing calendar and
+Hermes source archive now feed a separate cited discovery/watch lane and the
+Market AI / News radar panel. Recurring public captures run at 08:00/12:00/16:00
+SAST; the first real capture retained 25 articles (23 new identities). Scope is
+18 curated issuers across nine sectors. Literal sector-topic navigation also
+supports macro/industry watches without inventing affected issuer links.
+
+The small Qwen worker is installed with 3.5-GiB free-memory and ten-minute idle
+requirements, owned-process cancellation and bounded real-source qualification.
+Native qualification is still pending idle: no production discovery or forecast
+accuracy is claimed. Daily discovery has a spent-on-reservation budget; failed
+attempts remain visible. Confirmed dates get immutable 48h/24h radar preparation;
+unconfirmed dates and unscheduled watches stay distinct. Read-only UI/API never
+starts model work. R12 remains the sole ACTIVE/PARTIAL milestone; P1 stays open.
+
+The original calendar core is frozen by the Sasol paired experiment and remains
+byte-identical. Extra warning preparation lives in the radar extension. Native
+verification confirms the paired definition matches and the operational UI is
+restored. One intermediate missed 48h legacy receipt from browser verification
+is retained honestly; no experiment definition or old attempt was rewritten.
+See docs/research/ANTICIPATORY_RADAR.md, ADR0077 and the operating checkpoint.
+
 ## P1 conditional pilot — 21 October2026
 
 Owner authorized P1; ViewPoint is currently unavailable. Independent research

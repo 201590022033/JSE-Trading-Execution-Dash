@@ -1,0 +1,2 @@
+{"last_heartbeat_at": "2026-10-27T08:37:12.339740+00:00", "mode": "DEVELOPMENT", "processed": 1, "started_at": "2026-10-27T08:37:12.339740+00:00", "status": "RUNNING", "version": "unknown", "worker_id": "ed0fe9de32f34384885d95a8f5b3c3a3"}
+{"last_heartbeat_at": "2026-10-27T08:37:12.412740+00:00", "mode": "DEVELOPMENT", "processed": 1, "started_at": "2026-10-27T08:37:12.412740+00:00", "status": "RUNNING", "version": "unknown", "worker_id": "91c93ad5935e4ed2acdd2683dbdef97f"}

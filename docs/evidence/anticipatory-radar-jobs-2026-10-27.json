@@ -1,0 +1,66 @@
+[
+  {
+    "Name": "Trading System Idle Anticipatory Radar",
+    "State": "Ready",
+    "Enabled": true,
+    "NextRun": "2026-10-27T11:34:34.0000000+02:00",
+    "LastResult": 267011,
+    "Triggers": [
+      {
+        "StartBoundary": "2026-10-27T10:34:59+02:00",
+        "EndBoundary": null,
+        "Enabled": true
+      }
+    ],
+    "Repeat": [
+      {
+        "Interval": "PT1H",
+        "Duration": null
+      }
+    ],
+    "Action": "\"C:\\Users\\Deon\\Documents\\GitHub\\JSE-Trading-Execution-Dash\\scripts\\anticipatory_radar.py\" model",
+    "RunOnlyIfIdle": true,
+    "StopOnIdleEnd": true
+  },
+  {
+    "Name": "Trading System Idle Prospective News Capture",
+    "State": "Ready",
+    "Enabled": true,
+    "NextRun": "2026-10-27T12:00:00.0000000+02:00",
+    "LastResult": 0,
+    "Triggers": [
+      {
+        "StartBoundary": "2026-10-27T08:00:00+02:00",
+        "EndBoundary": null,
+        "Enabled": true
+      },
+      {
+        "StartBoundary": "2026-10-27T12:00:00+02:00",
+        "EndBoundary": null,
+        "Enabled": true
+      },
+      {
+        "StartBoundary": "2026-10-27T16:00:00+02:00",
+        "EndBoundary": null,
+        "Enabled": true
+      }
+    ],
+    "Repeat": [
+      {
+        "Interval": null,
+        "Duration": null
+      },
+      {
+        "Interval": null,
+        "Duration": null
+      },
+      {
+        "Interval": null,
+        "Duration": null
+      }
+    ],
+    "Action": "\"C:\\Users\\Deon\\Documents\\GitHub\\JSE-Trading-Execution-Dash\\scripts\\anticipatory_radar.py\" capture",
+    "RunOnlyIfIdle": false,
+    "StopOnIdleEnd": true
+  }
+]

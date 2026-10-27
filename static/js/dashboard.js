@@ -388,6 +388,7 @@ async function refreshSources() {
   });
   await refreshWeeklyBrief();
   await refreshResearchCalendar();
+  await refreshAnticipatoryRadar();
 }
 async function refreshResearchCalendar() {
   if (!$('#research-calendar-status')) return;
@@ -675,3 +676,32 @@ $('#auto-refresh').onchange=()=>{if($('#auto-refresh').checked) refreshFeeds();}
   await refreshCanonicalOpportunities(true);
   setInterval(()=>{if($('#auto-refresh').checked && !document.hidden) refreshFeeds();},10000);
 })().catch(error=>{$('#system-pill').textContent='SYSTEM UNAVAILABLE';$('#feed-notice').textContent=error.message;});
+
+async function refreshAnticipatoryRadar() {
+  if (!$('#anticipatory-radar-status')) return;
+  try {
+    const d = await api('/api/market-intelligence/anticipatory-radar');
+    const members = d.scope?.members || {};
+    const readable = s => (s || 'not run').replaceAll('_',' ').toLowerCase();
+    $('#anticipatory-radar-status').textContent = `${Object.keys(members).length} issuers · ${readable(d.source_freshness)} · Qwen 1.5B: ${readable(d.model.qualification?.state || d.model.latest_result?.state || 'waiting for first idle qualification')} · latest capture ${d.latest_capture ? when(d.latest_capture.received_at) : 'none'}`;
+    $('#anticipatory-radar-scope').textContent = [...new Set(Object.values(members).map(m => m.sector))].sort().join(' · ');
+    const windows = d.windows.filter(w => w.active);
+    $('#anticipatory-radar-items').innerHTML = windows.map(w => `<article><h3>${esc(w.title)} · ${w.hours}h preparation</h3><p>${esc(w.instrument_ids.join(', ') || 'Market context')} · ${esc(readable(w.model_state))}</p><p>${esc(w.source_quote)}</p><p class="muted">Saved ${esc(when(w.observed_at))} · actual lead ${num(w.lead_hours)} hours · ${esc(readable(w.time_precision))}</p><a href="${esc(w.source_url)}" target="_blank" rel="noopener noreferrer">Event source ↗</a></article>`).join('') + d.watches.slice(0,40).map(w => `<article><h3>${esc(w.reason)}</h3><p><strong>${esc(readable(w.state))}</strong> · ${esc(w.instrument_ids.join(', ') || 'Macro context only')} · ${esc(w.sectors.join(', '))}</p><p>${esc(w.quote)}</p><p>${w.event_date ? 'Tentative date: '+esc(w.event_date)+'; release time unknown' : 'Conditional watch; no confirmed announcement date'}</p><p class="muted">Evidence cutoff ${esc(when(w.causal_cutoff))} · expires ${esc(when(w.expires_at))}</p><p>${esc(w.failure_condition)}</p><a href="${esc(w.source_url)}" target="_blank" rel="noopener noreferrer">Retained source ↗</a> ${w.kind==='DATED_CANDIDATE' && w.state==='UNCONFIRMED_SOURCE_CANDIDATE' ? `<button data-radar-calendar="${esc(w.record_id)}">Send date for calendar review</button>` : ''}<button data-radar-review="${esc(w.record_id)}">Record observation</button></article>`).join('') || '<p>No watch entries yet. Confirmed calendar dates remain visible below. Model qualification and source discovery run during eligible idle time; no anticipated event is fabricated to fill this panel.</p>';
+    const m=d.metrics;
+    $('#anticipatory-radar-metrics').textContent = `${m.frozen_watch_count} saved watches · ${m.reviewed_watch_count} reviewed · ${m.occurred} occurred · ${m.not_observed} not observed · ${m.incorrect_links} incorrect links · ${m.expired_unreviewed} expired awaiting review · ${m.missed_windows} missed windows. Forecast accuracy is not established.`;
+    document.querySelectorAll('[data-radar-calendar]').forEach(b => b.onclick = async () => {
+      try { await api('/api/market-intelligence/weekly-brief/radar-calendar-propose',{method:'POST',body:JSON.stringify({watch_id:b.dataset.radarCalendar})}); await refreshResearchCalendar(); b.textContent='Proposal saved; check and confirm date below'; b.disabled=true; }
+      catch(e) { $('#anticipatory-radar-status').textContent=e.message; }
+    });
+    document.querySelectorAll('[data-radar-review]').forEach(b => b.onclick = async () => {
+      const verdict=prompt('Observation: OCCURRED, NOT_OBSERVED, or INCORRECT_LINK');
+      if (!verdict) return;
+      const note=prompt('Describe the observation and its source (this remains your review, not a model label).');
+      if (!note) return;
+      try { await api('/api/market-intelligence/weekly-brief/radar-review',{method:'POST',body:JSON.stringify({watch_id:b.dataset.radarReview,verdict:verdict.trim().toUpperCase(),note})}); await refreshAnticipatoryRadar(); }
+      catch(e) { $('#anticipatory-radar-status').textContent=e.message; }
+    });
+  } catch(e) { $('#anticipatory-radar-status').textContent=`Radar unavailable: ${e.message}`; }
+}
+if ($('#reload-anticipatory-radar')) $('#reload-anticipatory-radar').onclick=refreshAnticipatoryRadar;
+setInterval(() => { if ($('#market-ai')?.classList.contains('active')) refreshAnticipatoryRadar(); },60000);

@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/api/market-intelligence/anticipatory-radar",
+    "http_status": 200,
+    "state": "ADVISORY_ANTICIPATORY_RADAR",
+    "live_execution": false
+  },
+  {
+    "path": "/api/market-intelligence/sasol-refinement",
+    "http_status": 200,
+    "state": "OPERATIONAL_SHADOW_ONLY",
+    "live_execution": false
+  }
+]

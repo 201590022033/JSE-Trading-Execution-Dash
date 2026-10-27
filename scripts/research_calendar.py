@@ -37,6 +37,8 @@ def main():
                 data_requests = sync_requests(repository, now)
                 from market_intelligence.calendar_outcomes import tick as outcome_tick
                 outcome_tick(repository, now)
+                from market_intelligence.anticipatory_radar import tick as radar_tick
+                radar_tick(repository, now)
                 from market_intelligence.hermes_cycles import run_cycle
                 run_cycle(repository, now)
                 from market_intelligence.sasol_refinement import tick as refinement_tick
