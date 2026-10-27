@@ -1,4 +1,31 @@
-## Current v4 boolean relevance — natively qualified
+## Current state: real broad-request review failed; sources remain available
+
+27 October 2026. The separately approved one-call real-source screen selected
+0/8 candidates. The earlier eight passes tested literal event requests on one
+or two candidates. They do not qualify the broader eight-candidate daily request.
+The pre-generation assistant source assessment disagrees with all eight choices;
+it is not independent human ground truth or a training target.
+
+Only repetitions of that exact broad request/model are held pending correction.
+Append-only latest review/clearance records control this operational hold.
+Collection, source leads, calendar warnings and other research continue. Display
+both narrow checks and actual screening review instead of implying readiness.
+
+Current v4 news eligibility expires at the earlier of known publication and
+first usable receipt plus 48 hours; unknown publication uses first receipt.
+Filter expired items before diversity/capping and retain all older archive data.
+Known calendar matches keep event/title/issuer references without duplicate
+model watches or consuming the five-news cap. Validate each selected news item
+individually and retain matched/rejected/admitted/cap-held IDs in the audit.
+
+The real response remains ABSTAIN with zero fabricated watches. Its one-call
+allowance and original daily reservation stay spent. Next is the separately
+proposed four-call request-versus-width comparison, not queued. See
+[review](../changes/2026-10-27-first-real-screen-review.md),
+[ADR0081](../adr/0081-source-screening-review-and-admission.md) and
+[corrective design](REAL_SCREEN_REQUEST_CORRECTION.md). P1 remains open.
+
+## Earlier v4 narrow-check qualification
 
 27 October 2026. The same bounded request/evidence/boolean schema now serves
 qualification and daily discovery. Every candidate needs true or false; only true

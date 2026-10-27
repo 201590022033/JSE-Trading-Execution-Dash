@@ -1,3 +1,10 @@
+## First real screening reviewed — 27 October 2026
+
+[Source review](changes/2026-10-27-first-real-screen-review.md),
+[ADR0081](adr/0081-source-screening-review-and-admission.md),
+[next bounded design](research/REAL_SCREEN_REQUEST_CORRECTION.md): actual 0/8
+broad screen; no production readiness claim. 1,533 offline / 54 protected checks.
+
 ## Qwen relevance correction verified — 27 October 2026
 
 [Native result](changes/2026-10-27-qwen-boolean-relevance.md),

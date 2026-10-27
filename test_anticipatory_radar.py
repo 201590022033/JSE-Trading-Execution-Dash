@@ -172,8 +172,10 @@ class RadarTests(unittest.TestCase):
 
     def test_qualification_eight_probes_then_daily_discovery_budget(self):
         self.qualify_fixture()
+        from market_intelligence.hermes import capture_news_snapshot
+        capture_news_snapshot(self.repo,self.feed(),NOW)
         def generate(p,*a,**kw):
-            content=json.dumps(p['expected']) if 'expected' in p else json.dumps({'matches':{c['candidate_id']:i==0 for i,c in enumerate(p['host_candidates'])}})
+            content=json.dumps(p['expected']) if 'expected' in p else json.dumps({'matches':{c['candidate_id']:c['kind']=='CONDITIONAL_WATCH' for c in p['host_candidates']}})
             return b'{}',content,NOW,NOW
         with patch.object(runner,'utcnow',return_value=NOW):
             for _ in range(worker.RELEVANCE_CASES):
@@ -369,10 +371,11 @@ class RadarTests(unittest.TestCase):
     def test_repeat_of_old_unknown_publication_news_cannot_revive_lead(self):
         from market_intelligence.hermes import capture_news_snapshot
         raw=json.loads(self.feed());item=raw['data']['items'][0]
-        item['timestamp']=None;item['timestamp_kind']='unknown'
+        item['timestamp']=NOW.isoformat();item['timestamp_kind']='observed'
         capture_news_snapshot(self.repo,json.dumps(raw).encode(),NOW)
         raw['data']['updated_at']='later capture'
         later=NOW+timedelta(days=8)
+        item['timestamp']=later.isoformat()
         capture_news_snapshot(self.repo,json.dumps(raw).encode(),later)
         self.assertEqual(radar.status(self.repo,later)['source_leads'],[])
 
@@ -412,14 +415,18 @@ class RadarTests(unittest.TestCase):
         self.assertEqual(radar.rows(self.repo,'watch',NOW),[])
 
     def test_boolean_packet_applies_only_true_ids_with_unchanged_source_facts(self):
-        self.qualify_fixture();p=radar.selection_packet(self.repo,NOW,relevance=True)
+        self.qualify_fixture()
+        from market_intelligence.hermes import capture_news_snapshot
+        capture_news_snapshot(self.repo,self.feed(),NOW)
+        p=radar.selection_packet(self.repo,NOW,relevance=True)
         self.assertEqual(p['response_format'],'HOST_GROUNDED_BOOLEAN_V4')
         ids=[c['candidate_id'] for c in p['host_candidates']]
-        raw=json.dumps({'matches':{k:i==1 for i,k in enumerate(ids)}})
+        candidate=next(c for c in p['host_candidates'] if c['kind']=='CONDITIONAL_WATCH')
+        raw=json.dumps({'matches':{k:k==candidate['candidate_id'] for k in ids}})
         run=radar.record_selection(self.repo,p,raw,NOW)
         self.assertEqual(len(run['items']),1)
-        self.assertEqual(run['items'][0]['quote'],p['host_candidates'][1]['quote'])
-        self.assertEqual(run['items'][0]['event_date'],p['host_candidates'][1]['event_date'])
+        self.assertEqual(run['items'][0]['quote'],candidate['quote'])
+        self.assertEqual(run['items'][0]['event_date'],candidate['event_date'])
         self.assertLessEqual(len(radar.selection_prompt(p))+len(json.dumps(radar.relevance_schema(ids))),12000)
 
     def test_boolean_campaign_keeps_idle_memory_and_failed_attempt_bounds(self):
@@ -470,6 +477,84 @@ class RadarTests(unittest.TestCase):
         self.assertEqual(r['state'],'MODEL_FAILED_NO_AUTOMATIC_RETRY')
         self.assertEqual(second['state'],'MODEL_BUDGET_ALREADY_SPENT')
         self.assertEqual((self.folder/r['raw_archive']['name']).read_bytes(),b'{"response":"bad"}')
+
+    def test_current_boolean_packet_excludes_stale_news_but_preserves_archive_and_calendar(self):
+        from market_intelligence.hermes import capture_news_snapshot
+        raw=json.loads(self.feed());raw['data']['items'][0]['timestamp_kind']='observed'
+        capture_news_snapshot(self.repo,json.dumps(raw).encode(),NOW)
+        later=NOW+timedelta(hours=49)
+        self.assertTrue(any(s['url']=='https://example.test/news' for s in radar.sources(self.repo,later)))
+        p=radar.selection_packet(self.repo,later,relevance=True)
+        self.assertFalse(any(c['kind']=='CONDITIONAL_WATCH' for c in p['host_candidates']))
+        self.assertTrue(any(c.get('calendar_event_id')==self.event['record_id'] for c in p['host_candidates']))
+        self.assertGreater(p['source_denominator'],p['eligible_source_denominator'])
+
+    def test_known_old_publication_cannot_become_fresh_on_first_receipt(self):
+        from market_intelligence.hermes import capture_news_snapshot
+        raw=json.loads(self.feed());raw['data']['items'][0]['timestamp']=(NOW-timedelta(days=3)).isoformat()
+        capture_news_snapshot(self.repo,json.dumps(raw).encode(),NOW)
+        self.assertEqual(radar.status(self.repo,NOW)['source_leads'],[])
+        p=radar.selection_packet(self.repo,NOW,relevance=True)
+        self.assertFalse(any(c['kind']=='CONDITIONAL_WATCH' for c in p['host_candidates']))
+
+    def test_confirmed_calendar_matches_keep_reference_and_title_without_duplicate_watch(self):
+        p=radar.selection_packet(self.repo,NOW,relevance=True)
+        self.assertEqual(p['host_candidates'][0]['title'],'Naspers results')
+        self.assertIn('Naspers results',radar.selection_prompt(p))
+        run=radar.record_selection(self.repo,p,json.dumps({'matches':{c['candidate_id']:True for c in p['host_candidates']}}),NOW)
+        self.assertEqual(run['state'],'KNOWN_CALENDAR_REFERENCES_ONLY')
+        self.assertEqual(run['selection_audit']['calendar_references'][0]['event_id'],self.event['record_id'])
+        self.assertEqual(radar.rows(self.repo,'watch',NOW),[])
+
+    def test_expiring_item_does_not_reject_entire_screen_and_expiry_is_not_reset(self):
+        from market_intelligence.hermes import capture_news_snapshot
+        capture_news_snapshot(self.repo,self.feed(),NOW)
+        later=NOW+timedelta(hours=20);raw=json.loads(self.feed())
+        raw['data']['items'][0].update(headline='Naspers additional update',timestamp=later.isoformat())
+        capture_news_snapshot(self.repo,json.dumps(raw).encode(),later)
+        p=radar.selection_packet(self.repo,later,relevance=True)
+        now=NOW+timedelta(hours=49)
+        run=radar.record_selection(self.repo,p,json.dumps({'matches':{c['candidate_id']:True for c in p['host_candidates']}}),now)
+        self.assertEqual(len(run['items']),1);self.assertEqual(len(run['selection_audit']['rejected']),1)
+        self.assertEqual(run['items'][0]['expires_at'],(later+timedelta(hours=48)).isoformat())
+        self.assertIn('additional update',run['items'][0]['quote'])
+
+    def test_calendar_references_do_not_consume_the_five_news_watch_cap(self):
+        from market_intelligence.hermes import capture_news_snapshot
+        raw=json.loads(self.feed());original=raw['data']['items'][0]
+        raw['data']['items']=[dict(original,url='https://example.test/news/'+str(i),headline='Naspers news '+str(i)) for i in range(8)]
+        capture_news_snapshot(self.repo,json.dumps(raw).encode(),NOW)
+        p=radar.selection_packet(self.repo,NOW,relevance=True)
+        run=radar.record_selection(self.repo,p,json.dumps({'matches':{c['candidate_id']:True for c in p['host_candidates']}}),NOW)
+        self.assertEqual(len(run['items']),5)
+        self.assertEqual(len(run['selection_audit']['calendar_references']),1)
+        self.assertGreaterEqual(len(run['selection_audit']['held_by_cap']),1)
+
+    def test_review_holds_only_the_exact_model_request_without_source_or_model_read_calls(self):
+        self.qualify_fixture();c=worker.qualification_contract(self.repo,NOW)
+        radar.save(self.repo,'qualification',[c['record_id'],worker.DIGEST],{
+            'state':'PASSED_REAL_SOURCE_CONTRACT_PROBES','contract_id':c['record_id'],'model_digest':worker.DIGEST},NOW)
+        r=radar.save(self.repo,'screening-source-review','real-review',{'state':'BROAD_SCREENING_NEEDS_REVIEW',
+            'request_sha256':cal._hash(radar.RELEVANCE_REQUEST),'model_digest':worker.DIGEST,
+            'hold_identical_request':True,'model_selected_count':0,'candidate_count':8,
+            'assistant_disagreement_count':8,'reviewer_origin':'ASSISTANT_SOURCE_AUDIT_NOT_HUMAN_GROUND_TRUTH'},NOW)
+        result=worker.execute_model(self.repo,NOW,self.folder,'x',idle=lambda:601,memory=lambda:8*runner.GIB,
+            generator=lambda *a,**k:self.fail('same failed request must not repeat'))
+        self.assertEqual(result['state'],'BROAD_SCREENING_REQUEST_NEEDS_REVIEW')
+        self.assertEqual(radar.rows(self.repo,'model-attempt',NOW),[])
+        view=radar.status(self.repo,NOW)
+        self.assertGreater(len(view['calendar_upcoming']),0)
+        self.assertEqual(view['model']['screening_review']['record_id'],r['record_id'])
+        self.assertIsNone(radar.screening_review(self.repo,NOW,request='different request',model_digest=worker.DIGEST))
+        self.assertIsNone(radar.screening_review(self.repo,NOW,request=radar.RELEVANCE_REQUEST,model_digest='different model'))
+
+    def test_review_clearance_is_append_only_and_latest_matching_decision_wins(self):
+        base={'request_sha256':cal._hash(radar.RELEVANCE_REQUEST),'model_digest':worker.DIGEST,'hold_identical_request':True}
+        old=radar.save(self.repo,'screening-source-review','held',base,NOW)
+        later=NOW+timedelta(seconds=1)
+        cleared=radar.save(self.repo,'screening-source-review','separate-verified-clearance',{**base,'hold_identical_request':False},later)
+        self.assertEqual(self.repo.paper_record(old['record_id']),old)
+        self.assertEqual(radar.screening_review(self.repo,later,request=radar.RELEVANCE_REQUEST,model_digest=worker.DIGEST),cleared)
 
 
 if __name__=='__main__':unittest.main()

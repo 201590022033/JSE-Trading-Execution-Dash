@@ -199,6 +199,9 @@ def execute_model(repo, now, folder, executable, *, idle=None, memory=None, gene
             p=contract['cases'][index];prompt=p['prompt'];schema=p['schema']
             identity=[contract_id,index]
     if mode!='qualification':
+        reviewed=radar.screening_review(repo,now,request=radar.RELEVANCE_REQUEST,model_digest=DIGEST)
+        if version==RELEVANCE_VERSION and reviewed and reviewed.get('hold_identical_request'):
+            return {'state':'BROAD_SCREENING_REQUEST_NEEDS_REVIEW','review_id':reviewed['record_id'],'model_calls':0}
         p=radar.selection_packet(repo,now,relevance=version==RELEVANCE_VERSION)
         if not p['host_candidates']:
             return {'state':'NO_RETAINED_SOURCES','model_calls':0}

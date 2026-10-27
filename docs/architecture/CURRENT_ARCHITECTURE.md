@@ -1,3 +1,19 @@
+## First real screening reviewed — 27 October 2026
+
+The owner-approved one-call real packet returned 0/8 matches despite the 8/8
+narrow event checks. A source assessment frozen before generation disagrees;
+it is explicitly assistant review, not human ground truth or training labels.
+The exact broad request/model is held pending correction; source collection,
+calendar clocks and source leads continue. Source intake now excludes stale
+headlines from current watches without deleting research history, reuses known
+calendar references without duplicate watches, and checks each news item separately.
+1,533 offline / 74 focused / 5 private spender tests and 54 protected checks pass.
+The one extra call and all earlier budgets/receipts are preserved. A historical
+Sasol calendar date discrepancy is flagged without rewriting frozen evidence.
+R12 stays sole ACTIVE/PARTIAL; P1 open. Next: the proposed four-call request/width
+comparison; no further inference is queued. See
+`docs/changes/2026-10-27-first-real-screen-review.md` and ADR0081.
+
 ## Qwen relevance correction verified — 27 October 2026
 
 The explicit boolean protocol passes all eight frozen native source-relevance

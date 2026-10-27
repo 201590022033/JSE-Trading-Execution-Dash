@@ -14,6 +14,7 @@ ACCOUNT = 'anticipatory-radar-v1'
 VERSION = 'anticipatory-radar-v1'
 LIMIT = 2000
 SAST = ZoneInfo('Africa/Johannesburg')
+RELEVANCE_REQUEST = 'Select sourced issuer or economic calendar events and financial news for the curated shares or sector topics identified in each candidate.'
 # Literal topic routing, not an assertion of economic/issuer exposure.
 TOPICS = {'Mining': ('gold','platinum','iron ore','mining'),
           'Energy': ('oil','brent','energy'),
@@ -87,10 +88,20 @@ def sources(repo, now):
     return sorted(result.values(), key=lambda a: (a['available_at'], a['source_id']), reverse=True)
 
 
-def packet(repo, now):
+def news_expiry(source):
+    """A repeat receipt cannot make old news current; unknown publication uses first receipt."""
+    clocks=[cal._at(source['available_at'])]
+    if source.get('published_at'):clocks.append(cal._at(source['published_at']))
+    return min(clocks)+timedelta(hours=48)
+
+
+def packet(repo, now, *, current_news=False):
     scope = ensure_scope(repo, now)
     # Distinct issuers get a turn ahead of repeated headlines from one issuer.
     retained = sources(repo, now)
+    denominator=len(retained)
+    if current_news:
+        retained=[s for s in retained if s['source_id'].startswith('calendar-source-') or news_expiry(s)>cal._at(now)]
     selected, covered = [], set()
     for s in retained:
         linked = set(issuer_links(s['body'], scope['members']))
@@ -106,8 +117,9 @@ def packet(repo, now):
             selected.append(s)
     content = {'cutoff': cal._at(now).isoformat(), 'scope_id': scope['record_id'],
                'members': scope['members'], 'sources': selected,
-               'source_denominator': len(retained), 'selection': 'ISSUER_DIVERSITY_THEN_PUBLISHED_TOPIC_NEWS_THEN_LATEST_MAX8',
+               'source_denominator': denominator, 'selection': 'ISSUER_DIVERSITY_THEN_PUBLISHED_TOPIC_NEWS_THEN_LATEST_MAX8',
                'topic_routing': {k:list(v) for k,v in TOPICS.items()}, 'topic_mapping_basis':'LITERAL_RESEARCH_NAVIGATION_NOT_CAUSAL_EXPOSURE'}
+    if current_news:content.update(eligible_source_denominator=len(retained),news_max_age_hours=48)
     while len(prompt_for(content))+len(json.dumps(response_schema())) > 12000:
         if not content['sources']:
             raise ValueError('Radar scope exceeds bounded model context')
@@ -188,7 +200,7 @@ def news_candidate(s,members):
 
 def selection_packet(repo, now, *, relevance=False):
     """Host-grounded facts; the model selects IDs instead of rewriting source data."""
-    base=packet(repo,now)
+    base=packet(repo,now,current_news=relevance)
     content={k:v for k,v in base.items() if k not in {'record_id','schema','received_at','trading_weight','live_execution'}}
     all_sources={s['source_id']:s for s in sources(repo,now)}
     candidates=[];selected=[]
@@ -198,6 +210,7 @@ def selection_packet(repo, now, *, relevance=False):
         # Existing confirmed records already validate exact quote/date/receipt.
         if not cal._date_in_quote(date.fromisoformat(e['event_date']),quote):continue
         candidates.append({'kind':'DATED_CANDIDATE','source_id':s['source_id'],'quote':quote,
+            **({'title':e['title']} if relevance else {}),
             'instrument_ids':[k for k in e['instrument_ids'] if k in issuer_links(quote,base['members'])][:5], 'event_date':e['event_date'],
             'reason':'Monitor the sourced scheduled event: '+e['title'][:350],
             'calendar_event_id':e['record_id']})
@@ -212,7 +225,7 @@ def selection_packet(repo, now, *, relevance=False):
     content['sources']=[s for s in selected if s['source_id'] in used]
     content['response_format']='HOST_GROUNDED_BOOLEAN_V4' if relevance else 'HOST_GROUNDED_SELECTION_V3'
     if relevance:
-        content['request']='Select sourced issuer or economic calendar events and financial news for the curated shares or sector topics identified in each candidate.'
+        content['request']=RELEVANCE_REQUEST
     while content['host_candidates'] and len(selection_prompt(content))+len(json.dumps(
             relevance_schema([c['candidate_id'] for c in content['host_candidates']]) if relevance else
             selection_schema([c['candidate_id'] for c in content['host_candidates']])))>12000:
@@ -224,13 +237,32 @@ def record_selection(repo,p,content,now):
     if repo.paper_record(p['record_id'])!=p or p.get('response_format') not in {'HOST_GROUNDED_SELECTION_V3','HOST_GROUNDED_BOOLEAN_V4'}:
         raise ValueError('Immutable grounded selection packet required')
     allowed=[c['candidate_id'] for c in p['host_candidates']]
-    ids=(relevance_ids(content,allowed)[:5] if p.get('response_format')=='HOST_GROUNDED_BOOLEAN_V4'
-        else selected_ids(content,allowed))
+    boolean=p.get('response_format')=='HOST_GROUNDED_BOOLEAN_V4'
+    ids=relevance_ids(content,allowed) if boolean else selected_ids(content,allowed)
     chosen={c['candidate_id']:c for c in p['host_candidates']}
     fields=('kind','source_id','quote','instrument_ids','event_date','reason')
+    audit=None
+    if boolean:
+        current={e['record_id']:e for e in cal.status(repo,now)['upcoming']}
+        eligible=[];references=[];rejected=[]
+        for cid in ids:
+            c=chosen[cid]
+            if c.get('calendar_event_id'):
+                e=current.get(c['calendar_event_id'])
+                if e and e['source_receipt_id']==c['source_id'] and e['event_date']==c['event_date']:
+                    references.append({'candidate_id':cid,'event_id':e['record_id'],'instrument_ids':e['instrument_ids']})
+                else:rejected.append({'candidate_id':cid,'reason':'CALENDAR_REFERENCE_NO_LONGER_CURRENT'})
+                continue
+            try:validate(json.dumps({'items':[{k:c[k] for k in fields}]}),p,now)
+            except (ValueError,TypeError):rejected.append({'candidate_id':cid,'reason':'SOURCE_FACT_OR_FRESHNESS_VALIDATION_FAILED'})
+            else:eligible.append(cid)
+        audit={'model_matched_ids':ids,'calendar_references':references,'rejected':rejected,
+            'admitted_ids':eligible[:5],'held_by_cap':eligible[5:],
+            'basis':'PER_ITEM_HOST_ADMISSION_NOT_A_MODEL_REWRITE_OR_TRAINING_LABEL'}
+        ids=eligible[:5]
     # Existing validator rechecks source spans, literal dates and direct issuer links.
     raw=json.dumps({'items':[{k:chosen[x][k] for k in fields} for x in ids]})
-    return record_response(repo,p,raw,now)
+    return record_response(repo,p,raw,now,selection_audit=audit)
 
 
 def issuer_links(quote, members):
@@ -298,6 +330,9 @@ def validate(content, p, now):
             expiry = anchor
         elif x['kind'] == 'CONDITIONAL_WATCH' and x['event_date'] is None:
             expiry = cal._at(p['cutoff'])+timedelta(hours=48)
+            if p.get('response_format')=='HOST_GROUNDED_BOOLEAN_V4':
+                expiry=min(expiry,news_expiry(s))
+                if expiry<=cal._at(now):raise ValueError('News watch window already expired')
         else:
             raise ValueError('Unscheduled watch cannot claim a date')
         cleaned.append({**x, 'reason': cal._text(x['reason'],500), 'source_url': s['url'],
@@ -311,12 +346,14 @@ def validate(content, p, now):
 
 
 @cal._write
-def record_response(repo, p, content, now):
+def record_response(repo, p, content, now, *, selection_audit=None):
     if repo.paper_record(p['record_id']) != p or cal._at(now) < cal._at(p['cutoff']):
         raise ValueError('Immutable saved packet required')
     items = validate(content, p, now)
-    run = save(repo, 'discovery', p['record_id'], {'input_id': p['record_id'], 'input_sha256': cal._hash(p),
-        'state': 'CITED_CANDIDATES' if items else 'ABSTAIN', 'items': items, 'causal_cutoff': p['cutoff']}, now)
+    state='CITED_CANDIDATES' if items else ('KNOWN_CALENDAR_REFERENCES_ONLY' if selection_audit and selection_audit['calendar_references'] else 'ABSTAIN')
+    details={'input_id':p['record_id'],'input_sha256':cal._hash(p),'state':state,'items':items,'causal_cutoff':p['cutoff']}
+    if selection_audit is not None:details['selection_audit']=selection_audit
+    run = save(repo, 'discovery', p['record_id'], details, now)
     for x in items:
         save(repo, 'watch', [run['record_id'], x], {**x, 'discovery_id': run['record_id'],
              'causal_cutoff': p['cutoff'], 'frozen_at': cal._at(now).isoformat(),
@@ -377,6 +414,13 @@ def review(repo, watch_id, verdict, note, operator, now):
         'review_basis':'HUMAN_ASSERTION_NOT_INDEPENDENT_PRICE_LABEL'}, now)
 
 
+def screening_review(repo,now,*,request=None,model_digest=None):
+    reviews=rows(repo,'screening-source-review',now)
+    if request is not None:reviews=[r for r in reviews if r.get('request_sha256')==cal._hash(request)]
+    if model_digest is not None:reviews=[r for r in reviews if r.get('model_digest')==model_digest]
+    return max(reviews,key=lambda r:r['received_at'],default=None)
+
+
 def status(repo, now):
     now = cal._at(now)
     scopes = rows(repo, 'scope', now)
@@ -403,10 +447,12 @@ def status(repo, now):
     contract = max(contracts,key=lambda c:c['received_at'],default=None)
     qualified = [q for q in rows(repo,'qualification',now) if not contract or q.get('contract_id')==contract['record_id']]
     probes = [p for p in rows(repo,'probe-result',now) if contract and p.get('contract_id')==contract['record_id']]
+    last_screen_review=screening_review(repo,now,request=RELEVANCE_REQUEST,
+        model_digest=contract.get('model_digest') if contract else None)
     previews=[]
     for s in sources(repo,now):
         candidate=news_candidate(s,(scope or {}).get('members',{}))
-        expires=cal._at(s['available_at'])+timedelta(hours=48)
+        expires=news_expiry(s)
         if not candidate or expires<=now:continue
         previews.append({**candidate,'source_url':s['url'],'source_receipt_id':s['receipt_id'],
             'published_at':s['published_at'],'available_at':s['available_at'],'expires_at':expires.isoformat(),
@@ -419,6 +465,8 @@ def status(repo, now):
         'latest_capture':captures[0] if captures else None,
         'source_freshness':'CURRENT_CAPTURE' if captures and captures[0].get('state')=='CAPTURED' and now-cal._at(captures[0]['received_at'])<timedelta(hours=12) else 'STALE_OR_UNAVAILABLE',
         'model':{'qualification':max(qualified,key=lambda q:q['received_at']) if qualified else None,'latest_result':results[0] if results else None,
+                 'screening_review':{k:last_screen_review.get(k) for k in ('record_id','state','model_selected_count',
+                    'candidate_count','assistant_disagreement_count','reviewer_origin','hold_identical_request')} if last_screen_review else None,
                  'corrective_contract':{'record_id':contract['record_id'],'version':contract['version'],
                     'maximum_generation_calls':contract['maximum_generation_calls'],'passed_probes':sum(p['state']=='PASS' for p in probes),
                     'failed_probes':sum(p['state']!='PASS' for p in probes)} if contract else None,
