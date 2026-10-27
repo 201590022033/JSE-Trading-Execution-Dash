@@ -1,0 +1,234 @@
+{
+  "date": "2026-10-27",
+  "validation_contract_id": "radar-batch-validation-e136fd4f4e9a072f9ae30b46b112cec4e14fb2372783b701dfd803013688844e",
+  "version": "source-specific-radar-v2-boolean",
+  "model_digest": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+  "assessment_origin": "ASSISTANT_PREREGISTERED_NOT_HUMAN_GROUND_TRUTH_OR_TRAINING",
+  "development": {
+    "plan_id": "radar-batch-plan-81632686d102f40c4c842b015cfa043e08419b8574eeb0b73dfe2763eb2ca9c8",
+    "correct": 7,
+    "available": 8,
+    "decisions": [
+      {
+        "candidate_id": "C1",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "display_type": "scheduled",
+        "type_origin": "RETAINED_HOST_SOURCE_KIND",
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C2",
+        "expected": false,
+        "observed": false,
+        "correct": true,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "display_type": null,
+        "type_origin": null,
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C3",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "display_type": "announcement",
+        "type_origin": "RETAINED_HOST_SOURCE_KIND",
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C4",
+        "expected": false,
+        "observed": false,
+        "correct": true,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "display_type": null,
+        "type_origin": null,
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C5",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "display_type": "news",
+        "type_origin": "RETAINED_HOST_SOURCE_KIND",
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C6",
+        "expected": false,
+        "observed": false,
+        "correct": true,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "display_type": null,
+        "type_origin": null,
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C7",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "display_type": "announcement",
+        "type_origin": "RETAINED_HOST_SOURCE_KIND",
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C8",
+        "expected": true,
+        "observed": false,
+        "correct": false,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "display_type": null,
+        "type_origin": null,
+        "reported_type": null
+      }
+    ]
+  },
+  "development_baseline_correct": 5,
+  "new_disjoint_held_out": {
+    "plan_id": "radar-batch-plan-7d1b65c3efa8e9b31cea952c93cd9837a592b282510e3788f0f5239628783395",
+    "correct": 6,
+    "available": 8,
+    "decisions": [
+      {
+        "candidate_id": "C1",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "display_type": "announcement",
+        "type_origin": "RETAINED_HOST_SOURCE_KIND",
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C2",
+        "expected": false,
+        "observed": false,
+        "correct": true,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "display_type": null,
+        "type_origin": null,
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C3",
+        "expected": false,
+        "observed": true,
+        "correct": false,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "display_type": "announcement",
+        "type_origin": "RETAINED_HOST_SOURCE_KIND",
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C4",
+        "expected": true,
+        "observed": false,
+        "correct": false,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "display_type": null,
+        "type_origin": null,
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C5",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "display_type": "news",
+        "type_origin": "RETAINED_HOST_SOURCE_KIND",
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C6",
+        "expected": false,
+        "observed": false,
+        "correct": true,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "display_type": null,
+        "type_origin": null,
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C7",
+        "expected": false,
+        "observed": false,
+        "correct": true,
+        "source_admission": "MODEL_DID_NOT_MATCH",
+        "display_type": null,
+        "type_origin": null,
+        "reported_type": null
+      },
+      {
+        "candidate_id": "C8",
+        "expected": true,
+        "observed": true,
+        "correct": true,
+        "source_admission": "MODEL_ASSESSMENT_AVAILABLE",
+        "display_type": "announcement",
+        "type_origin": "RETAINED_HOST_SOURCE_KIND",
+        "reported_type": null
+      }
+    ]
+  },
+  "confusion": {
+    "TP": 7,
+    "TN": 6,
+    "FN": 2,
+    "FP": 1
+  },
+  "raw_sha256": [
+    "554b94d0bc8d6fa475817914ac1342771fc3f68e366d753f2174a13c94da76dd",
+    "5a9e965c4b524eaed850e7398a92184cb78c40ddb8326144d7b0e31c75b41fe4",
+    "870084d69bafaa1ec453dc1446beffd15d358e83946f5bd505d5a5f6ddcb518a",
+    "a34d7216af802f4627b7e280b420c7977ee357697147019c8e3128a6c01a8920",
+    "d1b9dac18b4c229bbc6018c2b5818e62220c00a8ce5df392ceee67cc25e130d5",
+    "dac51220cd094caba636e40d837cba323df79806307b0812a05335006fef385d",
+    "e7a00d3f74e79079c595130d0cbc8b2c8cb8a7d17c2b30332056122287be9404",
+    "fe2aa316e881fb4059d022951c8fdfd73328a174b8abf8968b3b7be60373571d"
+  ],
+  "native_calls": 8,
+  "daily_slot_not_reset": true,
+  "broad_request_hold_unchanged": true,
+  "release": "EXPERIMENTAL_BOOLEAN_SOURCE_ANNOTATIONS_ONLY",
+  "daily_maximum_child_calls": 4,
+  "host_not_model_supplies_source_type": true,
+  "training_labels": false,
+  "trading_weight": 0,
+  "p1_complete": false,
+  "current_one_off_review": {
+    "contract_id": "radar-batch-source-review-contract-ebd652958851527317db889ae836ac7365ac306b9eda84ed5c514f8ed66a9087",
+    "cutoff": "2026-10-27T18:00:51.462878+00:00",
+    "native_calls": 4,
+    "selected_ids": [
+      "C1",
+      "C3",
+      "C4",
+      "C8"
+    ],
+    "not_matched_ids": [
+      "C2",
+      "C5",
+      "C6",
+      "C7"
+    ],
+    "host_link_disagreement_count": 4,
+    "negative_controls": 0,
+    "assessment_origin": "ASSISTANT_HOST_SOURCE_LINK_REVIEW_NOT_HUMAN_GROUND_TRUTH",
+    "raw_sha256": [
+      "3309075bbca65c1edc2ed6ca41df67a157f9ef71e886516d2b2a411cce03a27b",
+      "847c7d6a22022daacdd506462a477072d3efee7bc0c65f05f05dd9e781409397",
+      "920f8e31b4ab13b6b3fc3e80482f5f0807c271178e434876cd4f0056c140684b",
+      "e70f6ffdf5294b535a8c178958625aa1e9f19ecb9e94ff884d3603fa9338460a"
+    ],
+    "daily_slot_not_reset": true
+  }
+}

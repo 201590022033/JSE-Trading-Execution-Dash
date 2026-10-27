@@ -463,14 +463,14 @@ def status(repo, now):
     probes = [p for p in rows(repo,'probe-result',now) if contract and p.get('contract_id')==contract['record_id']]
     last_screen_review=screening_review(repo,now,request=RELEVANCE_REQUEST,
         model_digest=contract.get('model_digest') if contract else None)
-    batch_merges=[m for m in rows(repo,'batch-merge',now) if m.get('scope')=='DAILY']
+    batch_merges=[m for m in rows(repo,'batch-merge',now) if m.get('scope') in {'DAILY','REVIEW'}]
     latest_batch=max(batch_merges,key=lambda m:(m['received_at'],m.get('attempted_pairs',0),m['record_id']),default=None)
     batch_reviews=rows(repo,'batch-validation-review',now)
     latest_batch_review=max(batch_reviews,key=lambda r:r['received_at'],default=None)
     batch_by_source={x['source_id']:x for x in (latest_batch or {}).get('assessments',[]) if not x.get('calendar_event_id')}
     batch_by_event={x['calendar_event_id']:x for x in (latest_batch or {}).get('assessments',[]) if x.get('calendar_event_id')}
     def public_assessment(x):
-        return {k:x.get(k) for k in ('state','display_type','explanation')} if x else None
+        return {k:x.get(k) for k in ('state','display_type','type_origin','explanation')} if x else None
     previews=[]
     for s in sources(repo,now):
         candidate=news_candidate(s,(scope or {}).get('members',{}))
@@ -486,7 +486,12 @@ def status(repo, now):
             'topic_sectors':topic_sectors(candidate['quote']),
             'screening_assessment':public_assessment(batch_by_source.get(s['source_id'])),
             'state':'RETAINED_SOURCE_LEAD_NOT_MODEL_PREDICTION'})
-        if len(previews)==8:break
+    # The newest reviewed packet must remain inspectable even if other fresh
+    # headlines arrived earlier in the display ordering. Stable ordering within
+    # the two groups preserves the existing source recency policy.
+    if batch_by_source:
+        previews.sort(key=lambda item:item['source_id'] not in batch_by_source)
+    previews=previews[:8]
     return {'state':'ADVISORY_ANTICIPATORY_RADAR','checked_at':now.isoformat(),
         'scope':scope, 'watches':public,'source_leads':previews,
         'calendar_upcoming':[{**{k:e[k] for k in ('record_id','title','instrument_ids','event_date','anchor_at','source_url','source_quote','time_precision')},
@@ -495,7 +500,10 @@ def status(repo, now):
         'latest_capture':captures[0] if captures else None,
         'source_freshness':'CURRENT_CAPTURE' if captures and captures[0].get('state')=='CAPTURED' and now-cal._at(captures[0]['received_at'])<timedelta(hours=12) else 'STALE_OR_UNAVAILABLE',
         'model':{'qualification':max(qualified,key=lambda q:q['received_at']) if qualified else None,'latest_result':results[0] if results else None,
-                 'batch_screening':{k:latest_batch.get(k) for k in ('state','attempted_pairs','total_pairs','received_at')} if latest_batch else None,
+                 'batch_screening':{**{k:latest_batch.get(k) for k in ('state','scope','attempted_pairs','total_pairs','received_at')},
+                    'model_matches':sum(x.get('assessment',{}).get('match') is True for x in latest_batch.get('assessments',[])),
+                    'host_model_disagreements':sum(x.get('state')=='MODEL_DISAGREES_WITH_HOST_SOURCE_LINK' for x in latest_batch.get('assessments',[])),
+                    'candidate_count':len(latest_batch.get('assessments',[]))} if latest_batch else None,
                  'batch_validation':{k:latest_batch_review.get(k) for k in ('state','correct','total','heldout_correct','heldout_total','reviewer_origin')} if latest_batch_review else None,
                  'screening_review':{k:last_screen_review.get(k) for k in ('record_id','state','model_selected_count',
                     'candidate_count','assistant_disagreement_count','reviewer_origin','hold_identical_request')} if last_screen_review else None,

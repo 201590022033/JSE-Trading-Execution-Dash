@@ -1,3 +1,19 @@
+## Boolean-only source screening — 27 October 2026
+
+At the owner's request, the known errors were addressed without waiting for a
+new day. The revised per-source protocol asks only true/false and derives source
+type from retained host metadata. On the same development packet it matched the
+frozen assistant assessment 7/8 versus 5/8 before; a different held-out packet
+matched 6/8. One false positive and two false negatives remain. These small
+assistant assessments are not independent accuracy or forecasting evidence.
+A separate current-packet review returned 4/8 model matches; the four false
+answers conflict with host-supported source links and remain visible as such.
+The new version is selected for experimental annotations only, with the same
+four-call daily budget and no source suppression. The old broad hold and today's
+spent slot remain. R12 remains ACTIVE/PARTIAL and P1 is open. See
+`docs/changes/2026-10-27-boolean-source-screening.md`, ADR0084 and
+`docs/research/SOURCE_SPECIFIC_RADAR.md`.
+
 ## Source-specific batch radar — 27 October 2026
 
 The new worker freezes up to eight source items and uses at most four two-item

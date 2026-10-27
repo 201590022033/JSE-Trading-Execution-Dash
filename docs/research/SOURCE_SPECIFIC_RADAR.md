@@ -1,5 +1,33 @@
 # Source-specific radar implementation and limits
 
+## Boolean-only correction — 27 October 2026
+
+The owner requested improving the observed errors immediately. A separate
+eight-call local evaluation asked Qwen only for relevance booleans and assigned
+source type from retained host metadata. On the same development items, frozen
+assistant expectations matched 7/8 versus the previous 5/8. On eight new,
+disjoint held-out sources, 6/8 matched; one false positive and two false
+negatives remain across both packets. The new and old held-out sets differ.
+The prompt wording and output structure both changed, so their individual
+effects are not isolated. These assessments are not independent labels or
+forecast evidence.
+
+The daily worker now selects this protocol for experimental annotations at the
+next eligible daily slot, preserving the same maximum of four two-item calls.
+Existing in-progress v1 parents keep their original frozen protocol. A separate
+four-call review of today's actual eight host-linked candidates returned four
+matches and four misses; its all-positive source assessment has no negative
+controls. The four misses are shown as host/model disagreements where the
+original host-derived target is independently supported by the current retained
+source or confirmed calendar record. The model's false answers are not rewritten.
+Reviewed leads are prioritized within the eight-lead display. Source leads,
+calendar clocks, the prior broad-request hold and today's spent slot remain.
+Review the first ordinary daily output and continue improving the remaining errors.
+See [ADR0084](../adr/0084-boolean-only-source-screening.md) and
+[the evidence](../evidence/boolean-source-screening-v2.json).
+
+## Earlier two-output protocol
+
 27 October 2026. The dashboard now shows retained headline/SENS detail levels,
 source clocks and fully written future dates mentioned in excerpts without
 asserting an unconfirmed event date. Confirmed calendar events keep their own

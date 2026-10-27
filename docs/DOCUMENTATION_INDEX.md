@@ -1,3 +1,11 @@
+## Boolean-only source screening — 27 October 2026
+
+[Correction](changes/2026-10-27-boolean-source-screening.md),
+[ADR0084](adr/0084-boolean-only-source-screening.md),
+[evidence](evidence/boolean-source-screening-v2.json): repeated development
+5/8 to 7/8, new held-out 6/8 against assistant assessments; errors remain.
+P1 remains open.
+
 ## Source-specific batch radar — 27 October 2026
 
 [Implementation](changes/2026-10-27-source-specific-batch-radar.md),

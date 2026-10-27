@@ -72,6 +72,44 @@ class BatchScreeningTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             batch.prepare(self.repo, NOW, self.packet, identity='forged-daily', tasks=tasks, scope='DAILY')
 
+    def test_boolean_protocol_keeps_legacy_plan_valid_and_types_from_host(self):
+        v2 = batch.prepare(self.repo, NOW, self.packet, identity='v2-test', version=batch.BOOLEAN_VERSION)
+        self.assertEqual(batch.verify(self.repo, self.plan), self.packet)
+        spec = v2['batches'][0]
+        self.assertEqual(spec['response_schema']['properties']['matches']['properties']['C1'], {'type': 'boolean'})
+        parsed, extra = batch.parse_boolean('{"matches":{"C1":true,"C2":false}}', ['C1', 'C2'])
+        self.assertEqual(extra, [])
+        self.assertTrue(parsed['C1']['match'])
+        self.assertFalse(parsed['C2']['match'])
+        admitted = batch.admit(self.repo, self.packet, self.calendar, parsed['C1'], NOW)
+        self.assertEqual(admitted['display_type'], 'scheduled')
+        self.assertEqual(admitted['type_origin'], 'RETAINED_HOST_SOURCE_KIND')
+
+    def test_boolean_response_bad_sibling_does_not_discard_good_match(self):
+        parsed, extra = batch.parse_boolean('{"matches":{"C1":true,"C2":"false","C3":true}}', ['C1', 'C2'])
+        self.assertTrue(parsed['C1']['match'])
+        self.assertEqual(parsed['C2']['state'], 'INVALID_OR_MISSING_RESPONSE')
+        self.assertEqual(extra, ['C3'])
+        with self.assertRaises(ValueError):
+            batch.parse_boolean('{"matches":{"C1":true,"C1":false}}', ['C1'])
+
+    def test_boolean_daily_release_still_uses_four_children(self):
+        radar.save(self.repo, 'batch-release', 'boolean-release', {'version': batch.BOOLEAN_VERSION,
+            'model_digest': worker.DIGEST, 'enabled': True}, NOW)
+        def generate(packet, *args, **kwargs):
+            content = json.dumps({'matches': {x['candidate_id']: True for x in packet['items']}})
+            return json.dumps({'response': content, 'done': True}).encode(), content, NOW, NOW
+        with patch.object(radar, 'selection_packet', return_value=self.packet), patch.object(runner, 'utcnow', return_value=NOW):
+            result = worker.daily(self.repo, NOW, self.folder, 'fixture', idle=lambda: 601,
+                memory=lambda: 8 * runner.GIB, generator=generate)
+            replay = worker.daily(self.repo, NOW, self.folder, 'fixture', idle=lambda: 601,
+                memory=lambda: 8 * runner.GIB, generator=lambda *a, **k: self.fail('no retry'))
+        self.assertEqual(result['model_calls'], 4)
+        self.assertEqual(replay['model_calls'], 0)
+        self.assertEqual(self.repo.paper_record(result['batch_plan_id'])['version'], batch.BOOLEAN_VERSION)
+        self.assertEqual(radar.status(self.repo, NOW)['source_leads'][0]['screening_assessment']['type_origin'],
+            'RETAINED_HOST_SOURCE_KIND')
+
     def test_sibling_valid_item_survives_missing_or_invalid_response(self):
         parsed, extra = batch.parse('{"items":{"C1":{"match":true,"type":"scheduled"},"C3":{"match":true,"type":"news"}}}', ['C1', 'C2'])
         self.assertTrue(parsed['C1']['match'])
@@ -98,6 +136,56 @@ class BatchScreeningTests(unittest.TestCase):
         self.assertEqual(states[2:], ['MODEL_ASSESSMENT_UNAVAILABLE'] * 6)
         self.assertEqual(len(radar.status(self.repo, NOW)['source_leads']), 1)
         self.assertEqual(self.run_case(1)['state'], 'BATCH_CALL_ALREADY_SPENT')
+
+    def test_one_off_source_review_is_distinct_from_daily_budget(self):
+        plan=batch.prepare(self.repo,NOW,self.packet,identity='review-test',scope='REVIEW',version=batch.BOOLEAN_VERSION)
+        def generate(packet,*args,**kwargs):
+            content=json.dumps({'matches':{x['candidate_id']:True for x in packet['items']}})
+            return json.dumps({'response':content,'done':True}).encode(),content,NOW,NOW
+        with patch.object(runner,'utcnow',return_value=NOW):
+            worker.run_case(self.repo,plan,0,NOW,self.folder,'fixture',idle=lambda:601,
+                memory=lambda:8*runner.GIB,generator=generate)
+            worker.save_merge(self.repo,plan,NOW)
+        view=radar.status(self.repo,NOW)
+        self.assertEqual(view['model']['batch_screening']['scope'],'REVIEW')
+        self.assertIsNotNone(view['source_leads'][0]['screening_assessment'])
+        slot_id='radar-model-attempt-'+cal._hash(['discovery',NOW.astimezone(radar.SAST).date().isoformat()])
+        self.assertIsNone(self.repo.paper_record(slot_id))
+
+    def test_host_disagreement_never_rewrites_the_model_response(self):
+        plan=batch.prepare(self.repo,NOW,self.packet,identity='review-false',scope='REVIEW',version=batch.BOOLEAN_VERSION)
+        parsed={i:{'state':'MODEL_RESPONSE','match':False} for i in ('C1','C2')}
+        merged=batch.merge(self.repo,plan,{0:{'parsed':parsed}},NOW)
+        for item in merged['assessments'][:2]:
+            self.assertEqual(item['state'],'MODEL_DISAGREES_WITH_HOST_SOURCE_LINK')
+            self.assertFalse(item['assessment']['match'])
+        self.assertEqual(len(radar.status(self.repo,NOW)['source_leads']),1)
+
+    def test_host_disagreement_is_not_applied_to_changed_or_expired_tasks(self):
+        tasks=batch.tasks_for_packet(self.packet)
+        tasks[1]['question']='Does the evidence describe a different issuer?'
+        plan=batch.prepare(self.repo,NOW,self.packet,identity='custom-review',scope='REVIEW',
+            version=batch.BOOLEAN_VERSION,tasks=tasks)
+        parsed={'C2':{'state':'MODEL_RESPONSE','match':False}}
+        self.assertEqual(batch.merge(self.repo,plan,{0:{'parsed':parsed}},NOW)['assessments'][1]['state'],
+            'MODEL_DID_NOT_MATCH')
+        standard=batch.prepare(self.repo,NOW,self.packet,identity='normal-review',scope='REVIEW',version=batch.BOOLEAN_VERSION)
+        self.assertEqual(batch.merge(self.repo,standard,{0:{'parsed':parsed}},NOW+timedelta(hours=49))['assessments'][1]['state'],
+            'MODEL_DID_NOT_MATCH')
+
+    def test_reviewed_source_is_visible_even_below_eight_newer_leads(self):
+        source_list=[{'source_id':'fixture-'+str(i),'body':'Naspers source '+str(i),
+            'url':'https://example.test/'+str(i),'receipt_id':'receipt-'+str(i),
+            'available_at':NOW.isoformat(),'published_at':None} for i in range(9)]
+        radar.save(self.repo,'batch-merge','review-order',{'scope':'REVIEW','state':'COMPLETE',
+            'attempted_pairs':1,'total_pairs':1,'assessments':[{'candidate_id':'C9','source_id':'fixture-8',
+                'calendar_event_id':None,'state':'MODEL_DISAGREES_WITH_HOST_SOURCE_LINK',
+                'assessment':{'match':False}}]},NOW)
+        with patch.object(radar,'sources',return_value=source_list):
+            view=radar.status(self.repo,NOW)
+        self.assertEqual(len(view['source_leads']),8)
+        reviewed=next(s for s in view['source_leads'] if s['source_id']=='fixture-8')
+        self.assertEqual(reviewed['screening_assessment']['state'],'MODEL_DISAGREES_WITH_HOST_SOURCE_LINK')
 
     def test_idle_memory_failure_and_interruption_reservations(self):
         self.assertEqual(self.run_case(idle=lambda: 0)['model_calls'], 0)
@@ -160,6 +248,27 @@ class BatchScreeningTests(unittest.TestCase):
             second = worker.daily(self.repo, NOW, self.folder, 'fixture', idle=lambda: 601,
                 memory=lambda: 8 * runner.GIB, generator=generate)
         self.assertEqual(second['model_calls'], 3)
+        self.assertEqual(calls, [['C1', 'C2'], ['C3', 'C4'], ['C5', 'C6'], ['C7', 'C8']])
+
+    def test_new_protocol_does_not_change_an_in_progress_old_daily_packet(self):
+        radar.save(self.repo, 'batch-release', 'old-release', {'version': batch.VERSION,
+            'model_digest': worker.DIGEST, 'enabled': True}, NOW)
+        calls = []
+        def generate(packet, *args, **kwargs):
+            calls.append([x['candidate_id'] for x in packet['items']])
+            return self.generate(packet, *args, **kwargs)
+        later = NOW + timedelta(seconds=1)
+        with patch.object(radar, 'selection_packet', return_value=self.packet), patch.object(runner, 'utcnow', return_value=NOW):
+            first = worker.daily(self.repo, NOW, self.folder, 'fixture', idle=lambda: 601 if not calls else 0,
+                memory=lambda: 8 * runner.GIB, generator=generate)
+        self.assertEqual(first['model_calls'], 1)
+        radar.save(self.repo, 'batch-release', 'new-release', {'version': batch.BOOLEAN_VERSION,
+            'model_digest': worker.DIGEST, 'enabled': True}, later)
+        with patch.object(runner, 'utcnow', return_value=later):
+            result = worker.daily(self.repo, later, self.folder, 'fixture', idle=lambda: 601,
+                memory=lambda: 8 * runner.GIB, generator=generate)
+        self.assertEqual(result['model_calls'], 3)
+        self.assertEqual(self.repo.paper_record(result['batch_plan_id'])['version'], batch.VERSION)
         self.assertEqual(calls, [['C1', 'C2'], ['C3', 'C4'], ['C5', 'C6'], ['C7', 'C8']])
 
     def test_validation_requires_mixed_predeclared_expectations(self):

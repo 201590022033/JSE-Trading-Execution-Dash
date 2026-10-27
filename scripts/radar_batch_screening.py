@@ -9,6 +9,7 @@ from scripts import calendar_ollama as runner
 from scripts.calibrate_calendar_model import candidate_profile, MODEL, DIGEST
 
 START_MEMORY = 7 * runner.GIB // 2
+MERGE_VERSION = 'host-source-disagreement-v2'
 
 
 def run_case(repo, plan, index, now, folder, executable, *, idle=None, memory=None,
@@ -24,7 +25,7 @@ def run_case(repo, plan, index, now, folder, executable, *, idle=None, memory=No
         return {'state': 'WAITING_FOR_10_MINUTES_IDLE', 'model_calls': 0, 'index': index}
     if free < START_MEMORY:
         return {'state': 'WAITING_FOR_SMALL_MODEL_MEMORY', 'model_calls': 0, 'index': index}
-    identity = [batch.VERSION, plan['record_id'], index]
+    identity = [plan['version'], plan['record_id'], index]
     rid = 'radar-model-attempt-' + cal._hash(identity)
     with repo.transaction():
         if repo.backend == 'postgresql':
@@ -35,6 +36,7 @@ def run_case(repo, plan, index, now, folder, executable, *, idle=None, memory=No
         attempt = radar.save(repo, 'model-attempt', identity, {
             'state': 'RESERVED_NO_AUTOMATIC_RETRY', 'mode': 'source_specific_' + plan['scope'].lower(),
             'batch_plan_id': plan['record_id'], 'batch_index': index,
+            'protocol_version': plan['version'],
             'parent_packet_id': packet['record_id'], 'prompt_sha256': spec['prompt_sha256'],
             'model': MODEL, 'model_digest': DIGEST, 'observed_idle_seconds': actual_idle,
             'free_memory_before_bytes': free, 'idle_policy': 'OWNER_FOREGROUND_EXCEPTION' if foreground_authorization else '10_MINUTES_IDLE',
@@ -53,7 +55,8 @@ def run_case(repo, plan, index, now, folder, executable, *, idle=None, memory=No
         now = runner.utcnow()
         if not cal._at(plan['received_at']) <= cal._at(started) <= cal._at(completed) <= cal._at(now):
             raise ValueError('Actual causal generation timestamps required')
-        parsed, extra = batch.parse(content, [x['candidate_id'] for x in spec['items']])
+        parser = batch.parse_boolean if plan['version'] == batch.BOOLEAN_VERSION else batch.parse
+        parsed, extra = parser(content, [x['candidate_id'] for x in spec['items']])
         envelope = json.loads(raw)
         result = {'state': 'BATCH_RESPONSE_RECORDED', 'model_calls': 1, 'parsed': parsed,
             'unexpected_ids': extra, 'content': content, 'raw_archive': archive,
@@ -75,7 +78,7 @@ def run_case(repo, plan, index, now, folder, executable, *, idle=None, memory=No
 def collected(repo, plan):
     attempts, results = {}, {}
     for index in range(len(plan['batches'])):
-        identity = [batch.VERSION, plan['record_id'], index]
+        identity = [plan['version'], plan['record_id'], index]
         a = repo.paper_record('radar-model-attempt-' + cal._hash(identity))
         if a:
             attempts[index] = a
@@ -89,9 +92,10 @@ def save_merge(repo, plan, now):
     attempts, results = collected(repo, plan)
     merged = batch.merge(repo, plan, results, now)
     complete = len(attempts) == len(plan['batches'])
-    identity = [plan['record_id'], cal._hash(results)]
+    identity = [plan['record_id'], MERGE_VERSION, cal._hash(results)]
     return radar.save(repo, 'batch-merge', identity, {
         **merged, 'scope': plan['scope'], 'state': 'COMPLETE' if complete else 'PARTIAL',
+        'merge_version': MERGE_VERSION,
         'attempted_pairs': len(attempts), 'result_states': {str(k): v['state'] for k, v in results.items()},
         'model_digest': DIGEST, 'source_leads_preserved': True}, now)
 
@@ -102,6 +106,8 @@ def validation_contract(repo, now, plans, expected, *, identity):
         raise ValueError('Two distinct eight-item validation plans required')
     if plans[0]['packet_id'] == plans[1]['packet_id']:
         raise ValueError('Held-out parent must differ')
+    if plans[0]['version'] != plans[1]['version']:
+        raise ValueError('Both packets must use the same frozen protocol')
     for p in plans:
         batch.verify(repo, p)
         answers = expected.get(p['record_id'])
@@ -109,7 +115,7 @@ def validation_contract(repo, now, plans, expected, *, identity):
             raise ValueError('Frozen assistant expectation for every candidate required')
         if len(set(answers.values())) != 2:
             raise ValueError('Positive and negative controls required')
-    contents = {'version': batch.VERSION, 'plan_ids': [p['record_id'] for p in plans],
+    contents = {'version': plans[0]['version'], 'plan_ids': [p['record_id'] for p in plans],
         'plan_sha256': [cal._hash(p) for p in plans], 'expected': expected,
         'expectation_origin': 'ASSISTANT_PREREGISTERED_NOT_HUMAN_GROUND_TRUTH_OR_TRAINING',
         'model': MODEL, 'model_digest': DIGEST, 'maximum_generation_calls': 8,
@@ -138,9 +144,11 @@ def validation_report(repo, contract, now):
         for item in merged['assessments']:
             cid, a = item['candidate_id'], item['assessment']
             actual = a.get('match') if a.get('state') == 'MODEL_RESPONSE' else None
+            origin = item.get('type_origin') or a.get('type_origin') or ('MODEL_REPORTED' if a.get('type') else None)
             decisions.append({'candidate_id': cid, 'expected': expected[cid], 'observed': actual,
                 'correct': actual == expected[cid] if actual is not None else False,
-                'source_admission': item['state'], 'reported_type': a.get('type')})
+                'source_admission': item['state'], 'display_type': item.get('display_type'),
+                'type_origin': origin, 'reported_type': a.get('type') if origin == 'MODEL_REPORTED' else None})
         summaries.append({'plan_id': plan_id, 'attempts': len(attempts), 'decisions': decisions,
             'correct': sum(d['correct'] for d in decisions), 'available': sum(d['observed'] is not None for d in decisions),
             'complete': len(attempts) == len(plan['batches']), 'merge': merged})
@@ -151,7 +159,7 @@ def validation_report(repo, contract, now):
 
 def active_release(repo, now):
     decisions = [r for r in radar.rows(repo, 'batch-release', now)
-        if r.get('version') == batch.VERSION and r.get('model_digest') == DIGEST]
+        if r.get('version') in (batch.VERSION, batch.BOOLEAN_VERSION) and r.get('model_digest') == DIGEST]
     latest = max(decisions, key=lambda r: (r['received_at'], r['record_id']), default=None)
     return latest if latest and latest.get('enabled') else None
 
@@ -180,7 +188,7 @@ def daily(repo, now, folder, executable, *, idle=None, memory=None, generator=No
             packet = radar.selection_packet(repo, now, relevance=True)
             if not packet['host_candidates']:
                 return {'state': 'NO_RETAINED_SOURCES', 'model_calls': 0}
-            plan = batch.prepare(repo, now, packet, identity=['daily', day], scope='DAILY')
+            plan = batch.prepare(repo, now, packet, identity=['daily', day], scope='DAILY', version=release['version'])
             parent = radar.save(repo, 'model-attempt', parent_identity, {
                 'mode': 'source_specific_daily_parent', 'state': 'RESERVED_NO_AUTOMATIC_RETRY',
                 'batch_plan_id': plan['record_id'], 'release_id': release['record_id'],

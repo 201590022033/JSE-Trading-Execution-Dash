@@ -1,4 +1,26 @@
-## Current state: source-specific batch annotations are experimental
+## Current state: boolean-only source screening selected experimentally
+
+27 October 2026. At the owner's request, the existing source-matching errors
+were addressed without waiting for a new daily packet. Qwen now answers only
+per-item booleans while the host displays source type from retained metadata.
+The same development packet improved from 5/8 to 7/8 relative to its frozen
+assistant assessment; a different held-out packet matched 6/8. One false match
+and two misses remain. Prompt wording and response shape changed together, so
+the cause of the observed difference is not isolated. The small assistant
+review is not independent accuracy or forecast evidence.
+
+The v2 protocol is selected for experimental daily source annotations with the
+same four-call limit; an in-progress v1 packet retains its original protocol.
+An additional separately registered current-packet review returned four of
+eight model matches and four host/model disagreements. The dashboard shows
+reviewed sources and reconciled source-link disagreements without rewriting
+those false responses or presenting an all-positive review as model accuracy.
+Source leads, calendar dates, the old broad-request hold and today's spent
+daily slot are preserved. See [operating notes](SOURCE_SPECIFIC_RADAR.md),
+[ADR0084](../adr/0084-boolean-only-source-screening.md) and
+[evidence](../evidence/boolean-source-screening-v2.json). P1 remains open.
+
+## Earlier state: source-specific batch annotations are experimental
 
 27 October 2026. The two-item batch path is implemented and enabled for
 experimental source annotations. A daily parent preserves its source packet and
