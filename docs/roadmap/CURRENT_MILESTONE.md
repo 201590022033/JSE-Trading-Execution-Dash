@@ -1,3 +1,16 @@
+## IRESS 600-session target met — 27 October 2026
+
+Owner authorized finishing the signed-in ViewPoint capture here. A native 645-row
+SOL.JSE daily CSV now supplies 600 completed sessions, 4 June 2024–26 October 2026,
+through the existing installer/collector and accepted local PostgreSQL ingress.
+Live row excluded; all raw bytes and 64 earlier source/capture hashes preserved.
+All five OST series remain separate, Open null. Prior 324-session IRESS overlap
+has zero revisions; all 600 OST/IRESS closes agree, with H/L/volume differences
+retained. 79 focused tests pass; readiness/alignment/history-target checks pass.
+No paper worker/model fit/cloud upload or strategy gate change. R12 remains sole
+ACTIVE/PARTIAL; P1 and radar native correction checks remain separate. See
+`docs/changes/2026-10-27-iress-600-history-complete.md`.
+
 ## Radar citation correction — 27 October 2026
 
 Owner authorized fixing the observed Qwen response failure. Typed named fields
