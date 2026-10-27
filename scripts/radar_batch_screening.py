@@ -165,7 +165,8 @@ def active_release(repo, now):
 
 
 def daily(repo, now, folder, executable, *, idle=None, memory=None, generator=None):
-    """At most four child calls under the existing one-per-day parent slot."""
+    """Four pair calls, plus up to four source-supported single rechecks."""
+    from scripts import radar_recheck
     release = active_release(repo, now)
     if not release:
         return {'state': 'BATCH_VALIDATION_REVIEW_PENDING', 'model_calls': 0}
@@ -189,10 +190,14 @@ def daily(repo, now, folder, executable, *, idle=None, memory=None, generator=No
             if not packet['host_candidates']:
                 return {'state': 'NO_RETAINED_SOURCES', 'model_calls': 0}
             plan = batch.prepare(repo, now, packet, identity=['daily', day], scope='DAILY', version=release['version'])
+            recheck_enabled = release['version'] == batch.BOOLEAN_VERSION
             parent = radar.save(repo, 'model-attempt', parent_identity, {
                 'mode': 'source_specific_daily_parent', 'state': 'RESERVED_NO_AUTOMATIC_RETRY',
                 'batch_plan_id': plan['record_id'], 'release_id': release['record_id'],
-                'maximum_child_generation_calls': len(plan['batches']), 'model': MODEL, 'model_digest': DIGEST}, now)
+                'maximum_initial_calls': len(plan['batches']),
+                'maximum_child_generation_calls': len(plan['batches']) + (radar_recheck.MAX_RECHECKS if recheck_enabled else 0),
+                'recheck_policy': radar_recheck.VERSION if recheck_enabled else None,
+                'model': MODEL, 'model_digest': DIGEST}, now)
         plan = repo.paper_record(parent['batch_plan_id'])
     packet = batch.verify(repo, plan)
     # Do not start an old daily source packet after its 48-hour watch window.
@@ -212,8 +217,24 @@ def daily(repo, now, folder, executable, *, idle=None, memory=None, generator=No
         count += 1
         save_merge(repo, plan, runner.utcnow())
     merged = save_merge(repo, plan, runner.utcnow())
+    if parent.get('recheck_policy') == radar_recheck.VERSION:
+        contract = radar_recheck.prepare(repo, plan, runner.utcnow())
+        for case in contract['cases']:
+            single = repo.paper_record(case['plan_id'])
+            existing, _ = collected(repo, single)
+            if existing:
+                continue
+            result = run_case(repo, single, 0, runner.utcnow(), folder, executable,
+                idle=idle, memory=memory, generator=generator)
+            if result['state'].startswith('WAITING_'):
+                radar_recheck.save_merge(repo, plan, contract, runner.utcnow())
+                return {'state': result['state'], 'model_calls': count}
+            count += 1
+            radar_recheck.save_merge(repo, plan, contract, runner.utcnow())
+        merged = radar_recheck.save_merge(repo, plan, contract, runner.utcnow())
     radar.save(repo, 'model-result', parent['record_id'], {
         'state': 'SOURCE_SPECIFIC_DAILY_COMPLETE', 'batch_plan_id': plan['record_id'],
-        'merge_id': merged['record_id'], 'child_calls': len(plan['batches']), 'model_digest': DIGEST}, runner.utcnow())
+        'merge_id': merged['record_id'], 'initial_calls': len(plan['batches']),
+        'recheck_calls': merged.get('recheck_attempts', 0), 'model_digest': DIGEST}, runner.utcnow())
     return {'state': 'SOURCE_SPECIFIC_DAILY_COMPLETE', 'model_calls': count,
         'batch_plan_id': plan['record_id'], 'merge_id': merged['record_id']}

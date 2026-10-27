@@ -1,4 +1,16 @@
-## Current state: boolean-only source screening selected experimentally
+## Current state: individual source rechecks and event cards
+
+27 October 2026. Four previously missed sources matched when the exact questions
+were asked individually; byte-identical original pair prompts repeated the four
+misses. A separate mixed-control comparison retained one false positive in an
+individual test. New daily parents can spend up to four additional idle-only
+single rechecks on host-supported disagreements, preserving original answers,
+for up to eight total calls. No new daily run has yet been observed. The current
+review displays the four singleton rechecks. Source cards show retained headline,
+excerpt, named issuer/sector, topic, source and unconfirmed mentioned dates.
+This is sourced navigation, not LLM event forecasting. See ADR0085.
+
+## Earlier state: boolean-only source screening selected experimentally
 
 27 October 2026. At the owner's request, the existing source-matching errors
 were addressed without waiting for a new daily packet. Qwen now answers only

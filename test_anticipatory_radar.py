@@ -64,6 +64,33 @@ class RadarTests(unittest.TestCase):
         self.assertEqual(w['sectors'],['Energy']);self.assertEqual(w['instrument_ids'],[]);self.assertIsNone(w['event_date'])
         self.assertEqual(cal._at(w['expires_at']),NOW+timedelta(hours=48))
 
+    def test_source_event_details_keep_date_tentative_and_company_links_literal(self):
+        members={'NPN':{'name':'Naspers','sector':'Technology'},
+                 'SASOL':{'name':'Sasol','sector':'Energy'}}
+        quote='Naspers schedules results\nNaspers results will be released on 30 October 2026. Energy costs are rising.'
+        details=radar.source_event_details(quote,['NPN'],members,NOW,'NEWS_HEADLINE_OR_EXCERPT')
+        self.assertEqual(details['headline'],'Naspers schedules results')
+        self.assertEqual(details['direct_issuers'],[{'instrument_id':'NPN','name':'Naspers','sector':'Technology'}])
+        self.assertEqual(details['topic_sectors'],['Energy'])
+        self.assertEqual(details['mentioned_future_dates'],['2026-10-30'])
+        self.assertEqual(details['date_state'],'DATE_MENTIONED_EVENT_LINK_UNCONFIRMED')
+        self.assertNotIn('event_date',details)
+
+    def test_headline_only_is_not_duplicated_or_given_an_invented_date(self):
+        details=radar.source_event_details('BHP GROUP LIMITED: Results of 2026 Annual General Meeting\n'
+            'BHP GROUP LIMITED: Results of 2026 Annual General Meeting',[],{},NOW,'SENS_HEADLINE')
+        self.assertEqual(details['excerpt'],'')
+        self.assertEqual(details['information_state'],'SENS_HEADLINE_CAPTURED')
+        self.assertEqual(details['date_state'],'NO_FUTURE_DATE_IN_EXCERPT')
+        self.assertEqual(details['direct_issuers'],[])
+
+    def test_unscheduled_forward_wording_remains_a_source_clue(self):
+        quote='Oil declines as diplomacy picks up before votes\nOil declines as diplomacy picks up before votes'
+        details=radar.source_event_details(quote,[],{},NOW,'NEWS_HEADLINE_OR_EXCERPT')
+        self.assertEqual(details['forward_looking_wording'],['before'])
+        self.assertEqual(details['date_state'],'NO_FUTURE_DATE_IN_EXCERPT')
+        self.assertEqual(details['evidence_origin'],'RETAINED_SOURCE_TEXT_NOT_MODEL_GENERATED')
+
     def test_duplicate_json_keys_and_nonfinite_rejected(self):
         for raw in ('{"items":[],"items":[]}','{"items":NaN}'):
             with self.assertRaises(ValueError):radar.validate(raw,self.p,NOW)

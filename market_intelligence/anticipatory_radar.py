@@ -109,6 +109,33 @@ def explicit_future_dates(quote, now):
     return sorted(found)[:3]
 
 
+def source_event_details(quote, instrument_ids, members, now, source_kind):
+    """Show retained words and literal routing without inventing event facts.
+
+    A date mentioned in a headline/excerpt is deliberately not bound to an
+    event: that relationship requires its own calendar review. Sector names
+    are catalog navigation for explicitly named issuers, not price exposures.
+    """
+    lines = [line.strip() for line in quote.splitlines() if line.strip()]
+    headline = lines[0] if lines else ''
+    excerpt = '\n'.join(line for line in lines[1:] if line != headline)
+    direct = [{'instrument_id': key, 'name': members[key]['name'],
+        'sector': members[key].get('sector', 'Unspecified')}
+        for key in instrument_ids if key in members]
+    future_dates = explicit_future_dates(quote, now)
+    clues = re.findall(r'\b(?:scheduled to|due to|expects to|plans to|intends to|'
+        r'will (?:announce|release|publish|report|hold|decide)|prepar(?:e|es|ing) for|'
+        r'ahead of|before|upcoming)\b',quote,re.I)
+    clues = list(dict.fromkeys(word.lower() for word in clues))[:3]
+    return {'headline': headline, 'excerpt': excerpt,
+        'information_state': 'SENS_HEADLINE_CAPTURED' if source_kind == 'SENS_HEADLINE' else 'NEWS_SOURCE_CAPTURED',
+        'direct_issuers': direct, 'topic_sectors': topic_sectors(quote),
+        'mentioned_future_dates': future_dates,
+        'date_state': 'DATE_MENTIONED_EVENT_LINK_UNCONFIRMED' if future_dates else 'NO_FUTURE_DATE_IN_EXCERPT',
+        'forward_looking_wording': clues,
+        'evidence_origin': 'RETAINED_SOURCE_TEXT_NOT_MODEL_GENERATED'}
+
+
 def packet(repo, now, *, current_news=False):
     scope = ensure_scope(repo, now)
     # Distinct issuers get a turn ahead of repeated headlines from one issuer.
@@ -464,7 +491,8 @@ def status(repo, now):
     last_screen_review=screening_review(repo,now,request=RELEVANCE_REQUEST,
         model_digest=contract.get('model_digest') if contract else None)
     batch_merges=[m for m in rows(repo,'batch-merge',now) if m.get('scope') in {'DAILY','REVIEW'}]
-    latest_batch=max(batch_merges,key=lambda m:(m['received_at'],m.get('attempted_pairs',0),m['record_id']),default=None)
+    latest_batch=max(batch_merges,key=lambda m:(m['received_at'],m.get('attempted_pairs',0),
+        m.get('recheck_attempts',0),m['record_id']),default=None)
     batch_reviews=rows(repo,'batch-validation-review',now)
     latest_batch_review=max(batch_reviews,key=lambda r:r['received_at'],default=None)
     batch_by_source={x['source_id']:x for x in (latest_batch or {}).get('assessments',[]) if not x.get('calendar_event_id')}
@@ -478,9 +506,12 @@ def status(repo, now):
         if not candidate or expires<=now:continue
         parts=s['body'].splitlines()
         detail='HEADLINE_ONLY' if len(parts)<2 or all(p==parts[0] for p in parts[1:]) else 'HEADLINE_AND_RETAINED_EXCERPT'
+        source_kind='SENS_HEADLINE' if 'sens' in s['url'].lower() else 'NEWS_HEADLINE_OR_EXCERPT'
+        event_details=source_event_details(candidate['quote'],candidate['instrument_ids'],
+            (scope or {}).get('members',{}),now,source_kind)
         previews.append({**candidate,'source_url':s['url'],'source_receipt_id':s['receipt_id'],
             'published_at':s['published_at'],'available_at':s['available_at'],'expires_at':expires.isoformat(),
-            'source_kind':'SENS_HEADLINE' if 'sens' in s['url'].lower() else 'NEWS_HEADLINE_OR_EXCERPT',
+            'source_kind':source_kind,'event_details':event_details,
             'source_detail':detail,
             'mentioned_future_dates':explicit_future_dates(candidate['quote'],now),
             'topic_sectors':topic_sectors(candidate['quote']),
@@ -503,6 +534,8 @@ def status(repo, now):
                  'batch_screening':{**{k:latest_batch.get(k) for k in ('state','scope','attempted_pairs','total_pairs','received_at')},
                     'model_matches':sum(x.get('assessment',{}).get('match') is True for x in latest_batch.get('assessments',[])),
                     'host_model_disagreements':sum(x.get('state')=='MODEL_DISAGREES_WITH_HOST_SOURCE_LINK' for x in latest_batch.get('assessments',[])),
+                    'recheck_attempts':latest_batch.get('recheck_attempts',0),
+                    'recheck_matches':latest_batch.get('recheck_matches',0),
                     'candidate_count':len(latest_batch.get('assessments',[]))} if latest_batch else None,
                  'batch_validation':{k:latest_batch_review.get(k) for k in ('state','correct','total','heldout_correct','heldout_total','reviewer_origin')} if latest_batch_review else None,
                  'screening_review':{k:last_screen_review.get(k) for k in ('record_id','state','model_selected_count',

@@ -1,3 +1,17 @@
+## Individual radar rechecks and IRESS event alignment — 27 October 2026
+
+Four current source misses all matched on exact individual rechecks; the original
+pairs reproduced the misses. One separate wrong-event control still failed alone.
+New daily parents preserve four pair calls and may add at most four idle-only
+single rechecks for source-supported disagreements, retaining both responses.
+The current review displays its four rechecks; the first new daily parent remains
+pending. Source cards expose retained headlines, issuer/sector links, source and
+unconfirmed mentioned dates. Nineteen diagnostic calls were separately registered;
+no model forecast or training improvement is claimed. The separate research
+workspace aligned 45 Sasol disclosures and 12 CPI releases to 600 IRESS sessions.
+R12 stays ACTIVE/PARTIAL; P1 remains open. See ADR0085 and
+`docs/changes/2026-10-27-source-rechecks-and-event-cards.md`.
+
 ## Boolean-only source screening — 27 October 2026
 
 At the owner's request, the known errors were addressed without waiting for a

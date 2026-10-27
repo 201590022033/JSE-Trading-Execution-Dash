@@ -110,6 +110,80 @@ class BatchScreeningTests(unittest.TestCase):
         self.assertEqual(radar.status(self.repo, NOW)['source_leads'][0]['screening_assessment']['type_origin'],
             'RETAINED_HOST_SOURCE_KIND')
 
+    def test_daily_rechecks_only_four_supported_misses_and_keeps_original_answers(self):
+        radar.save(self.repo, 'batch-release', 'boolean-recheck-release', {'version': batch.BOOLEAN_VERSION,
+            'model_digest': worker.DIGEST, 'enabled': True}, NOW)
+        def generate(packet, *args, **kwargs):
+            matched = len(packet['items']) == 1
+            content = json.dumps({'matches': {x['candidate_id']: matched for x in packet['items']}})
+            return json.dumps({'response': content, 'done': True}).encode(), content, NOW, NOW
+        with patch.object(radar, 'selection_packet', return_value=self.packet), patch.object(runner, 'utcnow', return_value=NOW):
+            result = worker.daily(self.repo, NOW, self.folder, 'fixture', idle=lambda: 601,
+                memory=lambda: 8 * runner.GIB, generator=generate)
+            again = worker.daily(self.repo, NOW, self.folder, 'fixture', idle=lambda: 601,
+                memory=lambda: 8 * runner.GIB, generator=lambda *a, **k: self.fail('must not repeat'))
+        self.assertEqual(result['model_calls'], 8)
+        self.assertEqual(again['model_calls'], 0)
+        merge = self.repo.paper_record(result['merge_id'])
+        self.assertEqual(merge['recheck_attempts'], 4)
+        self.assertEqual(merge['recheck_matches'], 4)
+        self.assertEqual(sum(x['state'] == 'MODEL_DISAGREES_WITH_HOST_SOURCE_LINK' for x in merge['assessments']), 4)
+        for item in merge['assessments']:
+            self.assertFalse(item['assessment']['match'])
+            if item['state'] == 'MODEL_RECHECK_MATCH':
+                self.assertTrue(item['recheck_assessment']['match'])
+        view = radar.status(self.repo, NOW)
+        self.assertEqual(view['model']['batch_screening']['recheck_matches'], 4)
+        self.assertEqual(view['model']['batch_screening']['model_matches'], 0)
+
+    def test_daily_does_not_recheck_unverified_or_failed_source_links(self):
+        radar.save(self.repo, 'batch-release', 'boolean-no-supported-recheck', {'version': batch.BOOLEAN_VERSION,
+            'model_digest': worker.DIGEST, 'enabled': True}, NOW)
+        def generate(packet, *args, **kwargs):
+            content = json.dumps({'matches': {x['candidate_id']: False for x in packet['items']}})
+            return json.dumps({'response': content, 'done': True}).encode(), content, NOW, NOW
+        with patch.object(batch, 'host_supports_task', return_value=False), \
+                patch.object(radar, 'selection_packet', return_value=self.packet), patch.object(runner, 'utcnow', return_value=NOW):
+            result = worker.daily(self.repo, NOW, self.folder, 'fixture', idle=lambda: 601,
+                memory=lambda: 8 * runner.GIB, generator=generate)
+        self.assertEqual(result['model_calls'], 4)
+        self.assertEqual(self.repo.paper_record(result['merge_id'])['recheck_attempts'], 0)
+
+    def test_old_frozen_daily_parent_does_not_gain_a_recheck_budget(self):
+        radar.save(self.repo, 'batch-release', 'old-parent-release', {'version': batch.BOOLEAN_VERSION,
+            'model_digest': worker.DIGEST, 'enabled': True}, NOW)
+        old = batch.prepare(self.repo, NOW, self.packet, identity='old-parent', scope='DAILY', version=batch.BOOLEAN_VERSION)
+        day = NOW.astimezone(radar.SAST).date().isoformat()
+        radar.save(self.repo, 'model-attempt', ['discovery', day], {'mode': 'source_specific_daily_parent',
+            'batch_plan_id': old['record_id'], 'maximum_child_generation_calls': 4}, NOW)
+        def generate(packet, *args, **kwargs):
+            content = json.dumps({'matches': {x['candidate_id']: False for x in packet['items']}})
+            return json.dumps({'response': content, 'done': True}).encode(), content, NOW, NOW
+        with patch.object(runner, 'utcnow', return_value=NOW):
+            result = worker.daily(self.repo, NOW, self.folder, 'fixture', idle=lambda: 601,
+                memory=lambda: 8 * runner.GIB, generator=generate)
+        self.assertEqual(result['model_calls'], 4)
+        self.assertNotIn('recheck_attempts', self.repo.paper_record(result['merge_id']))
+
+    def test_failed_individual_rechecks_are_spent_and_original_misses_remain(self):
+        radar.save(self.repo, 'batch-release', 'failed-recheck-release', {'version': batch.BOOLEAN_VERSION,
+            'model_digest': worker.DIGEST, 'enabled': True}, NOW)
+        def generate(packet, *args, **kwargs):
+            if len(packet['items']) == 1:
+                raise ValueError('fixture recheck failure')
+            content = json.dumps({'matches': {x['candidate_id']: False for x in packet['items']}})
+            return json.dumps({'response': content, 'done': True}).encode(), content, NOW, NOW
+        with patch.object(radar, 'selection_packet', return_value=self.packet), patch.object(runner, 'utcnow', return_value=NOW):
+            result = worker.daily(self.repo, NOW, self.folder, 'fixture', idle=lambda: 601,
+                memory=lambda: 8 * runner.GIB, generator=generate)
+            again = worker.daily(self.repo, NOW, self.folder, 'fixture', idle=lambda: 601,
+                memory=lambda: 8 * runner.GIB, generator=lambda *a, **k: self.fail('no retry'))
+        merged = self.repo.paper_record(result['merge_id'])
+        self.assertEqual(result['model_calls'], 8)
+        self.assertEqual(again['model_calls'], 0)
+        self.assertEqual(merged['recheck_matches'], 0)
+        self.assertTrue(all(x['state'] == 'MODEL_DISAGREES_WITH_HOST_SOURCE_LINK' for x in merged['assessments']))
+
     def test_sibling_valid_item_survives_missing_or_invalid_response(self):
         parsed, extra = batch.parse('{"items":{"C1":{"match":true,"type":"scheduled"},"C3":{"match":true,"type":"news"}}}', ['C1', 'C2'])
         self.assertTrue(parsed['C1']['match'])

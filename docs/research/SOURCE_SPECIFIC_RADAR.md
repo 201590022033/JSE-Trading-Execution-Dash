@@ -1,5 +1,23 @@
 # Source-specific radar implementation and limits
 
+## Individual rechecks and source cards — 27 October 2026
+
+An exact comparison reproduced four misses in the original pairs, while all four
+questions matched individually. Mixed-positive/negative pairs matched 8/8 and
+the same eight individual questions matched 7/8 against prior assistant review;
+one wrong-event negative was accepted alone. Nineteen new idle-only diagnostic
+calls are recorded separately; these small examples do not establish accuracy.
+
+New daily parents may use up to four additional single-item calls when the
+original false decision conflicts with a source-supported host link. The daily
+maximum is now eight, including the original four pair calls; older frozen
+parents retain their prior policy. Rechecks preserve the original response,
+source facts and idle/resource controls. The current review shows its four
+retained singleton rechecks. The first new ordinary daily run remains pending.
+Source cards now show literal event information and issuer/sector routing; a
+date mentioned in an excerpt remains unconfirmed. See ADR0085 and
+`docs/changes/2026-10-27-source-rechecks-and-event-cards.md`.
+
 ## Boolean-only correction — 27 October 2026
 
 The owner requested improving the observed errors immediately. A separate
