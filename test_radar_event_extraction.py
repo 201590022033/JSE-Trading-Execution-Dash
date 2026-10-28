@@ -75,6 +75,30 @@ class EventExtractionTests(unittest.TestCase):
                           self.candidate, NOW)
         self.assertEqual(radar.rows(self.repo, 'watch', NOW), [])
 
+    def test_vague_commentary_does_not_become_an_event_but_source_survives(self):
+        self.capture('https://example.test/sasol', 'Sasol at R300: Where to next?', NOW)
+        packet = radar.selection_packet(self.repo, NOW, relevance=True)
+        candidate = next(x for x in packet['host_candidates'] if 'Where to next?' in x['quote'])
+        parsed = extract.parse(self.response('Where to next?', has=True), candidate, NOW)
+        result = extract.publish(self.repo, packet, candidate, parsed, NOW)
+        self.assertEqual(result['state'], 'UNSPECIFIC_COMMENTARY_NEEDS_REVIEW')
+        self.assertTrue(result['source_retained'])
+        self.assertTrue(parsed['has_future_event'])  # Original model answer remains auditable.
+        self.assertFalse(radar.rows(self.repo, 'watch', NOW))
+        self.assertTrue(any('Where to next?' in s['body'] for s in radar.sources(self.repo, NOW)))
+        self.assertFalse(extract.commentary_only('results will be released'))
+        self.assertTrue(extract.commentary_only('Sasol at R300: Where to next?'))
+        self.assertFalse(extract.commentary_only('Sasol results on 30 October: Where to next?'))
+
+    def test_specific_appointment_is_not_blocked_as_commentary(self):
+        self.capture('https://example.test/appointment', 'Sasol: a director will be appointed on 30 October 2026', NOW)
+        packet = radar.selection_packet(self.repo, NOW, relevance=True)
+        candidate = next(x for x in packet['host_candidates'] if 'director will be appointed' in x['quote'])
+        parsed = extract.parse(self.response('director will be appointed', '30 October 2026'), candidate, NOW)
+        result = extract.publish(self.repo, packet, candidate, parsed, NOW)
+        self.assertEqual(result['state'], 'SOURCE_EVENT_WATCH_CREATED')
+        self.assertEqual(result['event_date'], '2026-10-30')
+
     def test_no_event_and_stale_source_do_not_create_watches(self):
         p = extract.parse(self.response(has=False), self.candidate, NOW)
         self.assertEqual(extract.publish(self.repo, self.one, self.candidate, p, NOW)['state'], 'NO_SPECIFIC_FUTURE_EVENT')

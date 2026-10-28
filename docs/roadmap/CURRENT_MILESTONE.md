@@ -1,3 +1,13 @@
+## Vague commentary and SENS detail — 28 October 2026
+
+R12 remains ACTIVE/PARTIAL; P1 remains open. A narrow host-side check holds
+generic questions for review instead of creating a new specific-event watch,
+while retaining the Qwen answer and original source. The research repository
+indexes direct SENS pages and prepares a separate governance feature family;
+the registered Bidvest/BAT forecast continues to use its unchanged model.
+No new model fit, Qwen call or trading action was made. See
+[change note](../changes/2026-10-28-vague-headline-event-guard.md) and ADR0090.
+
 ## Source-reviewed outcomes and price context — 28 October 2026
 
 R12 remains ACTIVE/PARTIAL and P1 open. The Israeli vote is recorded as a

@@ -49,6 +49,23 @@ def forward_wording(candidate):
     return match.group(0).strip() if match else None
 
 
+def commentary_only(phrase):
+    """A small, explicit ambiguity check; it never removes the source."""
+    normalized = re.sub(r'\s+', ' ', phrase.casefold()).strip(' \t\r\n?.!:')
+    vague = r'(?:where to next|what next|what happens next|where next)'
+    if re.fullmatch(vague, normalized):
+        return True
+    if ':' not in normalized:
+        return False
+    prefix, suffix = normalized.rsplit(':', 1)
+    if not re.fullmatch(vague, suffix.strip()):
+        return False
+    # A named event elsewhere in a headline remains a reviewable candidate.
+    if re.search(r'\b(?:agm|meeting|results?|earnings|release|decision|vote|appoint(?:ment|ed)?|director|committee|dividend)\b', prefix):
+        return False
+    return bool(re.fullmatch(r"[\w &'.,-]{2,80}(?:\s+at\s+r\d+(?:\.\d+)?)?", prefix))
+
+
 def parse(content, candidate, cutoff):
     """Validate one model response and bind every output to the source excerpt."""
     if not isinstance(content, str) or len(content) > 20000:
@@ -102,6 +119,11 @@ def source_candidate(repo, packet, candidate, parsed, now):
             raise ValueError('Model date disagrees with confirmed calendar')
         return {'state': 'CONFIRMED_CALENDAR_REFERENCE', 'candidate_id': candidate['candidate_id'],
             'event_id': event['record_id'], 'event_phrase': parsed['event_phrase'], 'event_date': event['event_date']}
+    if commentary_only(parsed['event_phrase']):
+        return {'state': 'UNSPECIFIC_COMMENTARY_NEEDS_REVIEW', 'candidate_id': candidate['candidate_id'],
+            'event_phrase': parsed['event_phrase'], 'source_id': source['source_id'],
+            'source_url': source['url'], 'source_retained': True,
+            'reason': 'Selected phrase names no specific event; retain source for review.'}
     if radar.news_expiry(source) <= cal._at(now):
         raise ValueError('Source watch window already expired')
     date = parsed['event_date']

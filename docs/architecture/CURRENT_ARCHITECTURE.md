@@ -1,3 +1,10 @@
+## Generic commentary held for source review — 28 October 2026
+
+The cited event-reading host now holds a narrow set of generic question phrases
+for review rather than creating a specific event watch. It preserves model
+responses, source leads and existing watches; event-bearing phrases and missing
+dates remain eligible for their normal review path. See ADR0090.
+
 ## Source-reviewed outcomes and price context — 28 October 2026
 
 Radar can retain attributed source-reported occurrences, including an already
