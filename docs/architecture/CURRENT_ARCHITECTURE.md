@@ -1,3 +1,15 @@
+## Source-reviewed outcomes and price context — 28 October 2026
+
+Radar can retain attributed source-reported occurrences, including an already
+linked pre-watch source for an event whose date ended before the watch. A
+separate read-only adapter reuses native IRESS parsing and the existing
+prospective-price archive for same-source paired Sasol/ETF observations.
+Frozen reference hashes and receipt clocks remain distinct; later endpoint
+revisions and missing pairs are surfaced. The radar API displays descriptive
+context only, with no model calls or trading weights. The existing IRESS/OST
+calendar forecast scorer and its source contract remain unchanged. See
+[ADR0089](../adr/0089-event-outcome-and-paired-price-context.md).
+
 ## Individual event watches — 28 October 2026
 
 The radar now splits recognizable multi-event headlines into separate, source-cited

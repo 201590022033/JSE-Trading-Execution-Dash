@@ -1,3 +1,14 @@
+## Source-reviewed outcomes and price context — 28 October 2026
+
+R12 remains ACTIVE/PARTIAL and P1 open. The Israeli vote is recorded as a
+retrospective assistant-reviewed timing error. A pre-decision Fed price-context
+plan now binds independently archived 27 October IRESS Sasol and Satrix 40
+captures; both later paired horizons are pending, and the ETF's public-source
+close differs. No model forecast, learning improvement or F6 confirmation is
+claimed. Next: source actual outcomes, capture later matching prices and freeze
+a separately sourced prospective P1 candidate. See
+[checkpoint](../changes/2026-10-28-event-outcome-price-context.md) and ADR0089.
+
 ## Individual event watches — 28 October 2026
 
 The radar now splits recognizable multi-event headlines into separate, source-cited

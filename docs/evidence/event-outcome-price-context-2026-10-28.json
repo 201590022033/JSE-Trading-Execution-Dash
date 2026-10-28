@@ -1,0 +1,44 @@
+{
+  "schema": "event-outcome-price-context-checkpoint-v1",
+  "israel": {
+    "watch_id": "radar-watch-bee5467f7249d3370802d121ea0208183399c46caaf451696240b56d4b00216c",
+    "parent_watch_id": "radar-watch-7af8cd9b5ac969ed16080d7c6b8dd2a1fc0014bac3b7710fe6d50fe3e07852e0",
+    "source_review_id": "radar-watch-source-review-c85473b9e91001684a3a785c884acdba46db2f3c805500aa767aeb7bb6a7f554",
+    "source_reviewed_at": "2026-10-28T05:50:53.150117+00:00",
+    "source_id": "calendar-source-f9739b2e47987cdaa9feb8cabf7b250bd00939727eb5e60df098219863e55f6c",
+    "source_published_at": "2026-10-27T20:56:00+00:00",
+    "source_captured_at": "2026-10-28T04:59:09.291398+00:00",
+    "parent_saved_at": "2026-10-28T00:25:08.932697+00:00",
+    "child_saved_at": "2026-10-28T05:23:11.619635+00:00",
+    "assessment": "VOTING_PRECEDED_WATCHES_NOT_PROSPECTIVE_SUCCESS",
+    "independent_human_label": false
+  },
+  "fed": {
+    "watch_id": "radar-watch-1158b1023aeb2026a521d9dfa764cf4a684caeb0add6a1b9452c05eab2907b9d",
+    "plan_id": "radar-price-context-plan-b1e1b6f975c418c3ac2824100d555a4d6570b3ebdc236432caa7bbb624b56a29",
+    "registered_at": "2026-10-28T05:52:55.826936+00:00",
+    "event_date_candidate": "2026-10-28",
+    "event_outcome": "PENDING_AT_REVIEW",
+    "reference_session": "2026-10-27",
+    "reference": {
+      "SASOL": {"provider": "IRESS", "origin_symbol": "SOL.JSE", "close_zar": 287.30,
+        "acquired_at": "2026-10-28T05:46:32.160115+00:00", "stored_at": "2026-10-28T05:48:28.679247+00:00",
+        "source_sha256": "bd7a08d67293afb10fbc9992097f05b4e978e73acb778f062293f3f8759e5f3b"},
+      "ETF_STX40": {"provider": "IRESS", "origin_symbol": "STX40.JSE", "close_zar": 102.21,
+        "acquired_at": "2026-10-28T05:47:09.039119+00:00", "stored_at": "2026-10-28T05:48:28.699246+00:00",
+        "source_sha256": "d3ff8eabd341476f68decb5f385ed30977148ea6448b5138769ba30d4777917e"}
+    },
+    "comparison_provider_etf_close_zar": 102.40,
+    "comparison_provider_url": "https://stockanalysis.com/quote/jse/STX40/history/",
+    "comparison_state": "DIFFERENT_CLOSE_NOT_RESOLVED",
+    "paired_later_observations": 0,
+    "numerical_model_prediction": null,
+    "forecast_skill": "NOT_EVALUABLE"
+  },
+  "us_election": {"event_date": "2026-11-03", "outcome": "PENDING_AT_REVIEW", "fresh_reference": "NEEDED_CLOSER_TO_EVENT"},
+  "model_calls": 0,
+  "financial_fits": 0,
+  "live_execution": false,
+  "p1": "OPEN",
+  "r12": "ACTIVE_PARTIAL"
+}

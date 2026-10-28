@@ -1,3 +1,15 @@
+## Source-reviewed outcomes and price context — 28 October 2026
+
+The Israeli vote ended before the original watch; its individual item now has
+an attributed retrospective source review. A Fed-watch descriptive plan uses
+newly retained 27 October IRESS Sasol and Satrix 40 closes, saved before the
+pending decision. Public STX40 close differs; no numerical model forecast or
+later paired result exists. The local source-specific reviewer and dashboard
+preserve raw hashes, actual clocks, missing pairs and revisions. R12 remains
+ACTIVE/PARTIAL and P1 open. See `docs/changes/2026-10-28-event-outcome-price-context.md`
+and ADR0089. Next: review actual Fed and US election outcomes, capture later
+source-specific prices, and prepare a real prospective P1 numerical candidate.
+
 ## Individual event watches — 28 October 2026
 
 The radar now splits recognizable multi-event headlines into separate, source-cited

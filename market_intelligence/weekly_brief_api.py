@@ -46,9 +46,14 @@ def create_weekly_brief_blueprint(factory):
     @bp.get("/api/market-intelligence/anticipatory-radar")
     def read_anticipatory_radar():
         from .anticipatory_radar import status as radar_status
+        from .event_price_context import status as price_context_status
+        from application.opportunities.ost_data import ROOT as data_root
         repository = factory()
         try:
-            return jsonify(radar_status(repository, datetime.now(timezone.utc)))
+            now = datetime.now(timezone.utc)
+            result = radar_status(repository, now)
+            result['price_context'] = price_context_status(repository, data_root, now)['plans']
+            return jsonify(result)
         finally:
             repository.close()
 

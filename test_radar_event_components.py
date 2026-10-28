@@ -172,6 +172,51 @@ class EventComponentTests(unittest.TestCase):
         self.assertEqual(after['timing']['citations'][0]['available_at'], (NOW - timedelta(hours=1)).isoformat())
         self.assertEqual(after['related_source_count'], 0)
 
+    def test_retrospective_occurrence_review_uses_linked_prior_source_without_new_followup(self):
+        body = 'Israeli votes on 26 October 2026 ended before this watch.'
+        earlier = NOW - timedelta(hours=1)
+        source = cal.import_source(self.repo, {'source_url': 'https://example.test/israel-result',
+            'title': 'Election report', 'body': body, 'captured_at': earlier.isoformat(),
+            'published_at': earlier.isoformat(), 'provenance': 'TEST'}, earlier)
+        _, _, _, result = self.shared()
+        watch_id = result['component_watch_ids'][0]
+        later = NOW + timedelta(minutes=2)
+        citation = [{'source_id': source['record_id'], 'quote': body}]
+        with self.assertRaises(ValueError):
+            extract.record_source_review(self.repo, watch_id, 'SOURCE_REPORTS_EVENT_PRECEDED_WATCH',
+                                         'Earlier event.', citation, later)
+        components.record_timing(self.repo, watch_id, '2026-10-26', 'Africa/Johannesburg',
+            citation, source['record_id'], '26 October 2026', 'Source date.', later)
+        review = extract.record_source_review(self.repo, watch_id, 'SOURCE_REPORTS_EVENT_PRECEDED_WATCH',
+                                              'Earlier event.', citation, later)
+        self.assertFalse(review['citations'][0]['available_after_watch'])
+        self.assertFalse(review['citations'][0]['acquired_after_watch'])
+        self.assertFalse(review['automatic_occurrence_verdict'])
+        self.assertEqual(review['review_origin'], 'ASSISTANT_SOURCE_REVIEW_NOT_INDEPENDENT_HUMAN_LABEL')
+        self.assertEqual(extract.record_source_review(self.repo, watch_id,
+            'SOURCE_REPORTS_EVENT_PRECEDED_WATCH', 'Earlier event.', citation, later), review)
+        with self.assertRaises(ValueError):
+            extract.attach_reviewed_source(self.repo, review, source['record_id'], later)
+        self.assertEqual(radar.status(self.repo, later)['metrics']['occurred'], 0)
+
+    def test_later_event_report_requires_new_retained_source(self):
+        _, _, _, result = self.shared()
+        watch_id = result['component_watch_ids'][1]
+        watch = self.repo.paper_record(watch_id)
+        with self.assertRaises(ValueError):
+            extract.record_source_review(self.repo, watch_id, 'SOURCE_REPORTS_EVENT_OCCURRED',
+                'Unsupported occurrence.', [{'source_id': watch['source_id'], 'quote': 'US votes'}],
+                NOW + timedelta(minutes=1))
+        later = NOW + timedelta(hours=1)
+        source = cal.import_source(self.repo, {'source_url': 'https://example.test/us-result',
+            'title': 'Election report', 'body': 'US election voting concluded.',
+            'captured_at': later.isoformat(), 'published_at': later.isoformat(), 'provenance': 'TEST'}, later)
+        review = extract.record_source_review(self.repo, watch_id, 'SOURCE_REPORTS_EVENT_OCCURRED',
+            'The later report states voting concluded.',
+            [{'source_id': source['record_id'], 'quote': source['body']}], later)
+        self.assertTrue(review['citations'][0]['available_after_watch'])
+        self.assertFalse(review['automatic_occurrence_verdict'])
+
     def test_single_unscheduled_event_can_gain_a_later_sourced_date(self):
         _, _, _, result = self.publish('Gold steadies as traders prepare for Fed rate call',
                                        'prepare for Fed rate call')

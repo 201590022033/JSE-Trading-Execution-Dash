@@ -159,7 +159,8 @@ def record_source_review(repo, watch_id, assessment, explanation, citations, now
     if cal._at(watch['frozen_at']) > now:
         raise ValueError('Watch must already exist')
     allowed = {'NO_SPECIFIC_EVENT_IN_QUOTED_PHRASE', 'LATER_REPORT_EVENT_PENDING',
-               'PART_OF_WATCH_OCCURRENCES_PRECEDE_WATCH', 'FUTURE_EVENT_OUTLIVES_WATCH'}
+               'PART_OF_WATCH_OCCURRENCES_PRECEDE_WATCH', 'FUTURE_EVENT_OUTLIVES_WATCH',
+               'SOURCE_REPORTS_EVENT_OCCURRED', 'SOURCE_REPORTS_EVENT_PRECEDED_WATCH'}
     if assessment not in allowed or not isinstance(citations, list) or not 1 <= len(citations) <= 5:
         raise ValueError('Explicit bounded review and citations required')
     explanation = cal._text(explanation, 1500)
@@ -186,13 +187,31 @@ def record_source_review(repo, watch_id, assessment, explanation, citations, now
             available, url, published, receipt = source['received_at'], source['source_url'], source['published_at'], source['record_id']
             captured = source['captured_at']
             if cal._at(available) <= cal._at(watch['frozen_at']):
-                raise ValueError('Additional review source must be recorded after the watch')
+                # A split child may already have a reviewed source establishing
+                # that the event ended before the child existed. Do not pretend
+                # that source is a newly acquired follow-up.
+                from .radar_event_components import timings
+                supported = any(cal._at(t['expires_at']) <= cal._at(watch['frozen_at'])
+                    and any(citation['source_id'] == c['source_id'] for citation in t['citations'])
+                    for t in timings(repo, watch_id, now))
+                if assessment != 'SOURCE_REPORTS_EVENT_PRECEDED_WATCH' or not supported:
+                    raise ValueError('Additional review source must be recorded after the watch')
         published_after_watch = (cal._at(published) > cal._at(watch['frozen_at'])) if published else None
         verified.append({'source_id': c['source_id'], 'source_receipt_id': receipt, 'source_url': url,
             'quote': quote, 'published_at': published, 'captured_at': captured, 'available_at': available,
             'published_after_watch': published_after_watch,
             'acquired_after_watch': cal._at(captured) > cal._at(watch['frozen_at']),
             'available_after_watch': cal._at(available) > cal._at(watch['frozen_at'])})
+    if assessment == 'SOURCE_REPORTS_EVENT_OCCURRED' and not any(
+            c['source_id'] != watch['source_id'] and c['available_after_watch'] for c in verified):
+        raise ValueError('Occurrence review requires a source received after the watch')
+    if assessment == 'SOURCE_REPORTS_EVENT_PRECEDED_WATCH':
+        from .radar_event_components import timings
+        supported = any(cal._at(t['expires_at']) <= cal._at(watch['frozen_at'])
+            and any(ref['source_id'] == c['source_id'] for ref in t['citations'] for c in verified)
+            for t in timings(repo, watch_id, now))
+        if not supported:
+            raise ValueError('An existing earlier source-dated event is required')
     # Preserve earlier review receipts created before the capture clock was
     # exposed as a separate field; repeated reviews do not change history.
     for old in radar.rows(repo, 'watch-source-review', now):
