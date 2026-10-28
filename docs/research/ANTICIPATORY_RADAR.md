@@ -1,3 +1,15 @@
+## Individual event watches — 28 October 2026
+
+The radar now splits recognizable multi-event headlines into separate, source-cited
+watches and keeps dated split or single events active through their own dates.
+The Israeli vote is a retrospective expired item; the US election remains active
+through 3 November. Original watches, source clocks, model attempts and prior
+expiry records remain intact. Later dates and conflicts retain their actual
+review times; no Qwen call, model fit or human outcome was made. R12 remains
+ACTIVE/PARTIAL; P1 remains open. Next: collect actual event outcomes and, if
+pursuing price learning, freeze a prospective numerical hypothesis and comparator.
+See `docs/changes/2026-10-28-individual-event-watches.md` and ADR0088.
+
 ## Current state: first prospective source review
 
 28 October 2026. The first three watches have four assistant source reviews.

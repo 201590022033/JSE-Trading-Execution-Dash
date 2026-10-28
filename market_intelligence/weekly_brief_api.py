@@ -170,6 +170,15 @@ def create_weekly_brief_blueprint(factory):
                     raise ValueError('Explicit radar review required')
                 return jsonify(review(repository, payload['watch_id'], payload['verdict'],
                     payload['note'], 'local-operator', now)), 202
+            if kind == 'radar-date-review':
+                from .radar_event_components import record_timing
+                if not isinstance(payload, dict) or set(payload) != {'watch_id', 'event_date', 'timezone',
+                        'source_id', 'source_quote', 'date_text', 'explanation'}:
+                    raise ValueError('Explicit source date review required')
+                return jsonify(record_timing(repository, payload['watch_id'], payload['event_date'],
+                    payload['timezone'], [{'source_id': payload['source_id'], 'quote': payload['source_quote']}],
+                    payload['source_id'], payload['date_text'], payload['explanation'], now,
+                    origin='LOCAL_OPERATOR_SOURCE_DATE_REVIEW')), 202
             if kind == 'radar-calendar-propose':
                 from .anticipatory_radar import propose_calendar_watch
                 return jsonify(propose_calendar_watch(repository, payload['watch_id'], now)), 202

@@ -1,0 +1,47 @@
+{
+  "version": "radar-event-components-review-2026-10-28",
+  "original_watch_id": "radar-watch-7af8cd9b5ac969ed16080d7c6b8dd2a1fc0014bac3b7710fe6d50fe3e07852e0",
+  "original_watch_saved_at": "2026-10-28T00:25:08.932697+00:00",
+  "original_watch_expires_at": "2026-10-29T05:15:49+00:00",
+  "source_quote": "Oil declines as Iran diplomacy picks up before Israeli, US votes",
+  "components": [
+    {
+      "watch_id": "radar-watch-1135b6f01e22133499cae4d636455dcf22089c0f55f756307ca6db14b008222f",
+      "name": "US votes",
+      "created_at": "2026-10-28T05:23:11.619635+00:00",
+      "event_date": "2026-11-03",
+      "event_timezone": "Etc/GMT+12",
+      "effective_expiry": "2026-11-04T12:00:00+00:00",
+      "state_at_checkpoint": "UNCONFIRMED_SOURCE_CANDIDATE",
+      "timing_id": "radar-watch-timing-4693574f6c90f19057521c4a0899396ecbfef0543cd2c28ef95587e8d2d74250",
+      "timing_recorded_at": "2026-10-28T05:23:11.619635+00:00",
+      "date_basis": "EXPLICIT_FULL_DATE",
+      "date_origin": "ASSISTANT_REVIEWED_SOURCE_DATE",
+      "source_ids": [
+        "calendar-source-d12a062ecee81dfc5c258df92dce0715b82e9c3072c96924dc7531f3fddeaa13",
+        "calendar-source-c9913783cf2f740089f097bfd71a861cf69a93ec4cbb82e5831110772c3fae9d"
+      ]
+    },
+    {
+      "watch_id": "radar-watch-bee5467f7249d3370802d121ea0208183399c46caaf451696240b56d4b00216c",
+      "name": "Israeli votes",
+      "created_at": "2026-10-28T05:23:11.619635+00:00",
+      "event_date": "2026-10-27",
+      "event_timezone": "Asia/Jerusalem",
+      "effective_expiry": "2026-10-27T22:00:00+00:00",
+      "state_at_checkpoint": "EXPIRED_UNREVIEWED",
+      "timing_id": "radar-watch-timing-a165d46dac4180999a800f6c76b7808ecc8a25367ab15ce0b9ad4ed283f429c3",
+      "timing_recorded_at": "2026-10-28T05:23:11.619635+00:00",
+      "date_basis": "PUBLICATION_DAY_TODAY",
+      "date_origin": "ASSISTANT_REVIEWED_SOURCE_DATE",
+      "source_ids": [
+        "calendar-source-f9739b2e47987cdaa9feb8cabf7b250bd00939727eb5e60df098219863e55f6c"
+      ]
+    }
+  ],
+  "model_calls": 0,
+  "model_training_fits": 0,
+  "human_outcomes_created": 0,
+  "forecast_skill_established": false,
+  "scope": "SOURCE_DATE_CANDIDATES_NOT_PRICE_PREDICTIONS_OR_OCCURRENCE_LABELS"
+}

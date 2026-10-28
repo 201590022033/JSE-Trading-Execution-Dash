@@ -365,10 +365,10 @@ def validate(content, p, now):
             raise ValueError('Unsupported issuer link')
         if x['kind'] == 'DATED_CANDIDATE':
             day = date.fromisoformat(x['event_date'])
-            anchor = datetime.combine(day, datetime.min.time(), SAST).astimezone(timezone.utc)
-            if not cal._date_in_quote(day, quote) or anchor <= cal._at(now):
-                raise ValueError('Explicit future date required')
-            expiry = anchor
+            from .radar_event_components import date_end, date_mentions
+            expiry = date_end(day)
+            if day not in [value for _, value in date_mentions(quote)] or expiry <= cal._at(now):
+                raise ValueError('Explicit current or future date required')
         elif x['kind'] == 'CONDITIONAL_WATCH' and x['event_date'] is None:
             expiry = cal._at(p['cutoff'])+timedelta(hours=48)
             if p.get('response_format')=='HOST_GROUNDED_BOOLEAN_V4':
@@ -382,7 +382,7 @@ def validate(content, p, now):
             'topic_sectors': topic_sectors(quote),
             'sector_link_basis': 'CURATED_ISSUER_MEMBERSHIP_AND_LITERAL_TOPIC_NAVIGATION_NOT_CAUSAL_EXPOSURE',
             'expires_at': expiry.isoformat(), 'date_state': 'UNCONFIRMED_SOURCE_CANDIDATE' if x['event_date'] else 'UNSCHEDULED_CONDITIONAL',
-            'time_precision': 'DATE_ONLY_RELEASE_TIME_UNKNOWN' if x['event_date'] else '48_HOUR_WATCH_WINDOW_NOT_EVENT_DATE'})
+            'time_precision': 'DATE_ONLY_EVENT_TIME_UNKNOWN' if x['event_date'] else '48_HOUR_WATCH_WINDOW_NOT_EVENT_DATE'})
     return cleaned
 
 
@@ -395,7 +395,9 @@ def record_response(repo, p, content, now, *, selection_audit=None):
     details={'input_id':p['record_id'],'input_sha256':cal._hash(p),'state':state,'items':items,'causal_cutoff':p['cutoff']}
     if selection_audit is not None:details['selection_audit']=selection_audit
     run = save(repo, 'discovery', p['record_id'], details, now)
-    for x in items:
+    # A replay uses the already-frozen items even if current date handling has
+    # evolved; it must not silently manufacture revised historical watches.
+    for x in run['items']:
         save(repo, 'watch', [run['record_id'], x], {**x, 'discovery_id': run['record_id'],
              'causal_cutoff': p['cutoff'], 'frozen_at': cal._at(now).isoformat(),
              'trigger': 'Verify the cited event or a new issuer announcement; no trade instruction',
@@ -444,12 +446,27 @@ def tick(repo, now):
 @cal._write
 def review(repo, watch_id, verdict, note, operator, now):
     item = repo.paper_record(watch_id)
-    if not item or item.get('schema') != VERSION or not watch_id.startswith('radar-watch-'):
+    if (not item or item.get('schema') != VERSION or not watch_id.startswith('radar-watch-')
+            or not {'discovery_id', 'frozen_at', 'date_state', 'kind'} <= item.keys()):
         raise ValueError('Existing radar watch required')
     if verdict not in {'OCCURRED', 'NOT_OBSERVED', 'INCORRECT_LINK'}:
         raise ValueError('Explicit observation verdict required')
-    if verdict == 'NOT_OBSERVED' and cal._at(now) < cal._at(item['expires_at']):
-        raise ValueError('Wait until expiry before a no-occurrence verdict')
+    if cal._at(item['received_at']) > cal._at(now):
+        raise ValueError('Watch must already exist')
+    if verdict == 'NOT_OBSERVED':
+        from . import radar_event_components as components
+        if any(w.get('parent_watch_id') == watch_id for w in rows(repo, 'watch', now)):
+            raise ValueError('Review the individual event watches instead')
+        timing = next(iter(reversed(components.timings(repo, watch_id, now))), None)
+        policy = components.expiry_policy(repo, watch_id, now)
+        timeline = components.effective_timeline(item, timing, policy)
+        conflicts = components.unresolved_conflicts(rows(repo, 'watch-timing-conflict', now), watch_id, timing)
+        timeline = components.retain_through_conflicts(timeline, conflicts)
+        deadline = cal._at(timeline['expires_at'])
+        if not timing and item.get('event_date'):
+            deadline = max(deadline, components.date_end(item['event_date']))
+        if cal._at(now) < deadline:
+            raise ValueError('Wait until expiry before a no-occurrence verdict')
     return save(repo, 'review', [watch_id, verdict, note], {'watch_id':watch_id, 'verdict':verdict,
         'note':cal._text(note,1000), 'operator':cal._text(operator,100),
         'review_basis':'HUMAN_ASSERTION_NOT_INDEPENDENT_PRICE_LABEL'}, now)
@@ -475,24 +492,61 @@ def status(repo, now):
     reviewed = {r['watch_id']:r for r in sorted(reviews,key=lambda x:x['received_at'])}
     followups = rows(repo,'watch-followup',now)
     source_reviews = rows(repo,'watch-source-review',now)
-    expiries = {e['watch_id']:e for e in rows(repo,'watch-expiry',now)}
+    from . import radar_event_components as components
+    expiry_rows = rows(repo, 'watch-expiry', now)
+    timing_rows = rows(repo, 'watch-timing', now)
+    policy_rows = rows(repo, 'watch-expiry-policy', now)
+    conflicts = rows(repo, 'watch-timing-conflict', now)
+    children_by_parent = {}
+    for w in watches:
+        if w.get('parent_watch_id'):
+            children_by_parent.setdefault(w['parent_watch_id'], []).append(w['record_id'])
     public = []
     for w in watches:
         r = reviewed.get(w['record_id'])
-        state = r['verdict'] if r else 'EXPIRED_UNREVIEWED' if now >= cal._at(w['expires_at']) else w['date_state']
+        history = sorted((t for t in timing_rows if t['watch_id'] == w['record_id']),
+                         key=lambda t: (t['received_at'], t['record_id']))
+        timing = history[-1] if history else None
+        policy = max((p for p in policy_rows if p['watch_id'] == w['record_id']),
+                     key=lambda p: (p['received_at'], p['record_id']), default=None)
+        unresolved = components.unresolved_conflicts(conflicts, w['record_id'], timing)
+        timeline = components.retain_through_conflicts(components.effective_timeline(w, timing, policy), unresolved)
+        state = r['verdict'] if r else 'EXPIRED_UNREVIEWED' if now >= cal._at(timeline['expires_at']) else (
+            'CONFLICTING_SOURCE_DATES_NEED_REVIEW' if unresolved else
+            'UNCONFIRMED_SOURCE_CANDIDATE' if timing else w['date_state'])
+        if not r and w['record_id'] in children_by_parent:
+            state = 'SPLIT_INTO_EVENT_WATCHES'
         linked = linked_dates.get(w['record_id'])
         if not r and linked and linked['state'] in {'CANCELLED','SUPERSEDED'}:
             state = 'CALENDAR_DATE_'+linked['state']
         related = sorted((f for f in followups if f['watch_id']==w['record_id']),
                          key=lambda x:x['source_available_at'],reverse=True)
+        lead_zone = timing['timezone'] if timing and timing['timezone'] != components.UNKNOWN_ZONE else ('Africa/Johannesburg' if not timing and w.get('event_date') else None)
+        lead = ((components.date_start(timeline['event_date'], lead_zone) - cal._at(w['frozen_at'])).total_seconds()/3600
+                if timeline['event_date'] and lead_zone else None)
+        expiry = next((e for e in expiry_rows if e['watch_id'] == w['record_id']
+                       and cal._at(e['expired_at']) == cal._at(timeline['expires_at'])), None)
         public.append({**w,'state':state,'review_verdict':r['verdict'] if r else None,
+            'original_expires_at':w['expires_at'], 'event_date':timeline['event_date'],
+            'original_date_state':w['date_state'], 'original_time_precision':w['time_precision'],
+            'date_state':'UNCONFIRMED_SOURCE_CANDIDATE' if timing else w['date_state'],
+            'time_precision':timing['time_precision'] if timing else w['time_precision'],
+            'expires_at':timeline['expires_at'], 'event_timezone':timeline['timezone'],
+            'conflict_retention':timeline.get('conflict_retention'),
+            'expiry_policy':policy, 'timing':timing, 'timing_history':history,
+            'timing_conflicts':unresolved,
+            'timing_conflict_history':[c for c in conflicts if c['watch_id'] == w['record_id']],
+            'component_watch_ids':children_by_parent.get(w['record_id'], []),
+            'calendar_proposable':bool(w.get('kind') == 'DATED_CANDIDATE' and w.get('event_date')
+                and not timing and not unresolved and not w.get('parent_watch_id') and w['record_id'] not in children_by_parent
+                and cal._date_in_quote(date.fromisoformat(w['event_date']), w['quote'])),
             'reviewed_at':r['received_at'] if r else None, 'review_note':r['note'] if r else None,
             'review_hours_after_watch':(cal._at(r['received_at'])-cal._at(w['frozen_at'])).total_seconds()/3600 if r else None,
-            'date_only_lead_hours':(cal._at(w['expires_at'])-cal._at(w['frozen_at'])).total_seconds()/3600 if w['event_date'] else None,
+            'date_only_lead_hours':lead, 'date_lead_timezone':lead_zone,
             'related_sources':related[:5], 'related_source_count':len(related),
             'source_reviews':sorted((s for s in source_reviews if s['watch_id']==w['record_id']),
                 key=lambda x:x['received_at'],reverse=True)[:10],
-            'expiry_observation':expiries.get(w['record_id'])})
+            'expiry_observation':expiry})
     captures = sorted(rows(repo,'capture-result',now),key=lambda x:x['received_at'],reverse=True)
     attempts = rows(repo,'model-attempt',now)
     results = sorted(rows(repo,'model-result',now),key=lambda x:x['received_at'],reverse=True)
@@ -511,8 +565,9 @@ def status(repo, now):
     for w in public:
         if not w.get('reason','').startswith('Source mentions: '):
             continue
-        assessment = event_by_watch.get(w['record_id'],{}).get('parsed',{})
-        w['suggestion_origin'] = 'SOURCE_WORDING' if w['record_id'] in fallback_by_watch else 'QWEN'
+        origin_id = w.get('parent_watch_id') or w['record_id']
+        assessment = event_by_watch.get(origin_id,{}).get('parsed',{})
+        w['suggestion_origin'] = 'SOURCE_WORDING' if origin_id in fallback_by_watch else 'QWEN'
         w['extraction_warnings'] = []
         if '?' in w['reason']:
             w['extraction_warnings'].append('QUESTION_MAY_BE_GENERAL_COMMENTARY')
@@ -557,6 +612,9 @@ def status(repo, now):
                 if s['source_id'] in event_by_source else None,
             'screening_assessment':public_assessment(batch_by_source.get(s['source_id'])),
             'state':'RETAINED_SOURCE_LEAD_NOT_MODEL_PREDICTION'})
+    # Keep live individual events visible even when the retained history grows.
+    public.sort(key=lambda w: (w['state'] in {'SPLIT_INTO_EVENT_WATCHES', 'EXPIRED_UNREVIEWED'},
+                              not bool(w.get('parent_watch_id')), w['frozen_at']))
     # The newest reviewed packet must remain inspectable even if other fresh
     # headlines arrived earlier in the display ordering. Stable ordering within
     # the two groups preserves the existing source recency policy.
@@ -589,7 +647,8 @@ def status(repo, now):
                     'failed_probes':sum(p['state']!='PASS' for p in probes)} if contract else None,
                  'attempts':sum(a.get('mode')!='source_specific_daily_parent' for a in attempts),
                  'unresolved':sum(not repo.paper_record('radar-model-result-'+cal._hash(a['record_id'])) for a in attempts if a.get('mode')!='source_specific_daily_parent')},
-        'metrics':{'frozen_watch_count':len(watches),'reviewed_watch_count':len(reviewed),
+        'metrics':{'frozen_watch_count':len(watches),'event_component_count':sum(bool(w.get('parent_watch_id')) for w in watches),
+            'split_parent_count':len(children_by_parent),'reviewed_watch_count':len(reviewed),
             'assistant_source_review_count':len(source_reviews),
             'occurred':sum(r['verdict']=='OCCURRED' for r in reviewed.values()),
             'not_observed':sum(r['verdict']=='NOT_OBSERVED' for r in reviewed.values()),
@@ -608,7 +667,12 @@ def propose_calendar_watch(repo, watch_id, now):
     w=repo.paper_record(watch_id)
     if not w or not watch_id.startswith('radar-watch-') or w.get('kind')!='DATED_CANDIDATE':
         raise ValueError('Dated radar watch required')
-    if cal._at(now)>=cal._at(w['expires_at']):raise ValueError('Watch expired')
+    from .radar_event_components import effective_timeline, expiry_policy, timings, unresolved_conflicts
+    if (timings(repo, watch_id, now) or unresolved_conflicts(rows(repo, 'watch-timing-conflict', now), watch_id, None)
+            or any(child.get('parent_watch_id') == watch_id for child in rows(repo, 'watch', now))):
+        raise ValueError('Review the current individual date source for calendar entry')
+    policy = expiry_policy(repo, watch_id, now)
+    if cal._at(now)>=cal._at(effective_timeline(w, policy=policy)['expires_at']):raise ValueError('Watch expired')
     source=cal.import_source(repo,{'source_url':w['source_url'],'title':'Radar source passage',
         'body':w['quote'],'captured_at':w['source_available_at'],
         'provenance':'Retained radar citation from '+w['source_receipt_id']},now)
