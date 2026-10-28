@@ -1,4 +1,17 @@
-## Current state: individual source rechecks and event cards
+## Current state: cited event reading and follow-up
+
+28 October 2026. A separate experimental lane reads up to four retained sources
+per local day and records source-cited event suggestions, partial dates and
+literal forward-wording fallbacks. It accepts sources with no mapped issuer or
+topic. Related later sources and expiry are recorded without automatically
+grading an occurrence; the UI shows actual saved and review clocks. Eight
+retained examples matched six assistant assessments, including one false
+commentary selection and one missed Fed-rate event. The first four daily calls
+have run; the commentary is flagged and the missed event has a separately
+labelled source-wording lead. This is not independent forecasting evidence or
+model training. See [ADR0086](../adr/0086-cited-event-reading-and-follow-up.md).
+
+## Earlier state: individual source rechecks and event cards
 
 27 October 2026. Four previously missed sources matched when the exact questions
 were asked individually; byte-identical original pair prompts repeated the four

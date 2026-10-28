@@ -1,0 +1,242 @@
+{
+  "version": "event-extraction-native-evidence-v1",
+  "scope": "ASSISTANT_REVIEWED_RETAINED_SOURCES_NOT_INDEPENDENT_GROUND_TRUTH",
+  "model": "qwen2.5:1.5b",
+  "model_digest": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+  "diagnostic": {
+    "contract_id": "radar-event-extraction-contract-8b344b2c3e845ba373c3d7afffde74ac4c36dead30e013cd0f8e4d5798336671",
+    "original_packet_sha256": "7b8640691d6839d784b05c1f654191dbb08abea34374b827f5a4f9167509b31f",
+    "registered_calls": 8,
+    "completed_calls": 8,
+    "matched_assistant_review": 6,
+    "cases": [
+      {
+        "candidate_id": "C1",
+        "source_id": "calendar-source-ac197e04a5360f9bb899795ba3a685b4b0c2837c92ad8b281ed953e360ed143c",
+        "expected": true,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_issue": null,
+          "date_text": "13 November, 2026",
+          "event_date": "2026-11-13",
+          "event_phrase": "ANNUAL GENERAL MEETING",
+          "has_future_event": true,
+          "state": "POSSIBLE_FUTURE_EVENT"
+        },
+        "match": true,
+        "raw_sha256": "a65caf04d97b1d43b8ff12008e42616a2463a618dd348b37586767a0a3c2f8d0",
+        "completed_at": "2026-10-28T00:22:44.152972+00:00",
+        "publication_state": "DIAGNOSTIC_NOT_PUBLISHED"
+      },
+      {
+        "candidate_id": "C2",
+        "source_id": "calendar-source-07a3bc8c9d80628fff75bb7784b49656fe52a020dd3b6941009443894f856ef2",
+        "expected": true,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_issue": null,
+          "date_text": "2026-11-19",
+          "event_date": "2026-11-19",
+          "event_phrase": "Monetary Policy Committee briefing",
+          "has_future_event": true,
+          "state": "POSSIBLE_FUTURE_EVENT"
+        },
+        "match": true,
+        "raw_sha256": "187afd8450a45471baf6230465d0d20e2c349b5aa430e167144f1ea8e7147076",
+        "completed_at": "2026-10-28T00:22:55.432759+00:00",
+        "publication_state": "DIAGNOSTIC_NOT_PUBLISHED"
+      },
+      {
+        "candidate_id": "C3",
+        "source_id": "faadd72f5411455915f618aee41aa880c603d5d0f88b1b6eba0b6fcb2fc18a1c",
+        "expected": false,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_text": null,
+          "event_date": null,
+          "event_phrase": null,
+          "has_future_event": false,
+          "state": "NO_SPECIFIC_FUTURE_EVENT"
+        },
+        "match": true,
+        "raw_sha256": "e9692e2c3c1a1ddf7da4831b8fa16b5e7cd64eb5738a9f2d7cb5db26472f9717",
+        "completed_at": "2026-10-28T00:23:05.439615+00:00",
+        "publication_state": "DIAGNOSTIC_NOT_PUBLISHED"
+      },
+      {
+        "candidate_id": "C4",
+        "source_id": "97db2d8ecab99954ccbce28d6d5ff3e2034498678acdf6de6279fcb64a7f8b3e",
+        "expected": false,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_issue": "DATE_NOT_IN_SOURCE",
+          "date_text": null,
+          "event_date": null,
+          "event_phrase": "Where to next?",
+          "has_future_event": true,
+          "state": "POSSIBLE_FUTURE_EVENT"
+        },
+        "match": false,
+        "raw_sha256": "0efffd39433608d99b7e4b4488a1b1f50c2ed0175b36b0703c201c9e67b891d6",
+        "completed_at": "2026-10-28T00:23:16.425058+00:00",
+        "publication_state": "DIAGNOSTIC_NOT_PUBLISHED"
+      },
+      {
+        "candidate_id": "C5",
+        "source_id": "009004cb1c42409a5013f2d51a0417a0a62e9ad4e662e42b596092704ad76644",
+        "expected": false,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_text": null,
+          "event_date": null,
+          "event_phrase": null,
+          "has_future_event": false,
+          "state": "NO_SPECIFIC_FUTURE_EVENT"
+        },
+        "match": true,
+        "raw_sha256": "1f887ef46d080f62b64de5734db388c8e5e963c7d1c1ed445e3bf099c4cab339",
+        "completed_at": "2026-10-28T00:23:26.430729+00:00",
+        "publication_state": "DIAGNOSTIC_NOT_PUBLISHED"
+      },
+      {
+        "candidate_id": "C6",
+        "source_id": "21730b6093e1f92c1b8380d92845a43fd8d6b2e0b4b8de7e94e34387fef731f4",
+        "expected": false,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_text": null,
+          "event_date": null,
+          "event_phrase": null,
+          "has_future_event": false,
+          "state": "NO_SPECIFIC_FUTURE_EVENT"
+        },
+        "match": true,
+        "raw_sha256": "e022e7e5727815f4c90c3583ee05345da364858a7c6531544fa7f6d1e1f39be2",
+        "completed_at": "2026-10-28T00:23:36.462177+00:00",
+        "publication_state": "DIAGNOSTIC_NOT_PUBLISHED"
+      },
+      {
+        "candidate_id": "C7",
+        "source_id": "c873397d05709c3b616b8c8c9bab04ee8c0d0a404180c766f07162e623afbd8e",
+        "expected": true,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_issue": "DATE_NOT_IN_SOURCE",
+          "date_text": null,
+          "event_date": null,
+          "event_phrase": "Israeli, US votes",
+          "has_future_event": true,
+          "state": "POSSIBLE_FUTURE_EVENT"
+        },
+        "match": true,
+        "raw_sha256": "31d134eb1b5e9a27f39b24c5af66fef908a0a7334d30cf7f936b09517a165a06",
+        "completed_at": "2026-10-28T00:23:47.521644+00:00",
+        "publication_state": "DIAGNOSTIC_NOT_PUBLISHED"
+      },
+      {
+        "candidate_id": "C8",
+        "source_id": "ba13e8c37c442459105f30a40b7644140716baf05b284b944fd0c03a7b3ca990",
+        "expected": true,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_text": null,
+          "event_date": null,
+          "event_phrase": null,
+          "has_future_event": false,
+          "state": "NO_SPECIFIC_FUTURE_EVENT"
+        },
+        "match": false,
+        "raw_sha256": "b49e9853041014662fe8cdbd5518358ddf2c8ae2f0ca404dd6933c6cafd5ac2b",
+        "completed_at": "2026-10-28T00:23:57.873730+00:00",
+        "publication_state": "DIAGNOSTIC_NOT_PUBLISHED"
+      }
+    ]
+  },
+  "first_daily": {
+    "contract_id": "radar-event-extraction-contract-af42036d297830c2613cced9ef0ac6f04a48c57935f36853c48d1acfaa029710",
+    "registered_calls": 4,
+    "completed_calls": 4,
+    "cases": [
+      {
+        "candidate_id": "C7",
+        "source_id": "c873397d05709c3b616b8c8c9bab04ee8c0d0a404180c766f07162e623afbd8e",
+        "expected": null,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_issue": "DATE_NOT_IN_SOURCE",
+          "date_text": null,
+          "event_date": null,
+          "event_phrase": "Israeli, US votes",
+          "has_future_event": true,
+          "state": "POSSIBLE_FUTURE_EVENT"
+        },
+        "match": null,
+        "raw_sha256": "88c58f7b32228787057b737740dde5ea56c451a5c66327cde036523203ed2208",
+        "completed_at": "2026-10-28T00:25:08.924697+00:00",
+        "publication_state": "SOURCE_EVENT_WATCH_CREATED"
+      },
+      {
+        "candidate_id": "C8",
+        "source_id": "ba13e8c37c442459105f30a40b7644140716baf05b284b944fd0c03a7b3ca990",
+        "expected": null,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_text": null,
+          "event_date": null,
+          "event_phrase": null,
+          "has_future_event": false,
+          "state": "NO_SPECIFIC_FUTURE_EVENT"
+        },
+        "match": null,
+        "raw_sha256": "4a085c408d1817753b93cd51c1de0924a2e801d8d52432be477127bc543f93ed",
+        "completed_at": "2026-10-28T00:25:18.972188+00:00",
+        "publication_state": "NO_SPECIFIC_FUTURE_EVENT"
+      },
+      {
+        "candidate_id": "C3",
+        "source_id": "faadd72f5411455915f618aee41aa880c603d5d0f88b1b6eba0b6fcb2fc18a1c",
+        "expected": null,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_text": null,
+          "event_date": null,
+          "event_phrase": null,
+          "has_future_event": false,
+          "state": "NO_SPECIFIC_FUTURE_EVENT"
+        },
+        "match": null,
+        "raw_sha256": "5bc3975431b52fb5c14f5842787050b90f5a1169a90fbcf60fb57fcaae186848",
+        "completed_at": "2026-10-28T00:25:28.918468+00:00",
+        "publication_state": "NO_SPECIFIC_FUTURE_EVENT"
+      },
+      {
+        "candidate_id": "C4",
+        "source_id": "97db2d8ecab99954ccbce28d6d5ff3e2034498678acdf6de6279fcb64a7f8b3e",
+        "expected": null,
+        "state": "EVENT_RESPONSE_RECORDED",
+        "parsed": {
+          "date_issue": "DATE_NOT_IN_SOURCE",
+          "date_text": null,
+          "event_date": null,
+          "event_phrase": "Where to next?",
+          "has_future_event": true,
+          "state": "POSSIBLE_FUTURE_EVENT"
+        },
+        "match": null,
+        "raw_sha256": "0975ad1f4d0d52918dfa996edd83d00d8524b8aa8bdc2d5e94a91b9b08115282",
+        "completed_at": "2026-10-28T00:25:40.143140+00:00",
+        "publication_state": "SOURCE_EVENT_WATCH_CREATED"
+      }
+    ],
+    "fallbacks": [
+      {
+        "source_id": "ba13e8c37c442459105f30a40b7644140716baf05b284b944fd0c03a7b3ca990",
+        "basis": "LITERAL_FORWARD_WORDING_LEAD_NOT_MODEL_OUTPUT_OR_CONFIRMED_EVENT",
+        "source_wording": "prepare for Fed rate call",
+        "publication_state": "SOURCE_EVENT_WATCH_CREATED",
+        "received_at": "2026-10-28T00:27:05.320563+00:00"
+      }
+    ]
+  },
+  "claim": "EXPERIMENTAL_SOURCED_REVIEW_NOT_FORECAST_ACCURACY_OR_MODEL_TRAINING"
+}

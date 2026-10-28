@@ -473,6 +473,8 @@ def status(repo, now):
     watches = rows(repo, 'watch', now)
     reviews = rows(repo,'review',now)
     reviewed = {r['watch_id']:r for r in sorted(reviews,key=lambda x:x['received_at'])}
+    followups = rows(repo,'watch-followup',now)
+    expiries = {e['watch_id']:e for e in rows(repo,'watch-expiry',now)}
     public = []
     for w in watches:
         r = reviewed.get(w['record_id'])
@@ -480,10 +482,39 @@ def status(repo, now):
         linked = linked_dates.get(w['record_id'])
         if not r and linked and linked['state'] in {'CANCELLED','SUPERSEDED'}:
             state = 'CALENDAR_DATE_'+linked['state']
-        public.append({**w,'state':state,'review_verdict':r['verdict'] if r else None})
+        related = sorted((f for f in followups if f['watch_id']==w['record_id']),
+                         key=lambda x:x['source_available_at'],reverse=True)
+        public.append({**w,'state':state,'review_verdict':r['verdict'] if r else None,
+            'reviewed_at':r['received_at'] if r else None, 'review_note':r['note'] if r else None,
+            'review_hours_after_watch':(cal._at(r['received_at'])-cal._at(w['frozen_at'])).total_seconds()/3600 if r else None,
+            'date_only_lead_hours':(cal._at(w['expires_at'])-cal._at(w['frozen_at'])).total_seconds()/3600 if w['event_date'] else None,
+            'related_sources':related[:5], 'related_source_count':len(related),
+            'expiry_observation':expiries.get(w['record_id'])})
     captures = sorted(rows(repo,'capture-result',now),key=lambda x:x['received_at'],reverse=True)
     attempts = rows(repo,'model-attempt',now)
     results = sorted(rows(repo,'model-result',now),key=lambda x:x['received_at'],reverse=True)
+    event_contracts = [c for c in rows(repo,'event-extraction-contract',now) if c.get('scope')=='DAILY']
+    event_contract = max(event_contracts,key=lambda x:x['received_at'],default=None)
+    event_attempts = [a for a in attempts if event_contract and a.get('event_contract_id')==event_contract['record_id']]
+    event_results = [r for r in results if event_contract and r.get('event_contract_id')==event_contract['record_id']]
+    event_by_source = {r['source_id']:r for r in reversed(event_results) if r.get('source_id')}
+    event_by_watch = {r['publication']['watch_id']:r for r in reversed(results)
+                      if r.get('event_contract_id') and isinstance(r.get('publication'),dict)
+                      and r['publication'].get('watch_id')}
+    event_fallbacks = rows(repo,'event-fallback',now)
+    fallback_by_source = {f['source_id']:f for f in sorted(event_fallbacks,key=lambda x:x['received_at'])}
+    fallback_by_watch = {f['publication'].get('watch_id'):f for f in event_fallbacks
+                         if f.get('publication',{}).get('watch_id')}
+    for w in public:
+        if not w.get('reason','').startswith('Source mentions: '):
+            continue
+        assessment = event_by_watch.get(w['record_id'],{}).get('parsed',{})
+        w['suggestion_origin'] = 'SOURCE_WORDING' if w['record_id'] in fallback_by_watch else 'QWEN'
+        w['extraction_warnings'] = []
+        if '?' in w['reason']:
+            w['extraction_warnings'].append('QUESTION_MAY_BE_GENERAL_COMMENTARY')
+        if assessment.get('date_issue'):
+            w['extraction_warnings'].append('MODEL_DATE_NOT_SUPPORTED_BY_SOURCE')
     contracts = rows(repo,'qualification-contract',now)
     contract = max(contracts,key=lambda c:c['received_at'],default=None)
     qualified = [q for q in rows(repo,'qualification',now) if not contract or q.get('contract_id')==contract['record_id']]
@@ -502,6 +533,9 @@ def status(repo, now):
     previews=[]
     for s in sources(repo,now):
         candidate=news_candidate(s,(scope or {}).get('members',{}))
+        if not candidate and not s['source_id'].startswith('calendar-source-'):
+            candidate={'kind':'CONDITIONAL_WATCH','source_id':s['source_id'],'quote':s['body'][:1000],
+                'instrument_ids':[],'event_date':None,'reason':'Review retained source wording','calendar_event_id':None}
         expires=news_expiry(s)
         if not candidate or expires<=now:continue
         parts=s['body'].splitlines()
@@ -515,13 +549,16 @@ def status(repo, now):
             'source_detail':detail,
             'mentioned_future_dates':explicit_future_dates(candidate['quote'],now),
             'topic_sectors':topic_sectors(candidate['quote']),
+            'event_assessment':{**{k:event_by_source[s['source_id']].get(k) for k in ('state','parsed','publication','received_at')},
+                'fallback':fallback_by_source.get(s['source_id'])}
+                if s['source_id'] in event_by_source else None,
             'screening_assessment':public_assessment(batch_by_source.get(s['source_id'])),
             'state':'RETAINED_SOURCE_LEAD_NOT_MODEL_PREDICTION'})
     # The newest reviewed packet must remain inspectable even if other fresh
     # headlines arrived earlier in the display ordering. Stable ordering within
     # the two groups preserves the existing source recency policy.
-    if batch_by_source:
-        previews.sort(key=lambda item:item['source_id'] not in batch_by_source)
+    previews.sort(key=lambda item:(item['source_id'] not in event_by_source and item['source_id'] not in batch_by_source,
+        not bool(item['instrument_ids'] or item['topic_sectors'])))
     previews=previews[:8]
     return {'state':'ADVISORY_ANTICIPATORY_RADAR','checked_at':now.isoformat(),
         'scope':scope, 'watches':public,'source_leads':previews,
@@ -531,6 +568,10 @@ def status(repo, now):
         'latest_capture':captures[0] if captures else None,
         'source_freshness':'CURRENT_CAPTURE' if captures and captures[0].get('state')=='CAPTURED' and now-cal._at(captures[0]['received_at'])<timedelta(hours=12) else 'STALE_OR_UNAVAILABLE',
         'model':{'qualification':max(qualified,key=lambda q:q['received_at']) if qualified else None,'latest_result':results[0] if results else None,
+                 'event_extraction':{'attempted':len(event_attempts),'completed':len(event_results),
+                    'maximum_calls':event_contract['maximum_generation_calls'],
+                    'received_at':event_contract['received_at'],
+                    'experimental':True} if event_contract else None,
                  'batch_screening':{**{k:latest_batch.get(k) for k in ('state','scope','attempted_pairs','total_pairs','received_at')},
                     'model_matches':sum(x.get('assessment',{}).get('match') is True for x in latest_batch.get('assessments',[])),
                     'host_model_disagreements':sum(x.get('state')=='MODEL_DISAGREES_WITH_HOST_SOURCE_LINK' for x in latest_batch.get('assessments',[])),

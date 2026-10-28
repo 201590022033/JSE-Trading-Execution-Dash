@@ -1,3 +1,14 @@
+## Cited event reading and prospective watches — 28 October 2026
+
+R12 remains the sole ACTIVE/PARTIAL milestone and P1 is open. The radar now
+retains source-cited event suggestions, unlinked/headline-only leads, later
+related source receipts and expiry. The first daily event parent has spent four
+calls; three conditional watches include a flagged false positive and a
+separate source-wording fallback. Eight retained examples matched six assistant
+assessments, not independent forecast labels. Subsequent work must review the
+actual later sources and continue P1 learning and evaluation without claiming
+accuracy from this diagnostic. See [ADR0086](../adr/0086-cited-event-reading-and-follow-up.md).
+
 ## Individual radar rechecks and IRESS event alignment — 27 October 2026
 
 Four current source misses all matched on exact individual rechecks; the original

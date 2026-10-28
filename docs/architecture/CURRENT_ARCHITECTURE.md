@@ -1,3 +1,14 @@
+## Cited event reading and prospective watches — 28 October 2026
+
+Alongside the existing daily source-screening parent, an independently bounded
+event-reading parent freezes up to 100 fresh source receipts and spends up to
+four idle-only Qwen calls per local day. Individual cited suggestions, literal
+source-wording fallbacks, later-source links and expiry observations are
+append-only advisory records; dashboard reads never invoke a model. The
+dedicated five-minute radar clock scans follow-ups without asserting an outcome.
+Direct source/issuer/date checks and actual saved clocks are retained. R12 is
+ACTIVE/PARTIAL and P1 is open. See [ADR0086](../adr/0086-cited-event-reading-and-follow-up.md).
+
 ## Individual radar rechecks and IRESS event alignment — 27 October 2026
 
 Four current source misses all matched on exact individual rechecks; the original

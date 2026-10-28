@@ -1,3 +1,16 @@
+## Cited event reading and prospective watches — 28 October 2026
+
+The radar now runs a separate four-call daily source-cited event-reading lane
+and tracks later related sources and expiry. It accepts unlinked and
+headline-only sources, preserves partial dates and model errors, and labels a
+literal forward-wording fallback separately. Eight retained diagnostic cases
+matched six assistant assessments; the false commentary selection and missed
+Fed-rate headline remain visible. The first daily event parent used four calls;
+three conditional watches include a flagged commentary item and the source
+fallback. The first normal screening parent also completed four pairs and four
+individual rechecks. R12 remains ACTIVE/PARTIAL; P1 remains open. See ADR0086
+and `docs/changes/2026-10-28-cited-event-reading.md`.
+
 ## Individual radar rechecks and IRESS event alignment — 27 October 2026
 
 Four current source misses all matched on exact individual rechecks; the original

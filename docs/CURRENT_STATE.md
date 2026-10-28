@@ -1,3 +1,16 @@
+## Cited event reading and prospective watches — 28 October 2026
+
+The separate event-reading lane records source-cited Qwen suggestions, partial
+source-wording leads, later related reports and expiry for human review. The
+first daily parent completed four calls; three conditional watches include a
+flagged commentary false positive and a source fallback for a missed Fed-rate
+headline. Eight retained diagnostic examples matched six assistant assessments,
+which are not independent prediction evidence. The normal daily screening parent
+also completed four pairs and four individual rechecks. R12 remains
+ACTIVE/PARTIAL and P1 remains open; future reviews must assess actual
+prospective outcomes. See [ADR0086](adr/0086-cited-event-reading-and-follow-up.md)
+and [change notes](changes/2026-10-28-cited-event-reading.md).
+
 ## Individual radar rechecks and IRESS event alignment — 27 October 2026
 
 Four current source misses all matched on exact individual rechecks; the original

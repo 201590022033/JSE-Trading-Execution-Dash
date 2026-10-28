@@ -17,4 +17,8 @@ $modelTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -Rep
 $modelSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RunOnlyIfIdle -IdleDuration (New-TimeSpan -Minutes 10) -IdleWaitTimeout (New-TimeSpan -Hours 23) -RestartOnIdle -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 4) -Priority 7
 $modelSettings.IdleSettings.StopOnIdleEnd = $true
 Register-ScheduledTask -TaskName 'Trading System Idle Anticipatory Radar' -Action $modelAction -Trigger $modelTrigger -Principal $radarPrincipal -Settings $modelSettings -Force | Out-Null
-Write-Output 'Recurring radar collection: 08:00/12:00/16:00 SAST while signed in. Small-model qualification/discovery: hourly, ten minutes idle. No end date or trading effects.'
+$clockAction = New-ScheduledTaskAction -Execute $radarPython -Argument ('"' + $radarScript + '" tick') -WorkingDirectory $radarRoot
+$clockTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -RepetitionInterval (New-TimeSpan -Minutes 5)
+$clockSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 4) -Priority 7
+Register-ScheduledTask -TaskName 'Trading System Radar Followup Clock' -Action $clockAction -Trigger $clockTrigger -Principal $radarPrincipal -Settings $clockSettings -Force | Out-Null
+Write-Output 'Recurring radar collection: 08:00/12:00/16:00 SAST while signed in. Small-model checks: hourly after ten minutes idle. Follow-up clock: every five minutes. No end date or trading effects.'

@@ -291,6 +291,17 @@ def relevance_checks(repo,now,folder,executable,*,foreground=False,generator=Non
         'generation_call_upper_bound':len(attempts),'maximum_generation_calls':RELEVANCE_CASES,'routine_idle_policy_unchanged':True}
 
 
+def model_tick(repo, now, folder, executable):
+    """Run independent screening and event-reading parents under one local lock."""
+    from scripts import radar_batch_screening as batch_worker, radar_event_extraction as event_worker
+    screening = (batch_worker.daily(repo, now, folder, executable)
+                 if batch_worker.active_release(repo, now) else execute_model(repo, now, folder, executable))
+    # The event lane checks its own idle, memory and spent budget. A partial or
+    # unavailable screening result must not suppress a separate source lane.
+    event = event_worker.daily(repo, runner.utcnow(), folder, executable)
+    return {'state': screening['state'], 'screening': screening, 'event_extraction': event}
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command',choices=('capture','model','status','tick','qualify-register','verify-now','relevance-checks'))
@@ -318,6 +329,8 @@ def main():
                 radar.ensure_scope(repo,now)
                 result=capture(repo,now,folder)
                 radar.tick(repo,runner.utcnow())
+                from market_intelligence.radar_event_extraction import observe_followups
+                observe_followups(repo,runner.utcnow())
             elif args.command=='verify-now':
                 runner.below_normal()
                 executable=Path(os.environ.get('LOCALAPPDATA',''))/'Programs/Ollama/ollama.exe'
@@ -329,9 +342,11 @@ def main():
             elif args.command=='model':
                 runner.below_normal()
                 executable=Path(os.environ.get('LOCALAPPDATA',''))/'Programs/Ollama/ollama.exe'
-                from scripts import radar_batch_screening as batch_worker
-                result=batch_worker.daily(repo,now,folder,executable) if batch_worker.active_release(repo,now) else execute_model(repo,now,folder,executable)
-            elif args.command=='tick':result=radar.tick(repo,now)
+                result=model_tick(repo,now,folder,executable)
+            elif args.command=='tick':
+                result=radar.tick(repo,now)
+                from market_intelligence.radar_event_extraction import observe_followups
+                result['watch_followups']=observe_followups(repo,now)
             else:result=radar.status(repo,now)
             if args.command=='status':
                 result={'state':result['state'],'scope_issuers':len((result['scope'] or {}).get('members',{})),
