@@ -328,6 +328,9 @@ def main():
             elif args.command=='capture':
                 radar.ensure_scope(repo,now)
                 result=capture(repo,now,folder)
+                if result.get('state') != 'BEFORE_CAPTURE_WINDOW':
+                    from market_intelligence.sens_discovery_bridge import scheduled as discover_sens
+                    result['sens_discovery']=discover_sens(repo,now)
                 radar.tick(repo,runner.utcnow())
                 from market_intelligence.radar_event_extraction import observe_followups
                 observe_followups(repo,runner.utcnow())

@@ -81,6 +81,16 @@ def sources(repo, now):
             if sid not in result or item['available_at'] < result[sid]['available_at']:
                 result[sid] = item
     result={k:s for k,s in result.items() if cal._at(s['available_at'])>=now-timedelta(days=7)}
+    # Discovery receipts are persisted separately from the legacy Hermes feed.
+    # Availability is the actual dashboard receipt, never the older source date.
+    sens_recent = repo.paper_records(ACCOUNT, 'radar-sens-source', as_of=now.isoformat(), limit=2000)
+    for s in sens_recent:
+        if cal._at(s['received_at']) < now-timedelta(days=7):
+            continue
+        result[s['record_id']] = {'source_id': s['record_id'], 'body': s['body'][:3000],
+            'url': s['source_url'], 'published_at': s.get('published_at'),
+            'available_at': s['received_at'], 'receipt_id': s['record_id'],
+            'sens_provenance': s['sens_provenance']}
     for s in cal._records(repo, 'source', now):
         result[s['record_id']] = {'source_id': s['record_id'], 'body': s['body'][:3000],
             'url': s['source_url'], 'published_at': s['published_at'],
@@ -92,7 +102,25 @@ def news_expiry(source):
     """A repeat receipt cannot make old news current; unknown publication uses first receipt."""
     clocks=[cal._at(source['available_at'])]
     if source.get('published_at'):clocks.append(cal._at(source['published_at']))
-    return min(clocks)+timedelta(hours=48)
+    expiry=min(clocks)+timedelta(hours=48)
+    publication=(source.get('sens_provenance') or {}).get('publication') or {}
+    if publication.get('precision')=='date':
+        # A date-only source gets a conservative eligibility boundary at the
+        # end of the second local calendar day after publication. This is a
+        # display cutoff, not a claimed publication time.
+        day=date.fromisoformat(publication['value'])
+        boundary=datetime.combine(day+timedelta(days=3),datetime.min.time(),SAST).astimezone(timezone.utc)
+        expiry=min(expiry,boundary)
+    return expiry
+
+
+def news_is_current(source, now):
+    """Reject future-dated sources without inventing their publication time."""
+    now=cal._at(now)
+    publication=(source.get('sens_provenance') or {}).get('publication') or {}
+    if publication.get('precision')=='date' and date.fromisoformat(publication['value'])>now.astimezone(SAST).date():
+        return False
+    return news_expiry(source)>now
 
 
 def explicit_future_dates(quote, now):
@@ -142,7 +170,7 @@ def packet(repo, now, *, current_news=False):
     retained = sources(repo, now)
     denominator=len(retained)
     if current_news:
-        retained=[s for s in retained if s['source_id'].startswith('calendar-source-') or news_expiry(s)>cal._at(now)]
+        retained=[s for s in retained if s['source_id'].startswith('calendar-source-') or news_is_current(s,now)]
     selected, covered = [], set()
     for s in retained:
         linked = set(issuer_links(s['body'], scope['members']))
@@ -595,7 +623,7 @@ def status(repo, now):
             candidate={'kind':'CONDITIONAL_WATCH','source_id':s['source_id'],'quote':s['body'][:1000],
                 'instrument_ids':[],'event_date':None,'reason':'Review retained source wording','calendar_event_id':None}
         expires=news_expiry(s)
-        if not candidate or expires<=now:continue
+        if not candidate or not news_is_current(s,now):continue
         parts=s['body'].splitlines()
         detail='HEADLINE_ONLY' if len(parts)<2 or all(p==parts[0] for p in parts[1:]) else 'HEADLINE_AND_RETAINED_EXCERPT'
         source_kind='SENS_HEADLINE' if 'sens' in s['url'].lower() else 'NEWS_HEADLINE_OR_EXCERPT'
@@ -621,8 +649,18 @@ def status(repo, now):
     previews.sort(key=lambda item:(item['source_id'] not in event_by_source and item['source_id'] not in batch_by_source,
         not bool(item['instrument_ids'] or item['topic_sectors'])))
     previews=previews[:8]
+    sens_sources = [s for s in sources(repo,now) if s.get('sens_provenance')]
+    sens_sources = [{'source_id':s['source_id'],'source_url':s['url'],
+        'headline':s['body'].splitlines()[0], 'available_at':s['available_at'],
+        'published_at':s['published_at'], 'provenance':s['sens_provenance'],
+        'current':news_is_current(s,now)}
+        for s in sens_sources[:30]]
+    sens_runs = rows(repo,'sens-discovery-result',now)
+    latest_sens = max(sens_runs,key=lambda r:r['received_at'],default=None)
     return {'state':'ADVISORY_ANTICIPATORY_RADAR','checked_at':now.isoformat(),
         'scope':scope, 'watches':public,'source_leads':previews,
+        'sens_discovery': {'latest_run':latest_sens,'sources':sens_sources,
+            'state':'SOURCE_LEADS_ONLY_NO_AUTOMATIC_EVENT_OR_FORECAST'},
         'calendar_upcoming':[{**{k:e[k] for k in ('record_id','title','instrument_ids','event_date','anchor_at','source_url','source_quote','time_precision')},
             'source_available_at':(repo.paper_record(e['source_receipt_id']) or {}).get('received_at'),
             'screening_assessment':public_assessment(batch_by_event.get(e['record_id']))} for e in calendar_view['upcoming']], 'windows':[{**w,'active':w['event_id'] in current and w['state']=='WATCH_READY'} for w in windows],
