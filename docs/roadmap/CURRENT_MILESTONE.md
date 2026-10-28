@@ -1,3 +1,13 @@
+## Daily public SENS discovery — 28 October 2026
+
+The existing local capture slots now import bounded, replay-verified Moneyweb
+and ShareData source leads from the separate research archive. The 16:00 run
+imported 423 leads and 12 Moneyweb details; coverage is partial and ShareData
+detail remains pending. IG's local Demo diagnostic was repaired, while
+authentication and JSE entitlement remain unverified without credentials.
+R12 remains ACTIVE/PARTIAL; P1 stays open. See
+`docs/changes/2026-10-28-daily-public-sens.md` and ADR0091.
+
 ## Vague commentary and SENS detail — 28 October 2026
 
 R12 remains ACTIVE/PARTIAL; P1 remains open. A narrow host-side check holds

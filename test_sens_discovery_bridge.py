@@ -126,5 +126,21 @@ class SensBridgeTests(unittest.TestCase):
             bridge.deliver_verified(self.repo,m,self.now)
         self.assertEqual(radar.sources(self.repo,self.now),[])
 
+    def test_current_notices_are_prioritized_in_bounded_display(self):
+        m=manifest(self.now);base=m['leads'][0]
+        today=self.now.astimezone(radar.SAST).date()
+        old=today-timedelta(days=5)
+        m['leads']=[dict(deepcopy(base),headline='Old notice '+str(i),
+            source_url='https://www.moneyweb.co.za/mny_sens/old-'+str(i)+'/',
+            publication={**base['publication'],'value':old.isoformat()}) for i in range(35)]
+        m['leads'].append(dict(deepcopy(base),headline='Current notice',
+            source_url='https://www.moneyweb.co.za/mny_sens/current/',
+            publication={**base['publication'],'value':today.isoformat()}))
+        bridge.deliver_verified(self.repo,m,self.now)
+        shown=radar.status(self.repo,self.now)['sens_discovery']['sources']
+        self.assertEqual(len(shown),30)
+        self.assertEqual(shown[0]['headline'],'Current notice')
+        self.assertTrue(shown[0]['current'])
+
 
 if __name__=='__main__':unittest.main()

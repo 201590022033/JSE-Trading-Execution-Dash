@@ -1,3 +1,11 @@
+## Daily public SENS discovery — 28 October 2026
+
+The scheduled local radar intake now receives verified Moneyweb and ShareData
+listing leads and bounded Moneyweb detail captures from the research archive.
+The first observed run was partial; ShareData details and cross-source
+deduplication remain future work. R12 remains ACTIVE/PARTIAL and P1 remains
+open. See ADR0091 and `docs/changes/2026-10-28-daily-public-sens.md`.
+
 ## Individual event watches — 28 October 2026
 
 The radar now splits recognizable multi-event headlines into separate, source-cited

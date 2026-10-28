@@ -650,6 +650,9 @@ def status(repo, now):
         not bool(item['instrument_ids'] or item['topic_sectors'])))
     previews=previews[:8]
     sens_sources = [s for s in sources(repo,now) if s.get('sens_provenance')]
+    # With a bounded display, put current source dates ahead of older retained
+    # pages while keeping both categories inspectable in the source archive.
+    sens_sources.sort(key=lambda s:not news_is_current(s,now))
     sens_sources = [{'source_id':s['source_id'],'source_url':s['url'],
         'headline':s['body'].splitlines()[0], 'available_at':s['available_at'],
         'published_at':s['published_at'], 'provenance':s['sens_provenance'],

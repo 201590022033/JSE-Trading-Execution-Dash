@@ -1,3 +1,11 @@
+## Public SENS source delivery — 28 October 2026
+
+The local radar capture slots consume a bounded, replay-verified public SENS
+discovery export from the separate research workspace. Source and dashboard
+receipt clocks stay distinct, and date-only stale or future headlines remain
+visible without becoming current model inputs. This advisory delivery does not
+change Qwen budgets, forecasts or trading. See ADR0091.
+
 ## Generic commentary held for source review — 28 October 2026
 
 The cited event-reading host now holds a narrow set of generic question phrases
