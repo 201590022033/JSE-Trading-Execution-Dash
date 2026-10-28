@@ -1,3 +1,15 @@
+## First prospective source review — 28 October 2026
+
+R12 remains ACTIVE/PARTIAL; P1 remains open. The first watch review has four
+assistant source assessments with actual publication and acquisition clocks.
+One later report concerns the still-pending Fed decision; one election had
+already ended before its watch, and the separate US election outlives that
+watch. Qwen matches two of four previously seen assistant headline assessments.
+There is no frozen prospective price prediction or later price outcome to
+score. Next, review actual event and price outcomes and address multi-event
+splitting and watch expiry. See
+[review](../changes/2026-10-28-prospective-radar-review.md).
+
 ## Cited event reading and prospective watches — 28 October 2026
 
 R12 remains the sole ACTIVE/PARTIAL milestone and P1 is open. The radar now

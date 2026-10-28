@@ -238,6 +238,79 @@ class EventExtractionTests(unittest.TestCase):
         self.assertEqual(result['screening']['state'], 'BATCH_VALIDATION_REVIEW_PENDING')
         self.assertEqual(result['event_extraction']['state'], 'EVENT_DAILY_CASES_SPENT')
 
+    def test_assistant_review_keeps_publication_and_acquisition_distinct(self):
+        watch_id = extract.publish(self.repo, self.one, self.candidate, self.parsed(), NOW)['watch_id']
+        acquired = NOW + timedelta(hours=2)
+        body = 'Naspers results were published yesterday.'
+        source = cal.import_source(self.repo, {'source_url': 'https://example.test/review',
+            'title': 'Review source', 'body': body, 'captured_at': acquired.isoformat(),
+            'published_at': (NOW - timedelta(hours=1)).isoformat(), 'provenance': 'TEST'}, acquired)
+        review = extract.record_source_review(self.repo, watch_id, 'PART_OF_WATCH_OCCURRENCES_PRECEDE_WATCH',
+            'Assistant reviewed a previously published source.', [{'source_id': source['record_id'], 'quote': body}], acquired)
+        repeated = extract.record_source_review(self.repo, watch_id, 'PART_OF_WATCH_OCCURRENCES_PRECEDE_WATCH',
+            'Assistant reviewed a previously published source.', [{'source_id': source['record_id'], 'quote': body}], acquired)
+        self.assertEqual(review, repeated)
+        self.assertFalse(review['citations'][0]['published_after_watch'])
+        self.assertTrue(review['citations'][0]['acquired_after_watch'])
+        linked = extract.attach_reviewed_source(self.repo, review, source['record_id'], acquired)
+        self.assertEqual(linked['match_basis'], 'ASSISTANT_REVIEWED_EVENT_LINK')
+        self.assertEqual(linked['published_at'], (NOW - timedelta(hours=1)).isoformat())
+        self.assertEqual(extract.attach_reviewed_source(self.repo, review, source['record_id'], acquired), linked)
+        status = radar.status(self.repo, acquired)
+        self.assertEqual(status['metrics']['assistant_source_review_count'], 1)
+        self.assertEqual(status['metrics']['reviewed_watch_count'], 0)
+        self.assertEqual(status['metrics']['occurred'], 0)
+        self.assertEqual(status['watches'][0]['source_reviews'][0]['review_origin'],
+                         'ASSISTANT_SOURCE_REVIEW_NOT_INDEPENDENT_HUMAN_LABEL')
+
+    def test_assistant_review_rejects_invented_or_pre_watch_sources(self):
+        watch_id = extract.publish(self.repo, self.one, self.candidate, self.parsed(), NOW + timedelta(seconds=1))['watch_id']
+        source = cal.import_source(self.repo, {'source_url': 'https://example.test/pre',
+            'title': 'Earlier source', 'body': 'Naspers held a meeting.', 'captured_at': NOW.isoformat(),
+            'provenance': 'TEST'}, NOW)
+        with self.assertRaises(ValueError):
+            extract.record_source_review(self.repo, watch_id, 'LATER_REPORT_EVENT_PENDING', 'Earlier',
+                [{'source_id': source['record_id'], 'quote': 'Naspers held a meeting.'}], NOW + timedelta(minutes=1))
+        with self.assertRaises(ValueError):
+            extract.record_source_review(self.repo, watch_id, 'NO_SPECIFIC_EVENT_IN_QUOTED_PHRASE', 'Invented',
+                [{'source_id': self.candidate['source_id'], 'quote': 'A made-up event.'}], NOW + timedelta(minutes=1))
+        self.assertEqual(radar.rows(self.repo, 'watch-source-review', NOW + timedelta(minutes=1)), [])
+
+    def test_original_source_remains_reviewable_after_fresh_feed_window(self):
+        watch_id = extract.publish(self.repo, self.one, self.candidate, self.parsed(), NOW)['watch_id']
+        later = NOW + timedelta(days=8)
+        self.assertFalse(any(s['source_id'] == self.candidate['source_id'] for s in radar.sources(self.repo, later)))
+        review = extract.record_source_review(self.repo, watch_id, 'NO_SPECIFIC_EVENT_IN_QUOTED_PHRASE',
+            'An archival source review.', [{'source_id': self.candidate['source_id'], 'quote': 'Naspers'}], later)
+        self.assertFalse(review['citations'][0]['acquired_after_watch'])
+
+    def test_old_capture_imported_later_is_not_mislabeled_as_new_acquisition(self):
+        watch_id = extract.publish(self.repo, self.one, self.candidate, self.parsed(), NOW)['watch_id']
+        received = NOW + timedelta(hours=2)
+        source = cal.import_source(self.repo, {'source_url': 'https://example.test/archived',
+            'title': 'Older capture', 'body': 'Naspers results are on the calendar.',
+            'captured_at': (NOW - timedelta(hours=1)).isoformat(), 'provenance': 'TEST'}, received)
+        review = extract.record_source_review(self.repo, watch_id, 'LATER_REPORT_EVENT_PENDING', 'Imported later.',
+            [{'source_id': source['record_id'], 'quote': 'Naspers results are on the calendar.'}], received)
+        self.assertFalse(review['citations'][0]['acquired_after_watch'])
+        self.assertTrue(review['citations'][0]['available_after_watch'])
+        followup = extract.attach_reviewed_source(self.repo, review, source['record_id'], received)
+        self.assertEqual(followup['source_captured_at'], (NOW - timedelta(hours=1)).isoformat())
+
+    def test_early_review_receipts_remain_linkable(self):
+        watch_id = extract.publish(self.repo, self.one, self.candidate, self.parsed(), NOW)['watch_id']
+        received = NOW + timedelta(hours=2)
+        source = cal.import_source(self.repo, {'source_url': 'https://example.test/legacy',
+            'title': 'Legacy', 'body': 'Naspers results appear.', 'captured_at': received.isoformat(),
+            'provenance': 'TEST'}, received)
+        citation = {'source_id': source['record_id'], 'source_url': source['source_url'],
+            'quote': source['body'], 'available_at': source['received_at'],
+            'published_at': None, 'acquired_after_watch': True}
+        old = radar.save(self.repo, 'watch-source-review', ['legacy'], {'watch_id': watch_id,
+            'citations': [citation]}, received)
+        linked = extract.attach_reviewed_source(self.repo, old, source['record_id'], received)
+        self.assertEqual(linked['source_captured_at'], received.isoformat())
+
 
 if __name__ == '__main__':
     unittest.main()

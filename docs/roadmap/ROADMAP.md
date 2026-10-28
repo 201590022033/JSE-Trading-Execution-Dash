@@ -1,3 +1,15 @@
+## First prospective source review — 28 October 2026
+
+Three saved watches now have four assistant source reviews and five
+hash-verified source captures. The Fed decision remains pending; the Israeli
+vote had ended before its combined watch, while the separate US vote is later
+than watch expiry. Qwen matches two of four previously seen assistant
+assessments, a diagnostic result rather than independent accuracy. No
+prospective price prediction or later price outcome is available to score.
+R12 remains ACTIVE/PARTIAL; P1 remains open. Next: review actual outcomes and
+address multi-event splitting and event-specific expiry. See
+`docs/changes/2026-10-28-prospective-radar-review.md`.
+
 ## Individual radar rechecks and IRESS event alignment — 27 October 2026
 
 Four current source misses all matched on exact individual rechecks; the original

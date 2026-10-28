@@ -136,6 +136,95 @@ def publish(repo, packet, candidate, parsed, now):
         'discovery_id': run['record_id']}
 
 
+@cal._write
+def record_source_review(repo, watch_id, assessment, explanation, citations, now):
+    """Append an assistant's source-grounded review; never create a human outcome."""
+    now = cal._at(now)
+    watch = repo.paper_record(watch_id)
+    if not watch or not watch_id.startswith('radar-watch-') or watch.get('schema') != radar.VERSION:
+        raise ValueError('Existing radar watch required')
+    if cal._at(watch['frozen_at']) > now:
+        raise ValueError('Watch must already exist')
+    allowed = {'NO_SPECIFIC_EVENT_IN_QUOTED_PHRASE', 'LATER_REPORT_EVENT_PENDING',
+               'PART_OF_WATCH_OCCURRENCES_PRECEDE_WATCH', 'FUTURE_EVENT_OUTLIVES_WATCH'}
+    if assessment not in allowed or not isinstance(citations, list) or not 1 <= len(citations) <= 5:
+        raise ValueError('Explicit bounded review and citations required')
+    explanation = cal._text(explanation, 1500)
+    verified = []
+    for c in citations:
+        if not isinstance(c, dict) or set(c) != {'source_id', 'quote'}:
+            raise ValueError('Exact citation reference required')
+        quote = cal._text(c['quote'], 1000)
+        if c['source_id'] == watch['source_id']:
+            if quote not in watch['quote']:
+                raise ValueError('Original watch quote required')
+            available = watch['source_available_at']
+            discovery = repo.paper_record(watch['discovery_id'])
+            packet = repo.paper_record(discovery['input_id']) if discovery else None
+            source = next((s for s in (packet or {}).get('sources', []) if s['source_id'] == c['source_id']), None)
+            if not source or quote not in source['body']:
+                raise ValueError('Original retained source required')
+            url, published, receipt = source['url'], source['published_at'], source['receipt_id']
+            captured = available
+        else:
+            source = cal._source(repo, c['source_id'], now)
+            if quote not in source['body']:
+                raise ValueError('Exact reviewed source quote required')
+            available, url, published, receipt = source['received_at'], source['source_url'], source['published_at'], source['record_id']
+            captured = source['captured_at']
+            if cal._at(available) <= cal._at(watch['frozen_at']):
+                raise ValueError('Additional review source must be recorded after the watch')
+        published_after_watch = (cal._at(published) > cal._at(watch['frozen_at'])) if published else None
+        verified.append({'source_id': c['source_id'], 'source_receipt_id': receipt, 'source_url': url,
+            'quote': quote, 'published_at': published, 'captured_at': captured, 'available_at': available,
+            'published_after_watch': published_after_watch,
+            'acquired_after_watch': cal._at(captured) > cal._at(watch['frozen_at']),
+            'available_after_watch': cal._at(available) > cal._at(watch['frozen_at'])})
+    # Preserve earlier review receipts created before the capture clock was
+    # exposed as a separate field; repeated reviews do not change history.
+    for old in radar.rows(repo, 'watch-source-review', now):
+        old_refs = [(c['source_id'], c['quote']) for c in old.get('citations', [])]
+        if (old.get('watch_id') == watch_id and old.get('assessment') == assessment
+                and old.get('explanation') == explanation
+                and old_refs == [(c['source_id'], c['quote']) for c in verified]):
+            return old
+    identity = [watch_id, assessment, explanation, verified]
+    return radar.save(repo, 'watch-source-review', identity, {'watch_id': watch_id,
+        'assessment': assessment, 'explanation': explanation, 'citations': verified,
+        'review_origin': 'ASSISTANT_SOURCE_REVIEW_NOT_INDEPENDENT_HUMAN_LABEL',
+        'automatic_occurrence_verdict': False}, now)
+
+
+@cal._write
+def attach_reviewed_source(repo, review, source_id, now):
+    """Link a source recorded after the watch, preserving publication and capture clocks."""
+    now = cal._at(now)
+    if repo.paper_record(review.get('record_id')) != review:
+        raise ValueError('Saved review required')
+    watch = repo.paper_record(review['watch_id'])
+    citation = next((c for c in review['citations'] if c['source_id'] == source_id), None)
+    if not watch or not citation:
+        raise ValueError('A cited watch and source are required')
+    source = cal._source(repo, source_id, now)
+    available_after = citation.get('available_after_watch',
+        cal._at(citation['available_at']) > cal._at(watch['frozen_at']))
+    if not available_after:
+        raise ValueError('A cited source recorded after this watch is required')
+    if citation['quote'] not in source['body']:
+        raise ValueError('Exact source citation required')
+    return radar.save(repo, 'watch-followup', [watch['record_id'], source_id], {
+        'watch_id': watch['record_id'], 'source_id': source_id, 'source_receipt_id': source_id,
+        'source_url': citation['source_url'], 'source_excerpt': source['body'][:1000],
+        'matched_phrase': citation['quote'], 'match_basis': 'ASSISTANT_REVIEWED_EVENT_LINK',
+        'context_state': 'ASSISTANT_SEMANTIC_LINK_NOT_AUTOMATIC_MATCH',
+        'source_available_at': citation['available_at'],
+        'source_captured_at': citation.get('captured_at', source['captured_at']),
+        'published_at': citation['published_at'],
+        'elapsed_hours': (cal._at(citation['available_at']) - cal._at(watch['frozen_at'])).total_seconds()/3600,
+        'source_review_id': review['record_id'],
+        'state': 'RELATED_SOURCE_NEEDS_REVIEW_NOT_EVENT_OUTCOME'}, now)
+
+
 def observe_followups(repo, now):
     """Link later literal source mentions and record expiry without grading them."""
     now = cal._at(now)

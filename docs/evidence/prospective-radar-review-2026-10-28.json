@@ -1,0 +1,110 @@
+{
+  "version": "prospective-radar-review-2026-10-28",
+  "review_completed_at": "2026-10-28T04:59:09.492398+00:00",
+  "scope": "REUSED_ASSISTANT_REVIEWED_HEADLINES_NOT_INDEPENDENT_CONFIRMATION",
+  "model": "qwen2.5:1.5b",
+  "model_digest": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+  "daily_parent": "radar-event-extraction-contract-af42036d297830c2613cced9ef0ac6f04a48c57935f36853c48d1acfaa029710",
+  "source_level_cases": [
+    {
+      "candidate_id": "C7",
+      "source_id": "c873397d05709c3b616b8c8c9bab04ee8c0d0a404180c766f07162e623afbd8e",
+      "model_has_future_event": true,
+      "assistant_expected_in_retained_text": true,
+      "matches_assistant_review": true,
+      "review_note": "Future US election present; Israeli election already ended before watch; distinct events conflated.",
+      "raw_sha256": "88c58f7b32228787057b737740dde5ea56c451a5c66327cde036523203ed2208",
+      "completed_at": "2026-10-28T00:25:08.924697+00:00"
+    },
+    {
+      "candidate_id": "C8",
+      "source_id": "ba13e8c37c442459105f30a40b7644140716baf05b284b944fd0c03a7b3ca990",
+      "model_has_future_event": false,
+      "assistant_expected_in_retained_text": true,
+      "matches_assistant_review": false,
+      "review_note": "Qwen missed the Fed decision; a separately labeled source-wording watch retained the lead.",
+      "raw_sha256": "4a085c408d1817753b93cd51c1de0924a2e801d8d52432be477127bc543f93ed",
+      "completed_at": "2026-10-28T00:25:18.972188+00:00"
+    },
+    {
+      "candidate_id": "C3",
+      "source_id": "faadd72f5411455915f618aee41aa880c603d5d0f88b1b6eba0b6fcb2fc18a1c",
+      "model_has_future_event": false,
+      "assistant_expected_in_retained_text": false,
+      "matches_assistant_review": true,
+      "review_note": "No specific future event is named in the retained headline; the full article was not evaluated.",
+      "raw_sha256": "5bc3975431b52fb5c14f5842787050b90f5a1169a90fbcf60fb57fcaae186848",
+      "completed_at": "2026-10-28T00:25:28.918468+00:00"
+    },
+    {
+      "candidate_id": "C4",
+      "source_id": "97db2d8ecab99954ccbce28d6d5ff3e2034498678acdf6de6279fcb64a7f8b3e",
+      "model_has_future_event": true,
+      "assistant_expected_in_retained_text": false,
+      "matches_assistant_review": false,
+      "review_note": "The cited question is not a specific future event; this is a headline-only assessment.",
+      "raw_sha256": "0975ad1f4d0d52918dfa996edd83d00d8524b8aa8bdc2d5e94a91b9b08115282",
+      "completed_at": "2026-10-28T00:25:40.143140+00:00"
+    }
+  ],
+  "assistant_matches": 2,
+  "case_count": 4,
+  "partial_timing_error": "Israel vote ended before the saved watch; US election remained future and outlived its expiry.",
+  "later_published_report": "fed_followup",
+  "actual_event_occurrences_after_watch_verified": 0,
+  "prospective_price_predictions": 0,
+  "prospective_price_outcomes_scored": 0,
+  "latest_retained_iress_sasol_close": "2026-10-26",
+  "next_step": "Review actual outcomes as received; freeze a suitable price hypothesis before a new eligible event if pursuing P1 forecasting.",
+  "model_calls": 0,
+  "financial_fits": 0,
+  "training_labels_created": 0,
+  "assistant_review_ids": [
+    "radar-watch-source-review-92fd3e5237920ee46368b886acd995a820d713aad6fb0bde219099f1556feb35",
+    "radar-watch-source-review-652ddf7276e9aa95ded15af80c8c00d963e02e01fc8331dcb91c32957783d58f",
+    "radar-watch-source-review-58c419126cdf6676221c25a696ab96c0ea867a22481efa36fc0ae8c52c57f792",
+    "radar-watch-source-review-87f1e35e9eed4bd70b688e6773fa76a3fddda7a5a3a9dd783ae300a270e54b9d"
+  ],
+  "sources": {
+    "fed": {
+      "receipt_id": "calendar-source-132479ef31f15eb099d156b7706e8f901944332efb4dc915316d7f86cabaf7a4",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "published_at": null,
+      "received_at": "2026-10-28T04:58:26.323061+00:00",
+      "raw_sha256": "5f7d74bd63606b764cfe030e20434e79201d887b9159dfb573f8ce320d0fbb75",
+      "archive_name": "review-source-5f7d74bd63606b764cfe030e20434e79201d887b9159dfb573f8ce320d0fbb75.html"
+    },
+    "fed_followup": {
+      "receipt_id": "calendar-source-23951bd334467ffa8f0e9dbf3e18011a20e78f024889e6e929166b15e9ce2d13",
+      "url": "https://www.moneycontrol.com/news/business/commodities/commodity-corner-oil-rises-on-iran-tensions-gold-holds-above-4-000-ahead-of-fed-decision-14061690.html/amp",
+      "published_at": "2026-10-28T02:01:34+00:00",
+      "received_at": "2026-10-28T04:58:28.022061+00:00",
+      "raw_sha256": "a8d746b70f998fbdcf32e40f0c5a1b78047c72c35298bf2c96e59863e7f2928b",
+      "archive_name": "review-source-a8d746b70f998fbdcf32e40f0c5a1b78047c72c35298bf2c96e59863e7f2928b.html"
+    },
+    "us": {
+      "receipt_id": "calendar-source-d12a062ecee81dfc5c258df92dce0715b82e9c3072c96924dc7531f3fddeaa13",
+      "url": "https://www.fec.gov/introduction-campaign-finance/election-results-and-voting-information/",
+      "published_at": null,
+      "received_at": "2026-10-28T04:58:30.280061+00:00",
+      "raw_sha256": "a14f349fdd9de625de99f3eb4b708c13027edb9fbfe2020c2c65f7f761f1d5da",
+      "archive_name": "review-source-a14f349fdd9de625de99f3eb4b708c13027edb9fbfe2020c2c65f7f761f1d5da.html"
+    },
+    "oil_explainer": {
+      "receipt_id": "calendar-source-c9913783cf2f740089f097bfd71a861cf69a93ec4cbb82e5831110772c3fae9d",
+      "url": "https://windhoekpost.com/oil-price-falls-after-tehran-talks-brent-114-72/",
+      "published_at": "2026-10-27T13:58:36+00:00",
+      "received_at": "2026-10-28T04:58:31.715061+00:00",
+      "raw_sha256": "a2d0a2e5cc0ae20406eb8aade2e144ca44f5330e98035c99f82583af9b06e7e2",
+      "archive_name": "review-source-a2d0a2e5cc0ae20406eb8aade2e144ca44f5330e98035c99f82583af9b06e7e2.html"
+    },
+    "israel": {
+      "receipt_id": "calendar-source-f9739b2e47987cdaa9feb8cabf7b250bd00939727eb5e60df098219863e55f6c",
+      "url": "https://en.globes.co.il/en/article-Exit-polls-show-indecisive-election-result-1001561033",
+      "published_at": "2026-10-27T20:56:00+00:00",
+      "received_at": "2026-10-28T04:59:09.291398+00:00",
+      "raw_sha256": "b6317e2c37f2d58e8d3ff6f5af8bc9370331c80fda462e302d4b4ac0af58d0af",
+      "archive_name": "review-source-b6317e2c37f2d58e8d3ff6f5af8bc9370331c80fda462e302d4b4ac0af58d0af.html"
+    }
+  }
+}

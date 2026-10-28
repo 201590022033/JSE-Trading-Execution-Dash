@@ -474,6 +474,7 @@ def status(repo, now):
     reviews = rows(repo,'review',now)
     reviewed = {r['watch_id']:r for r in sorted(reviews,key=lambda x:x['received_at'])}
     followups = rows(repo,'watch-followup',now)
+    source_reviews = rows(repo,'watch-source-review',now)
     expiries = {e['watch_id']:e for e in rows(repo,'watch-expiry',now)}
     public = []
     for w in watches:
@@ -489,6 +490,8 @@ def status(repo, now):
             'review_hours_after_watch':(cal._at(r['received_at'])-cal._at(w['frozen_at'])).total_seconds()/3600 if r else None,
             'date_only_lead_hours':(cal._at(w['expires_at'])-cal._at(w['frozen_at'])).total_seconds()/3600 if w['event_date'] else None,
             'related_sources':related[:5], 'related_source_count':len(related),
+            'source_reviews':sorted((s for s in source_reviews if s['watch_id']==w['record_id']),
+                key=lambda x:x['received_at'],reverse=True)[:10],
             'expiry_observation':expiries.get(w['record_id'])})
     captures = sorted(rows(repo,'capture-result',now),key=lambda x:x['received_at'],reverse=True)
     attempts = rows(repo,'model-attempt',now)
@@ -587,6 +590,7 @@ def status(repo, now):
                  'attempts':sum(a.get('mode')!='source_specific_daily_parent' for a in attempts),
                  'unresolved':sum(not repo.paper_record('radar-model-result-'+cal._hash(a['record_id'])) for a in attempts if a.get('mode')!='source_specific_daily_parent')},
         'metrics':{'frozen_watch_count':len(watches),'reviewed_watch_count':len(reviewed),
+            'assistant_source_review_count':len(source_reviews),
             'occurred':sum(r['verdict']=='OCCURRED' for r in reviewed.values()),
             'not_observed':sum(r['verdict']=='NOT_OBSERVED' for r in reviewed.values()),
             'incorrect_links':sum(r['verdict']=='INCORRECT_LINK' for r in reviewed.values()),

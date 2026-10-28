@@ -1,3 +1,14 @@
+## Assistant source reviews — 28 October 2026
+
+The radar attaches explicitly attributed assistant source reviews to existing
+watches without altering human outcome assertions. Review citations retain
+source publication, actual capture and first local availability separately;
+later-imported earlier captures are not presented as newly acquired. Manual
+semantic links are distinguished from automatic phrase/word matches. Original
+watch input packets remain reviewable after the fresh-feed window. No model
+call, fit or trade is triggered by a read or source review. See
+[review](../changes/2026-10-28-prospective-radar-review.md).
+
 ## Cited event reading and prospective watches — 28 October 2026
 
 Alongside the existing daily source-screening parent, an independently bounded

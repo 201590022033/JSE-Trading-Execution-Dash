@@ -1,3 +1,16 @@
+## First prospective source review — 28 October 2026
+
+The owner requested reviewing follow-ups and evaluating event-text learning.
+Four assistant source reviews now cover the three watches; five source captures
+retain publication and acquisition clocks. The Fed decision is still pending;
+the Israeli vote ended before the combined watch and the US vote outlives its
+expiry. The Sasol question is not a specific event in the retained headline.
+On four previously seen headlines Qwen matches two assistant assessments; this
+is diagnostic, not independent accuracy. No price prediction or later price
+outcome exists to score P1, and no model call or fit was made. R12 remains
+ACTIVE/PARTIAL; P1 remains open. See
+`docs/changes/2026-10-28-prospective-radar-review.md`.
+
 ## Cited event reading and prospective watches — 28 October 2026
 
 The radar now runs a separate four-call daily source-cited event-reading lane

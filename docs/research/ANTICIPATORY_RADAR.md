@@ -1,4 +1,15 @@
-## Current state: cited event reading and follow-up
+## Current state: first prospective source review
+
+28 October 2026. The first three watches have four assistant source reviews.
+A later-published report confirms that the Fed decision is upcoming, not that
+it has occurred. The Israeli vote ended before its combined watch, while the
+US vote is later than its expiry. The Sasol question is not a specific event
+in the retained headline. Qwen matched two of four previously seen assistant
+headline assessments; no independent event or price accuracy is established.
+Original and review source clocks remain distinct. See
+[review](../changes/2026-10-28-prospective-radar-review.md).
+
+## Earlier state: cited event reading and follow-up
 
 28 October 2026. A separate experimental lane reads up to four retained sources
 per local day and records source-cited event suggestions, partial dates and

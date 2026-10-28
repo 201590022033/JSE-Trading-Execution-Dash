@@ -1,3 +1,14 @@
+## First prospective source review — 28 October 2026
+
+Four assistant reviews across three watches identify a Qwen Fed miss, a
+commentary false positive, an Israeli event already ended when watched, and a
+separate US event beyond watch expiry. One Fed-related report was published
+after its watch but the policy outcome is still pending. Qwen matched two of
+four previously seen assistant headline assessments, not independent accuracy.
+No prospective price prediction or outcome can yet be scored. R12 is
+ACTIVE/PARTIAL and P1 remains open. See
+[review](changes/2026-10-28-prospective-radar-review.md).
+
 ## Cited event reading and prospective watches — 28 October 2026
 
 The separate event-reading lane records source-cited Qwen suggestions, partial
