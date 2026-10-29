@@ -79,6 +79,21 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         data['live_execution']=False
         out=jsonify(data);out.headers['Cache-Control']='no-store'
         return out,status
+    @bp.get('/api/v1/backtest-lab/swing-funnel')
+    def swing_funnel():
+        root = folder()
+        if root is None:
+            return response({'state': 'UNAVAILABLE'}, 503)
+        try:
+            raw = (root.parent / 'lab-swing-funnel.json').read_bytes()
+            if len(raw) > 100000:
+                raise ValueError('oversized funnel')
+            report = json.loads(raw)
+            if report.get('schema') != 'backtest-lab-real-funnel-v1' or report.get('live_execution') is not False:
+                raise ValueError('invalid funnel')
+            return response({'state': 'AVAILABLE', 'report': report})
+        except (OSError, ValueError, TypeError, AttributeError):
+            return response({'state': 'UNAVAILABLE'}, 503)
     @bp.get('/api/v1/backtest-lab/runs')
     def runs():
         root=folder()

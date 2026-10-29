@@ -42,17 +42,29 @@ def demo():
     return charts, manifests
 
 
-def load_real(path):
-    """Require explicit admissible source and calendar; never fabricate missing opens."""
-    payload = json.loads(Path(path).read_text(encoding='utf-8'))
+def load_real(path, payload=None):
+    """Load retained whole-source bars and separate benchmark closes for research."""
+    from application.opportunities.source_resolution import attach_iress_research
+    from application.backtest_lab.observed_history import from_chart, verify_ost_benchmark
+    path = Path(path)
+    if payload is None:
+        payload = json.loads(path.read_text(encoding='utf-8'))
     if payload.get('schema') != 'local-swing-dataset-v3':
         raise ValueError('local-swing-dataset-v3 required')
-    # Existing OST v3 explicitly records UNVERIFIED historical availability,
-    # and commonly lacks opens. It cannot satisfy replay's calendar contract.
-    raise ValueError('Real replay needs verified JSE session calendar and complete source OHLC; v3 source availability and basis remain unverified. No values were invented.')
+    observed = datetime.fromisoformat(payload['observed_at'].replace('Z', '+00:00'))
+    data = attach_iress_research(payload, observed, path.parent)
+    share = data.get('research_charts', {}).get('SASOL')
+    benchmark = data.get('charts', {}).get('ETF_STX40')
+    if not share or not benchmark:
+        raise ValueError('Archived IRESS Sasol and OST benchmark required')
+    verify_ost_benchmark(benchmark, path.parent)
+    history = from_chart('SASOL', share)
+    history.admit(history.sessions[0].key, history.sessions[-1].key,
+                  max(b.available_at for b in history.bars), activity_required=True)
+    return {'SASOL': share['bars'], 'ETF_STX40': benchmark['bars']}, [history]
 
 
-def build(charts, manifests):
+def build(charts, manifests, benchmark_provenance=None):
     costs = Costs(fee_bps=Decimal(8), minimum_fee=Decimal(60), spread_bps=Decimal(20), slippage_bps=Decimal(5))
     as_of = max(b.available_at for m in manifests for b in m.bars) + timedelta(days=8)
     results = []
@@ -84,7 +96,7 @@ def build(charts, manifests):
             value=float(point['equity']); peak=max(peak,value); drawdown=min(drawdown,value/peak-1)
         net=float(equity[-1]['equity'])-1000000 if equity else 0
         stock_count=len({t['instrument'] for t in trades})
-        bucket='Reject: lost money' if net<0 else 'Incubate: too few trades' if len(trades)<5 else 'Reject: one stock' if stock_count<2 else 'Watchlist: drawdown' if drawdown<-.08 else 'Candidate: needs forward test'
+        bucket='Incubate: fewer than 30 trades, inconclusive' if len(trades)<30 else 'Reject: lost money' if net<0 else 'Reject: one stock' if stock_count<2 else 'Watchlist: drawdown' if drawdown<-.08 else 'Candidate: needs forward test'
         benchmark = {r['timestamp']:r['close'] for r in charts.get('ETF_STX40', [])}
         relative = []
         for trade in trades:
@@ -99,11 +111,17 @@ def build(charts, manifests):
             'sum':{'signals':len(signals),'traded':len(trades),'win':round(sum(float(t['net_pnl'])>0 for t in trades)/len(trades)*100) if trades else None,
                    'net':round(net,2),'mdd':round(drawdown*100,2),'stocks':stock_count,'verdict':bucket},
             'engine_config_hash':result['config_hash'],'relative_outcomes':relative,'run':{'signals':traces,'rejected_bars':rejected,'decisions':result['decisions'],'trades':trades,'equity':equity}})
-    bars = {name:[[r['timestamp'],r['open'],r['high'],r['low'],r['close']] for r in rows] for name,rows in charts.items()}
-    meta={'grade':'SYNTHETIC','limitations':['FULL_FILL_ASSUMPTION','CLOSE_PROXY_NOT_BROKER_FILL','DAILY_INTRABAR_PATH_UNKNOWN','DAILY_SETUP_THRESHOLDS_ARE_GUESSES'],
+    bars = {name:[[r['timestamp'],r['open'],r['high'],r['low'],r['close']] for r in rows] for name,rows in charts.items() if all(r.get('open') is not None for r in rows)}
+    synthetic = all(m.grade == 'SYNTHETIC' for m in manifests)
+    limitations=['FULL_FILL_ASSUMPTION','CLOSE_PROXY_NOT_BROKER_FILL','DAILY_INTRABAR_PATH_UNKNOWN','DAILY_SETUP_THRESHOLDS_ARE_GUESSES']
+    if not synthetic:
+        limitations += ['OBSERVED_PROVIDER_SESSIONS_NOT_VERIFIED_EXCHANGE_CALENDAR', 'RECONSTRUCTED_HISTORICAL_AVAILABILITY', 'PRICE_ADJUSTMENT_AND_CORPORATE_ACTIONS_UNVERIFIED', 'NO_CORPORATE_ACTIONS_APPLIED', 'SINGLE_INSTRUMENT_RESEARCH_ONLY']
+    meta={'grade':'SYNTHETIC' if synthetic else 'ASSUMPTION_LIMITED','limitations':limitations,
         'cost_basis':costs.basis,'initial_cash':1000000,'created_at':as_of.isoformat(),
-        'created_at_basis':'SIMULATED_AS_OF_NOT_WALL_CLOCK',
-        'data_basis':'SYNTHETIC_FIXTURE','live_execution':False}
+        'created_at_basis':'SIMULATED_AS_OF_NOT_WALL_CLOCK' if synthetic else 'RECONSTRUCTED_REPLAY_AS_OF_NOT_WALL_CLOCK',
+        'data_basis':'SYNTHETIC_FIXTURE' if synthetic else 'IRESS_OHLCV_OST_BENCHMARK_CLOSES',
+        'source_receipts': [] if synthetic else ([{'instrument':m.instrument,'provider':m.provider,'source_sha256':m.source_sha256,'acquired_at':m.acquired_at} for m in manifests] + ([{'instrument':'ETF_STX40', **benchmark_provenance}] if benchmark_provenance else [])),
+        'live_execution':False}
     identity = {'bars':bars,'strategies':results,'meta':meta}
     config_hash=hashlib.sha256(json.dumps(identity,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
     return {'meta':{**meta,'config_hash':config_hash},'bars':bars,'strategies':results}
@@ -114,8 +132,10 @@ def main():
     parser.add_argument('--demo',action='store_true'); parser.add_argument('--dataset'); parser.add_argument('--output-dir')
     args=parser.parse_args()
     if args.demo == bool(args.dataset): parser.error('choose --demo or --dataset')
-    charts, manifests = demo() if args.demo else load_real(args.dataset)
-    run=build(charts,manifests)
+    payload = None if args.demo else json.loads(Path(args.dataset).read_text(encoding='utf-8'))
+    charts, manifests = demo() if args.demo else load_real(args.dataset, payload)
+    benchmark_provenance = None if args.demo else payload['charts']['ETF_STX40']['provenance']
+    run=build(charts,manifests,benchmark_provenance)
     directory=Path(args.output_dir or os.environ.get('LOCAL_BACKTEST_REPORT_DIR',''))
     if not args.output_dir and not os.environ.get('LOCAL_BACKTEST_REPORT_DIR'): parser.error('set LOCAL_BACKTEST_REPORT_DIR or --output-dir')
     folder=directory/'lab';folder.mkdir(parents=True,exist_ok=True)
