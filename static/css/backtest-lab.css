@@ -1,0 +1,19 @@
+body:has(#backtest-lab.active) #market-overview{display:none}
+#backtest-lab{min-width:0;scroll-margin-top:72px}
+#backtest-lab .panel{min-width:0}
+#backtest-lab .bl-band{position:sticky;top:65px;z-index:4;border:1px solid var(--amber);color:var(--text);background:repeating-linear-gradient(-45deg,#55421d 0 14px,#3a301b 14px 28px);padding:12px 18px}
+#backtest-lab .bl-band span{display:inline-block;margin:4px 12px 0 0;font-size:12px}
+#backtest-lab .bl-stats{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px}
+#backtest-lab .bl-stats div{min-width:100px}#backtest-lab .bl-stats strong{display:block;font-size:19px}
+#backtest-lab .bl-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+#backtest-lab button[aria-pressed=true]{border-color:var(--blue);color:var(--blue)}
+#backtest-lab .bl-scroll{overflow-x:auto;max-width:100%}#backtest-lab table{min-width:640px;width:100%;border-collapse:collapse}
+#backtest-lab .bl-scroll:has(#bl-trades){height:320px;overflow:auto}
+#backtest-lab td,#backtest-lab th{padding:8px;border-bottom:1px solid var(--line);text-align:left}
+#backtest-lab tr[data-index]{cursor:pointer}#backtest-lab tr[data-index]:focus-visible{outline:2px solid var(--blue)}
+#backtest-lab tr.bl-selected{background:#163c4c}#backtest-lab svg{display:block;width:100%;height:auto;max-width:100%}
+#backtest-lab svg text{fill:var(--muted);font:11px system-ui,sans-serif}
+#backtest-lab .bl-bar-row{display:grid;grid-template-columns:minmax(120px,180px) minmax(20px,1fr) 45px;gap:8px;align-items:center;margin:6px 0}
+#backtest-lab .bl-bar{height:12px;background:var(--blue);border-radius:2px}#backtest-lab .bl-answer{white-space:pre-wrap;overflow-wrap:anywhere;background:#091722;padding:12px;border-radius:7px;min-height:3em}
+#backtest-lab label{display:block;margin:10px 0}#backtest-lab input,#backtest-lab select{max-width:100%;width:100%;background:#091722;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px}
+@media(max-width:520px){#backtest-lab .panel{padding:14px}#backtest-lab .bl-bar-row{grid-template-columns:110px minmax(20px,1fr) 35px;font-size:12px}}

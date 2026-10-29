@@ -6,7 +6,7 @@ from .profile import StrategyLifecycle as L, StrategyProfile, StrategyProfileRef
 
 
 class StrategyProfileRegistry:
-    def __init__(self, profiles, *, current_versions):
+    def __init__(self, profiles, *, current_versions, research_profiles=()):
         index = {}
         for profile in profiles:
             if not isinstance(profile, StrategyProfile):
@@ -18,18 +18,30 @@ class StrategyProfileRegistry:
         current = dict(current_versions)
         if set(current) != {key[0] for key in index} or any((key, version) not in index for key, version in current.items()):
             raise ValueError("every strategy must pin an existing current version")
+        # Lab-only profiles resolve through the same registry without adding
+        # experimental cards to the existing operational profile listing.
+        research = {}
+        for profile in research_profiles:
+            if not isinstance(profile, StrategyProfile):
+                raise TypeError("typed strategy profile required")
+            key = (profile.reference.strategy_profile_id, profile.reference.strategy_profile_version)
+            if key in index or key[0] in current or key[0] in research:
+                raise ValueError("research profile identity must be distinct")
+            index[key] = profile
+            research[key[0]] = key[1]
+        self._research = MappingProxyType(research)
         self._profiles = MappingProxyType(index)
         self._current = MappingProxyType(current)
 
     def resolve(self, strategy_profile_id, strategy_profile_version=None):
-        version = strategy_profile_version if strategy_profile_version is not None else self._current[strategy_profile_id]
+        version = strategy_profile_version if strategy_profile_version is not None else (self._current.get(strategy_profile_id) or self._research[strategy_profile_id])
         return self._profiles[(strategy_profile_id, version)]
 
     def current_profiles(self):
         return tuple(self.resolve(key) for key in self._current)
 
     def versions(self, strategy_profile_id):
-        if strategy_profile_id not in self._current:
+        if strategy_profile_id not in self._current and strategy_profile_id not in self._research:
             raise KeyError(strategy_profile_id)
         return tuple(profile for (key, _), profile in self._profiles.items() if key == strategy_profile_id)
 
@@ -138,6 +150,14 @@ _research_swing = replace(_policy_swing,
         "Historical comparisons are not prospective walk-forward validation or executable portfolio evidence.",
         "Local collector requires a powered-on signed-in computer; incomplete source data stays blocked.",
         *_policy_swing.limitations[1:]))
-DEFAULT_STRATEGY_REGISTRY = StrategyProfileRegistry((*_defaults, _attributed_swing, _technical_swing, _policy_swing, _research_swing), current_versions={
+_lab_profiles = tuple(StrategyProfile(StrategyProfileRef(identity, "1.0.0"), name, name, "3 sessions",
+    L.DEVELOPMENT_DATA_VALIDATION_REQUIRED, identity, ("JSE_CASH_EQUITIES",), "1d", ("3_sessions",),
+    ("RESEARCH",), (Capability("daily_approximation", C.IMPLEMENTED_REUSABLE,
+        "Unvalidated daily-bar approximation with hypothetical fixed-horizon/2R exits.", ("application.backtest_lab.strategies",)),),
+    ("Thresholds are guesses; this is not the original intraday setup.", "No validated profitability or execution authority."))
+    for identity,name in (("vcp_daily_research", "VCP daily approximation"),
+                          ("box_breakout_daily_research", "Box breakout daily approximation"),
+                          ("pullback_daily_research", "Pullback daily approximation")))
+DEFAULT_STRATEGY_REGISTRY = StrategyProfileRegistry((*_defaults, _attributed_swing, _technical_swing, _policy_swing, _research_swing), research_profiles=_lab_profiles, current_versions={
     **{profile.reference.strategy_profile_id: profile.reference.strategy_profile_version for profile in _defaults},
     "jse_swing_3_5d": "1.0.1"})

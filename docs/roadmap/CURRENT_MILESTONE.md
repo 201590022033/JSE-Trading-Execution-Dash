@@ -1,3 +1,15 @@
+## Backtest Lab — partial implementation, 29 October 2026
+
+The new dashboard tab runs a clearly labelled synthetic demo from frozen local
+replay output and exposes read-only strategy traces, decisions, trades, price
+charts and an idle-gated advisory prompt. The real `local-swing-dataset-v3`
+loader is not implemented: the current OST open fields and verified calendar
+coverage are insufficient for the unchanged replay contract. Full acceptance
+is not met; 1280/390px browser checks are pending and the unrestricted test
+suite reported five failures and eight errors, including baseline-reproduced
+canonical API failures. R12 remains ACTIVE/PARTIAL and P1 remains open. See
+`docs/changes/2026-10-29-backtest-lab.md`.
+
 ## Daily public SENS discovery — 28 October 2026
 
 The existing local capture slots now import bounded, replay-verified Moneyweb
