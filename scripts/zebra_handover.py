@@ -25,7 +25,7 @@ def handover(panel, extension=None):
     if extension:
         from datetime import datetime, timedelta, timezone
         provenance = extension['provenance']
-        if provenance['provider'] != 'IRESS' or provenance['origin_symbol'] != 'SOL.JSE':
+        if provenance['provider'] not in ('IRESS', 'IRESS_TIME_SERIES') or provenance['origin_symbol'] != 'SOL.JSE':
             raise ValueError('explicit Sasol IRESS extension required')
         last = rows[-1]['session'] if rows else '0001-01-01'
         for item in extension['bars']:
@@ -34,9 +34,11 @@ def handover(panel, extension=None):
                 continue
             date = datetime.fromisoformat(session).replace(tzinfo=timezone.utc)
             row_hash = sha256(json.dumps(item, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
-            rows.append({'session': session, 'close': str(item['close']), 'source': 'iress',
+            acquired = datetime.fromisoformat(provenance['acquired_at'].replace('Z', '+00:00'))
+            available = max(date+timedelta(days=1), acquired) if provenance['provider'] == 'IRESS_TIME_SERIES' else date+timedelta(days=1)
+            rows.append({'session': session, 'close': str(item['close']), 'source': provenance['provider'].lower(),
                          'raw_hash': 'sha256:'+provenance['source_sha256'], 'row_hash': 'sha256:'+row_hash,
-                         'available_at': (date+timedelta(days=1)).isoformat(),
+                         'available_at': available.isoformat(),
                          'original_acquired_at': provenance['acquired_at']})
             last = session
             added += 1
@@ -67,8 +69,14 @@ def main():
 
 def verified_extension(path):
     from application.opportunities.source_resolution import archived_iress_research
+    from application.opportunities.iress_price_only import latest
+    from datetime import datetime, timezone
     path = Path(path)
     chart = archived_iress_research('SASOL', path.parent)
+    price = latest(path.parent, datetime.now(timezone.utc))
+    if price and (not chart or price['bars'][-1]['timestamp'] > chart['bars'][-1]['timestamp'][:10]):
+        chart = {'bars': price['bars'], 'provenance': {key: price[key] for key in
+                 ('provider', 'origin_symbol', 'source_sha256', 'acquired_at')}}
     if not chart:
         raise ValueError('verified archived IRESS extension unavailable')
     return chart

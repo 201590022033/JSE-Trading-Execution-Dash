@@ -33,11 +33,31 @@ def create_ost_blueprint(factory, folder=ROOT):
         preview_data = data if os.environ.get('RAILWAY_ENVIRONMENT_ID') or not data else attach_iress_research(data, now, folder)
         result['numerical_research'] = input_status(preview_data, now)
         if not os.environ.get('RAILWAY_ENVIRONMENT_ID'):
+            from .iress_price_only import latest
+            price = latest(folder, now)
+            if price:
+                from .supplemental_data import hlc_research
+                result['numerical_research']['price_only_sasol'] = {
+                    'state': 'AVAILABLE', 'provider': price['provider'],
+                    'source_sha256': price['source_sha256'], 'acquired_at': price['acquired_at'],
+                    'last_session': price['bars'][-1]['timestamp'], 'sessions': len(price['bars']),
+                    'volume_basis': price['volume_basis'], 'historical_availability': price['historical_availability'],
+                    'technical': hlc_research(price, now), 'research_only': True}
+        if not os.environ.get('RAILWAY_ENVIRONMENT_ID'):
             from .prospective_prices import capture_summary, prospective_outcomes
             result['prospective_prices'] = capture_summary(folder)
             result['prospective_outcomes'] = prospective_outcomes(folder)
         result['local_import_available'] = local_import_allowed()
         return jsonify(result)
+
+    @bp.get('/api/v1/ost/price-only/<instrument>')
+    def price_only(instrument):
+        from .iress_price_only import latest
+        chart = None if os.environ.get('RAILWAY_ENVIRONMENT_ID') or instrument != 'SASOL' else latest(folder, datetime.now(timezone.utc))
+        response = jsonify({'state': 'AVAILABLE' if chart else 'UNAVAILABLE', 'chart': chart,
+                            'live_execution': False})
+        response.headers['Cache-Control'] = 'no-store'
+        return response, 200 if chart else 503
 
     @bp.post('/api/v1/ost/import')
     def import_export():

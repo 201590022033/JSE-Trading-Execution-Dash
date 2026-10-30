@@ -118,6 +118,16 @@ def main():
     folder.mkdir(parents=True, exist_ok=True)
     latest = folder / "latest.json"
     now = datetime.now(timezone.utc)
+    # Native files are placed in this local inbox by the operator; ViewPoint
+    # login and export remain manual. Never turn rounded volume into shares.
+    if not args.retry_upload:
+        from application.opportunities.iress_price_only import register
+        for source in sorted((folder / 'incoming').glob('Time Series (SOL.JSE)_*.csv')):
+            try:
+                capture = register(source, folder, now)
+                print(json.dumps({'price_only_import': {'state': 'AVAILABLE', 'source_sha256': capture['source_sha256'], 'last_session': capture['bars'][-1]['timestamp']}}))
+            except (OSError, ValueError, TypeError, KeyError, UnicodeError):
+                print(json.dumps({'price_only_import': {'state': 'REJECTED', 'file': source.name}}))
     panel = Path(os.environ.get('ZEBRA_RESEARCH_PANEL') or ROOT.parent / 'jse-strategy-research/data/p1-zebra-2026-10-21/panel.json')
     if not args.retry_upload:
         try:
