@@ -132,7 +132,8 @@ class PaperLoop:
             for key in self.config.universe:
                 try:
                     values = causal_series(key, charts[key], now)
-                    if (now-values[-1][0]).total_seconds() > self.config.max_price_age_seconds:
+                    from .session_freshness import daily_clock_allowed
+                    if not daily_clock_allowed(values[-1][0], now, self.config.max_price_age_seconds):
                         raise ValueError("stale public close")
                     series[key] = values
                 except (ValueError, KeyError, TypeError, OverflowError):
@@ -230,7 +231,8 @@ class PaperLoop:
             for key in public_etf_catalog():
                 try:
                     bars = causal_series(key, etf_charts[key], now)
-                    if (now-bars[-1][0]).total_seconds() > self.config.max_price_age_seconds:
+                    from .session_freshness import daily_clock_allowed
+                    if not daily_clock_allowed(bars[-1][0], now, self.config.max_price_age_seconds):
                         raise ValueError("stale ETF")
                     etf_series[key] = {"instrument_id": key, "bars": bars}
                 except (ValueError, KeyError, TypeError, OverflowError):

@@ -12,7 +12,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from application.backtest_lab.strategies import evaluate
-from application.opportunities.source_resolution import attach_iress_research
+from application.opportunities.source_resolution import archived_iress_research
 from application.backtest_lab.observed_history import verify_ost_benchmark
 from application.opportunities.swing_technical import snapshot
 from application.opportunities.public_research import _available_at
@@ -22,15 +22,13 @@ from datetime import timedelta
 def measure(dataset, folder):
     # Revalidate against archived source bytes at the dataset's original clock.
     # Historical data must not be represented as a fresh live quote.
-    observed = datetime.fromisoformat(dataset['observed_at'].replace('Z', '+00:00'))
-    enriched = attach_iress_research(dataset, observed, folder)
-    share = enriched.get('research_charts', {}).get('SASOL')
-    benchmark = enriched.get('charts', {}).get('ETF_STX40')
+    share = archived_iress_research('SASOL', folder)
+    benchmark = dataset.get('charts', {}).get('ETF_STX40')
     if not share or not benchmark:
         raise ValueError('Archived IRESS Sasol and OST benchmark receipts required')
     verify_ost_benchmark(benchmark, folder)
     charts = {'SASOL': share['bars'], 'ETF_STX40': benchmark['bars']}
-    counts = defaultdict(lambda: {'checked': 0, 'passed': [0] * 6, 'signals': 0, 'benchmark_missing': 0})
+    counts = defaultdict(lambda: {'checked': 0, 'passed': None, 'signals': 0, 'benchmark_missing': 0})
     names = None
     for i in range(50, len(charts['SASOL'])):
         trace, stop = evaluate('swing', 'SASOL', i, charts)
@@ -40,6 +38,8 @@ def measure(dataset, folder):
         year = charts['SASOL'][i]['timestamp'][:4]
         for bucket in (counts[year], counts['ALL']):
             bucket['checked'] += 1
+            if bucket['passed'] is None:
+                bucket['passed'] = [0] * len(trace)
             if trace[4].get('v') is None:
                 bucket['benchmark_missing'] += 1
             for j in range(len(trace)):

@@ -66,12 +66,9 @@ def main():
 
 
 def verified_extension(path):
-    from datetime import datetime
-    from application.opportunities.source_resolution import attach_iress_research
+    from application.opportunities.source_resolution import archived_iress_research
     path = Path(path)
-    dataset = json.loads(path.read_text(encoding='utf-8'))
-    observed = datetime.fromisoformat(dataset['observed_at'].replace('Z', '+00:00'))
-    chart = attach_iress_research(dataset, observed, path.parent).get('research_charts', {}).get('SASOL')
+    chart = archived_iress_research('SASOL', path.parent)
     if not chart:
         raise ValueError('verified archived IRESS extension unavailable')
     return chart

@@ -85,6 +85,38 @@ def read_candidates(folder=ROOT):
     return json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'schema': SCHEMA, 'charts': {}}
 
 
+def archived_iress_research(key, folder=ROOT):
+    """Revalidate historical source bytes at their original acquisition clock."""
+    candidate = read_candidates(folder).get('charts', {}).get(key, {}).get('IRESS')
+    if not candidate:
+        raise ValueError('IRESS archive unavailable')
+    raw = (folder/'alternative-exports'/(key+'-IRESS-'+candidate['source_sha256']+'.csv')).read_bytes()
+    if sha256(raw).hexdigest() != candidate['source_sha256']:
+        raise ValueError('IRESS archive hash mismatch')
+    acquired = timestamp(candidate['acquired_at'])
+    parsed = parse_iress_export(raw, key, catalog()[key]['ost_code']+'.JSE', candidate['acquired_at'], acquired)
+    if parsed != {k:v for k,v in candidate.items() if k != 'transform_receipt_sha256'}:
+        raise ValueError('IRESS archive differs from parsed bytes')
+    transforms_path = folder/'source-transforms.json'
+    transforms = json.loads(transforms_path.read_text(encoding='utf-8')) if transforms_path.exists() else {}
+    transform = transforms.get(candidate['source_sha256'])
+    derived_path = folder/'alternative-exports'/(key+'-IRESS-derived-'+candidate['source_sha256']+'.csv')
+    if (candidate.get('transform_receipt_sha256') or derived_path.exists()) and not transform:
+        raise ValueError('original transformation lineage required')
+    if transform:
+        if candidate.get('transform_receipt_sha256') and candidate['transform_receipt_sha256'] != transform['receipt_sha256']:
+            raise ValueError('transformation receipt mismatch')
+        from .source_transforms import derive_iress_export
+        native = (folder/'alternative-exports'/(key+'-IRESS-native-'+transform['original_source_sha256']+'.csv')).read_bytes()
+        derived, replayed = derive_iress_export(native, key, candidate['acquired_at'], acquired)
+        if derived != raw or replayed != transform:
+            raise ValueError('transformation differs from native capture')
+    chart = {field:parsed[field] for field in ('symbol','currency','interval','bars')}
+    chart['provenance'] = {field:parsed[field] for field in ('provider','origin_symbol','source_sha256','acquired_at','price_basis','volume_basis','historical_availability')}
+    chart['provenance']['purpose'] = 'OHLCV'
+    return chart
+
+
 def attach_iress_research(dataset, now, folder=ROOT):
     """Attach independent registered cash charts bound to actual archived bytes."""
     result = deepcopy(dataset)
@@ -112,7 +144,9 @@ def attach_iress_research(dataset, now, folder=ROOT):
             if sha256(raw).hexdigest() != candidate['source_sha256']:
                 raise ValueError('IRESS raw receipt hash mismatch')
             acquired = timestamp(candidate['acquired_at'])
-            if not timedelta(0) <= now-acquired <= timedelta(days=4):
+            from .session_freshness import current_chart
+            current = current_chart({'provenance': {'acquired_at': candidate['acquired_at']}, 'bars': candidate['bars']}, now)
+            if not (timedelta(0) <= now-acquired <= timedelta(days=4) or current is True):
                 raise ValueError('IRESS research receipt expired')
             parsed = parse_iress_export(raw, key, registry[key]['ost_code']+'.JSE', candidate['acquired_at'], acquired)
             observation = {k: v for k, v in candidate.items() if k != 'transform_receipt_sha256'}
@@ -227,13 +261,16 @@ def audit(dataset, now, alternatives=None, yahoo_archive=None):
                      and chart.get('origin_symbol') == item['ost_code'] + '.JSE'
                      and chart.get('symbol') == item['symbol']
                      and all(real_ohlc(b) for b in chart.get('bars', [])))
-            fresh = valid and timedelta(0) <= now - timestamp(chart['acquired_at']) <= timedelta(days=4)
+            from .session_freshness import current_chart
+            current = current_chart({'provenance': {'acquired_at': chart['acquired_at']}, 'bars': chart.get('bars', [])}, now)
+            fresh = valid and (timedelta(0) <= now - timestamp(chart['acquired_at']) <= timedelta(days=4) or current is True)
             comparison = _comparison(ost, chart) if ost and valid else {'overlap_sessions': 0, 'close_mismatches': 0,
                 'high_low_mismatches': 0, 'volume_mismatches': 0}
             state = ('INVALID_RECEIPT' if not valid else 'EXPIRED' if not fresh else
                      'SOURCE_DISAGREEMENT' if ost and (comparison['overlap_sessions'] < 10 or comparison['close_mismatches']) else
                      'WHOLE_SOURCE_OHLCV_CANDIDATE')
             iress = {'state': state, 'bars': len(chart.get('bars', [])),
+                'latest_expected_session_present': current,
                 'last_session': chart['bars'][-1]['timestamp'] if chart.get('bars') else None,
                 'acquired_at': chart.get('acquired_at'), 'source_sha256': chart.get('source_sha256'),
                 **comparison, 'url': PROVIDER_LINKS['IRESS']}

@@ -101,8 +101,10 @@ def _coverage(dataset, key, now, max_age=345600):
                        and type(bar.get("volume")) in (int, float) and math.isfinite(bar["volume"]) and bar["volume"] >= 0 and bar["volume"] == int(bar["volume"])
                        for bar in bars) if provider == "IRESS" else True
             correct = identity and real and p.get("provider") == provider and isinstance(p.get("source_sha256"), str) and bool(re.fullmatch("[0-9a-f]{64}", p["source_sha256"]))
-            current = (correct and acquired <= now and acquired.astimezone(SAST).date() == now.astimezone(SAST).date()
-                       and completed and (now-available).total_seconds() <= max_age)
+            from .session_freshness import current_chart
+            session_current = current_chart(chart, now)
+            current = (correct and completed and (session_current if session_current is not None else
+                (acquired <= now and (now-available).total_seconds() <= max_age)))
         except (KeyError, TypeError, ValueError):
             current = False
         return {"state": "CURRENT_CAPTURE" if current else "REFRESH_REQUIRED", "daily_current": bool(current),

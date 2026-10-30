@@ -205,6 +205,8 @@ class YahooFinanceFetcher(PriceFetcher):
         if not bars:
             raise ValueError("Yahoo returned no valid closing prices")
         return {"symbol": symbol, "currency": unit, "provider_currency": raw_currency,
+                "provider_symbol": metadata.get('symbol'), "instrument_type": metadata.get('instrumentType'),
+                "exchange": metadata.get('exchangeName'),
                 "interval": interval, "period": period, "bars": bars,
                 "price": bars[-1]["close"], "source_timestamp": bars[-1]["timestamp"],
                 "timestamp_kind": "bar_start" if interval == "5m" else "session_date",

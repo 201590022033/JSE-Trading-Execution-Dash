@@ -26,7 +26,9 @@ def usable_bars(chart, now):
         raise ValueError("ordered completed sessions required")
     if any(not isfinite(float(row["close"])) or float(row["close"]) <= 0 for row in bars):
         raise ValueError("positive finite closes required")
-    if now - times[-1] > timedelta(days=4):
+    from .session_freshness import daily_clock_allowed
+    current = daily_clock_allowed(times[-1], now, 4*86400) if chart.get('provenance') else now-times[-1] <= timedelta(days=4)
+    if not current:
         raise ValueError("stale daily chart")
     return bars
 

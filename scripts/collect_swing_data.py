@@ -50,6 +50,12 @@ def attach_supplements(dataset, supplement, now):
 
 def refresh_zebra(panel_path, output_path, dataset_path=None):
     """Publish a verified research handover independently of current quotes."""
+    from scripts.local_runtime import process_lock
+    with process_lock(Path(output_path).parent/'zebra-handover.lock'):
+        return _refresh_zebra(panel_path, output_path, dataset_path)
+
+
+def _refresh_zebra(panel_path, output_path, dataset_path=None):
     from scripts.zebra_handover import handover, verified_extension
     panel_path, output_path = Path(panel_path), Path(output_path)
     if panel_path.stat().st_size > 30000000:
@@ -89,6 +95,15 @@ def refresh_historical_funnel(dataset, folder, output_path):
     return {'state': 'AVAILABLE', 'last_session': report['period'][-1], 'signals': report['years']['ALL']['signals']}
 
 
+def refresh_lab_replay(dataset_path):
+    """Refresh a deterministic research-only replay; no model fit or orders."""
+    import subprocess
+    completed = subprocess.run([sys.executable, str(ROOT/'scripts/backtest_lab_run.py'),
+        '--dataset', str(dataset_path), '--output-dir', str(ROOT/'runtime/local-backtest')],
+        cwd=ROOT, capture_output=True, text=True, encoding='utf-8', timeout=180, check=True)
+    return json.loads(completed.stdout)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--upload", action="store_true")
@@ -122,6 +137,11 @@ def main():
         dataset = {'schema': SCHEMA, 'source_policy': POLICY, 'observed_at': now.isoformat(),
                    'charts': fresh_charts(primary, now)}
         if not dataset['charts']:
+            if not args.retry_upload and latest.exists():
+                try:
+                    print(json.dumps({'historical_replay': refresh_lab_replay(latest)}))
+                except Exception as exc:
+                    print(json.dumps({'historical_replay': {'state': 'FAILED_PRIOR_RUNS_RETAINED', 'error_type': type(exc).__name__}}))
             print(json.dumps({'state': 'OST_EXPORTS_EXPIRED', 'charts': 0, 'yahoo_fallback': False}))
             return 2
         from application.opportunities.source_resolution import attach_iress_research
@@ -160,6 +180,11 @@ def main():
         staged = latest.with_suffix('.tmp')
         staged.write_text(json.dumps(dataset, allow_nan=False), encoding='utf-8')
         os.replace(staged, latest)
+    if not args.retry_upload and latest.exists():
+        try:
+            print(json.dumps({'historical_replay': refresh_lab_replay(latest)}))
+        except Exception as exc:
+            print(json.dumps({'historical_replay': {'state': 'FAILED_PRIOR_RUNS_RETAINED', 'error_type': type(exc).__name__}}))
     if args.upload or args.retry_upload:
         from urllib.parse import urlparse
         import requests

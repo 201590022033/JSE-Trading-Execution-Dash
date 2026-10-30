@@ -4,8 +4,41 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 import re
+import hashlib
+import json
 from domain.backtest.data import Bar, Session, number
 from domain.evaluation.experiment import configuration_hash, utc
+
+
+def research_intake_history(key, root):
+    """Find exact, hash-bound retained IRESS research history for one share."""
+    root = Path(root)
+    selected = None
+    for path in sorted((root/'normalized').glob('*.json')):
+        raw = path.read_bytes()
+        if len(raw) > 4_000_000 or hashlib.sha256(raw).hexdigest() != path.stem:
+            continue
+        try:
+            item = json.loads(raw)
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if not isinstance(item, dict):
+            continue
+        if (item.get('instrument_id') != key or item.get('source_id') != 'iress'
+                or item.get('symbol') != key+'.JSE' or item.get('product') != 'cash_equity'
+                or item.get('currency') != 'ZAR' or item.get('inconsistent_sessions') or item.get('missing_opens')):
+            continue
+        source = item.get('raw_hash', '').removeprefix('sha256:')
+        if not re.fullmatch('[0-9a-f]{64}', source):
+            continue
+        try:
+            if hashlib.sha256((root/'raw'/(source+'.bin')).read_bytes()).hexdigest() != source:
+                continue
+        except OSError:
+            continue
+        if selected is None or item['acquired_at'] > selected['acquired_at']:
+            selected = item
+    return selected
 
 
 def verify_ost_benchmark(chart, folder):
@@ -40,6 +73,7 @@ class ObservedHistory:
     calendar_basis: str = 'OBSERVED_PROVIDER_SESSIONS_NOT_VERIFIED'
     availability_basis: str = 'ASSUMED_NEXT_UTC_DAY_NOT_HISTORICAL_RECEIPT'
     price_basis: str = 'UNVERIFIED'
+    supplemental_sources: tuple = ()
 
     @property
     def sha256(self):
@@ -83,4 +117,5 @@ def from_chart(instrument, chart):
                         Decimal(str(row['volume'])) if row.get('volume') is not None else None))
     provenance = chart['provenance']
     return ObservedHistory(instrument, provenance['provider'], provenance['source_sha256'],
-                           provenance['acquired_at'], tuple(sessions), tuple(bars))
+                           provenance['acquired_at'], tuple(sessions), tuple(bars),
+                           supplemental_sources=tuple(provenance.get('supplemental_sources', ())))

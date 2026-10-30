@@ -18,7 +18,17 @@ def run():
     try:
         response = requests.get('http://127.0.0.1:5000/api/market-intelligence/anticipatory-radar', timeout=10, allow_redirects=False)
         response.raise_for_status()
-        report = capture(response.json(), YahooFinanceFetcher(), folder)
+        radar = response.json()
+        radar.setdefault('source_leads', []).append({'instrument_ids':['SASOL'], 'source_id':'zebra-sasol-daily-continuation'})
+        report = capture(radar, YahooFinanceFetcher(), folder)
+        from application.opportunities.zebra_public_handover import update_public_handover
+        report['handover'] = []
+        for item in report['results']:
+            if item['state'] == 'CAPTURED':
+                try:
+                    report['handover'].append(update_public_handover(item['instrument'], folder, ROOT/'runtime/local-backtest'))
+                except (OSError, ValueError, TypeError, KeyError) as exc:
+                    report['handover'].append({'instrument': item['instrument'], 'state': 'HANDOVER_FAILED', 'error_type': type(exc).__name__})
     except Exception as exc:
         report = {'state': 'RADAR_UNAVAILABLE', 'error_type': type(exc).__name__,
                   'selected': 0, 'results': [], 'live_execution': False}

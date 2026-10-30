@@ -105,7 +105,9 @@ def normalize(payload, now):
         if not isinstance(p['source_sha256'], str) or not re.fullmatch('[0-9a-f]{64}', p['source_sha256']):
             raise ValueError('raw export hash required')
         acquired = timestamp(p['acquired_at'])
-        if acquired > observed or observed - acquired > timedelta(days=4):
+        from .session_freshness import current_chart
+        current = current_chart({'provenance': p, 'bars': chart['bars']}, observed)
+        if acquired > observed or (observed - acquired > timedelta(days=4) and current is not True):
             raise ValueError('fresh genuine acquisition required')
         for bar in chart['bars']:
             close_at = datetime.fromisoformat(bar['timestamp']).replace(tzinfo=timezone.utc) + timedelta(hours=15)
@@ -192,8 +194,11 @@ def parse_export(raw, key, acquired_at, now):
 
 
 def fresh_charts(dataset, now):
-    return {key: deepcopy(chart) for key, chart in (dataset or {}).get('charts', {}).items()
-            if timedelta(0) <= now - timestamp(chart['provenance']['acquired_at']) <= timedelta(days=4)}
+    from .session_freshness import current_chart
+    def fresh(chart):
+        current = current_chart(chart, now)
+        return current if current is not None else timedelta(0) <= now - timestamp(chart['provenance']['acquired_at']) <= timedelta(days=4)
+    return {key: deepcopy(chart) for key, chart in (dataset or {}).get('charts', {}).items() if fresh(chart)}
 
 
 def read_primary(folder=ROOT):
@@ -266,7 +271,8 @@ def coverage(dataset, now):
             'last_session': bars[-1]['timestamp'] if bars else None,
             'missing_open_bars': missing_open, 'invalid_hlc_bars': invalid,
             'acquired_at': p.get('acquired_at'), 'source_sha256': p.get('source_sha256'),
-            'expires_at': (timestamp(p['acquired_at']) + timedelta(days=4)).isoformat() if p else None,
+            'expires_at': None if now.year == 2026 else (timestamp(p['acquired_at']) + timedelta(days=4)).isoformat() if p else None,
+            'freshness_policy': 'JSE_2026_LAST_COMPLETED_SESSION' if now.year == 2026 else 'FOUR_DAY_FALLBACK',
             'historical_evaluation_allowed': False, 'real_data_admitted': False})
     return {'schema': 'ost-onboarding-status-v1', 'source_policy': POLICY,
         'primary_active': active, 'checked_at': now.isoformat(), 'instruments': result,

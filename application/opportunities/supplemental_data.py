@@ -30,7 +30,9 @@ def validate_receipt(key, chart, observed):
     if not isinstance(p['source_sha256'], str) or not re.fullmatch('[0-9a-f]{64}', p['source_sha256']):
         raise ValueError('source hash required')
     acquired = timestamp(p['acquired_at'])
-    if acquired > observed or observed-acquired > timedelta(days=4):
+    from .session_freshness import current_chart
+    current = current_chart(chart, observed)
+    if acquired > observed or (observed-acquired > timedelta(days=4) and current is not True):
         raise ValueError('current source acquisition required')
     # Capture may follow the JSE 17:00 SAST close before our conservative
     # next-UTC-day usability cutoff. Validation above already enforces that
@@ -48,23 +50,54 @@ def validate_receipt(key, chart, observed):
 
 
 def current_research_charts(dataset, now):
+    from .session_freshness import current_chart
+    def fresh(chart):
+        current = current_chart(chart, now)
+        if current is not None:
+            return current
+        acquired = timestamp(chart['provenance']['acquired_at'])
+        return acquired <= now and now-acquired <= timedelta(days=4)
     if (dataset or {}).get('schema') == 'local-swing-dataset-v3':
         from .ost_data import fresh_charts
         result = fresh_charts(dataset, now)
         for key, chart in dataset.get('research_charts', {}).items():
-            # An explicitly selected expired research receipt does not silently
-            # fall back to another provider for the same numerical snapshot.
-            result.pop(key, None)
-            acquired = timestamp(chart['provenance']['acquired_at'])
-            if acquired <= now and now-acquired <= timedelta(days=4):
+            # A stale whole-bar alternative does not erase a current primary
+            # close-only chart. Its OST provenance and missing opens remain.
+            if fresh(chart):
                 result[key] = deepcopy(chart)
         return result
     result = {}
     for key, chart in (dataset or {}).get('research_charts', {}).items():
-        acquired = timestamp(chart['provenance']['acquired_at'])
-        if acquired <= now and now-acquired <= timedelta(days=4):
+        if fresh(chart):
             result[key] = deepcopy(chart)
     return result
+
+
+def hlc_research(chart, now):
+    """ATR and prior ranges need HLC, not an invented opening price."""
+    import math
+    bars = [b for b in (chart or {}).get('bars', []) if _available_at(b['timestamp']) <= now]
+    run = []
+    for b in bars:
+        try:
+            high, low, close = (float(b[k]) for k in ('high','low','close'))
+            if not all(math.isfinite(x) and x > 0 for x in (high,low,close)) or not low <= close <= high:
+                raise ValueError('invalid HLC')
+            run.append((high,low,close))
+        except (ValueError, TypeError, KeyError, OverflowError):
+            run = []  # Do not bridge a bad source session.
+    atr = None
+    if len(run) >= 15:
+        ranges = [max(high-low, abs(high-run[i-1][2]), abs(low-run[i-1][2]))
+                  for i,(high,low,_) in enumerate(run) if i]
+        atr = sum(ranges[:14])/14
+        for value in ranges[14:]: atr = (13*atr+value)/14
+    return {'state':'AVAILABLE' if atr is not None else 'INSUFFICIENT_VALID_HLC',
+            'session': bars[-1]['timestamp'][:10] if bars else None,
+            'consecutive_valid_hlc':len(run), 'atr14_wilder':atr,
+            'prior_high20': max(x[0] for x in run[-21:-1]) if len(run) >= 21 else None,
+            'prior_low20': min(x[1] for x in run[-21:-1]) if len(run) >= 21 else None,
+            'basis':'HLC_ONLY_RESEARCH_NOT_POLICY_INPUT', 'opening_price_invented':False}
 
 
 def input_status(dataset, now):
@@ -85,6 +118,7 @@ def input_status(dataset, now):
             'bars': len(c['bars']), 'purpose': c['provenance']['purpose'],
             'missing_open_bars': sum(b.get('open') is None for b in c['bars']),
             'latest_open': c['bars'][-1].get('open')} for key,c in charts.items()},
+        'hlc_research': hlc_research(sasol, now) if sasol else None,
         'sasol': {'state': feature['state'], 'session': feature.get('session'),
                   'missing': feature.get('missing', []), 'values': feature.get('values'),
                   'provider': sasol['provenance']['provider'],

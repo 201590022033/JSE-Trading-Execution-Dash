@@ -20,6 +20,30 @@ class RadarPublicPriceTests(unittest.TestCase):
                  'source_leads': [{'instrument_ids': ['SASOL'], 'source_id': 'lead'}]}
         self.assertEqual(radar_instruments(radar), [('SASOL', ['watch', 'lead'])])
 
+    def test_bidvest_mention_uses_research_only_mapping(self):
+        from application.opportunities.radar_price_capture import research_catalog
+        radar={'source_leads':[{'quote':'The Bidvest Group Limited notice', 'instrument_ids':[], 'source_id':'lead'}]}
+        self.assertEqual(radar_instruments(radar), [('BVT', ['lead'])])
+        self.assertEqual(research_catalog()['BVT']['yahoo_symbol'], 'BVT.JO')
+        self.assertNotIn('BVT', public_share_catalog())
+        self.assertEqual(radar_instruments({'calendar_upcoming':[{'instrument_ids':['BVT'], 'record_id':'calendar'}]}), [('BVT',['calendar'])])
+
+    def test_new_sens_code_requires_exact_yahoo_equity_metadata(self):
+        radar={'sens_discovery': {'sources':[{'current':True, 'source_id':'sens', 'provenance':{'share_code':'ZZZZ'}}]}}
+        class Fetcher:
+            def __init__(self, valid): self.valid=valid
+            def get_chart(self, symbol, period):
+                return {'symbol':symbol, 'provider_symbol':symbol, 'currency':'ZAR',
+                        'instrument_type':'EQUITY' if self.valid else 'ETF', 'exchange':'JNB',
+                        'interval':'1d', 'bars':[{'timestamp':'2026-10-28','close':10}]}
+        with tempfile.TemporaryDirectory() as folder:
+            clock=lambda:datetime(2026,10,30,4,tzinfo=timezone.utc)
+            failed=capture(radar,Fetcher(False),folder,clock=clock)
+            self.assertEqual(failed['results'][0]['state'],'FAILED')
+            passed=capture(radar,Fetcher(True),folder,clock=clock)
+            self.assertEqual(passed['results'][0]['state'],'CAPTURED')
+            self.assertEqual(latest_close_history(folder,'ZZZZ')['instrument'],'ZZZZ')
+
     def test_success_and_failure_are_independent_and_keep_intraday_row(self):
         catalog = public_share_catalog()
         keys = sorted(list(catalog))[:2]

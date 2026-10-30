@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import random
+import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,17 +45,15 @@ def demo():
 
 def load_real(path, payload=None):
     """Load retained whole-source bars and separate benchmark closes for research."""
-    from application.opportunities.source_resolution import attach_iress_research
+    from application.opportunities.source_resolution import archived_iress_research
     from application.backtest_lab.observed_history import from_chart, verify_ost_benchmark
     path = Path(path)
     if payload is None:
         payload = json.loads(path.read_text(encoding='utf-8'))
     if payload.get('schema') != 'local-swing-dataset-v3':
         raise ValueError('local-swing-dataset-v3 required')
-    observed = datetime.fromisoformat(payload['observed_at'].replace('Z', '+00:00'))
-    data = attach_iress_research(payload, observed, path.parent)
-    share = data.get('research_charts', {}).get('SASOL')
-    benchmark = data.get('charts', {}).get('ETF_STX40')
+    share = archived_iress_research('SASOL', path.parent)
+    benchmark = payload.get('charts', {}).get('ETF_STX40')
     if not share or not benchmark:
         raise ValueError('Archived IRESS Sasol and OST benchmark required')
     verify_ost_benchmark(benchmark, path.parent)
@@ -62,6 +61,92 @@ def load_real(path, payload=None):
     history.admit(history.sessions[0].key, history.sessions[-1].key,
                   max(b.available_at for b in history.bars), activity_required=True)
     return {'SASOL': share['bars'], 'ETF_STX40': benchmark['bars']}, [history]
+
+
+def add_research_histories(charts, manifests, intake_root):
+    """Attach separate archived IRESS bars; never replace or graft a bar."""
+    from application.backtest_lab.observed_history import from_chart, research_intake_history
+    root = Path(intake_root)
+    if not root.exists():
+        return charts, manifests
+    keys = set()
+    for path in sorted((root/'normalized').glob('*.json')):
+        try:
+            if path.stat().st_size > 4_000_000:
+                continue
+            item = json.loads(path.read_text(encoding='utf-8'))
+            key = item.get('instrument_id')
+            if isinstance(key, str) and re.fullmatch('[A-Z]{2,8}', key) and item.get('product') == 'cash_equity':
+                keys.add(key)
+        except (OSError, ValueError, TypeError):
+            continue
+    if len(keys) > 20:
+        raise ValueError('research intake exceeds bounded 20-share replay universe')
+    choices = {key:research_intake_history(key, root) for key in keys if key != 'SASOL'}
+    benchmark_days = [row['timestamp'][:10] for row in charts['ETF_STX40']]
+    lo, hi = min(benchmark_days), max(benchmark_days)
+    for key, payload in sorted(choices.items()):
+        if payload is None:
+            continue
+        rows = [{'timestamp': b['session'], **{field: float(b[field]) for field in ('open', 'high', 'low', 'close', 'volume')}}
+                for b in payload['bars'] if b.get('ohlc_consistent') and lo <= b['session'] <= hi and all(b.get(k) is not None for k in ('open','high','low','close','volume'))]
+        # Do not silently bridge missing observations inside the selected window.
+        expected = [b['session'] for b in payload['bars'] if lo <= b['session'] <= hi]
+        if len(rows) < 51 or [r['timestamp'] for r in rows] != expected:
+            continue
+        chart = {'bars': rows, 'provenance': {'provider':'IRESS', 'source_sha256':payload['raw_hash'].removeprefix('sha256:'), 'acquired_at':payload['acquired_at']}}
+        history = from_chart(key, chart)
+        history.admit(history.sessions[0].key, history.sessions[-1].key, max(b.available_at for b in history.bars), activity_required=True)
+        charts[key] = rows
+        manifests.append(history)
+    return charts, manifests
+
+
+def append_public_bars(charts, manifests, capture_dir):
+    """Append valid same-instrument Yahoo bars only after close overlap agreement."""
+    from application.backtest_lab.observed_history import from_chart
+    from application.opportunities.radar_price_capture import latest_close_history
+    from application.opportunities.session_freshness import next_session
+    updated = []
+    for manifest in manifests:
+        key = manifest.instrument
+        try:
+            public = latest_close_history(capture_dir, key)
+        except (OSError, ValueError, KeyError, TypeError):
+            updated.append(manifest); continue
+        rows = charts[key]
+        prior = {r['timestamp'][:10]: Decimal(str(r['close'])).quantize(Decimal('.01')) for r in rows}
+        overlap = [(r['session'], prior[r['session']], Decimal(str(r['close'])).quantize(Decimal('.01')))
+                   for r in public['rows'] if r['session'] in prior]
+        recent = overlap[-60:]
+        if len(recent) < 20 or any(a != b for _, a, b in recent):
+            updated.append(manifest); continue
+        last = rows[-1]['timestamp'][:10]
+        additions = []
+        for row in public['rows']:
+            if row['session'] <= last:
+                continue
+            if next_session(last) != row['session']:
+                break
+            if not row['ohlc_valid'] or row.get('volume') is None or row['volume'] < 0:
+                break
+            additions.append({'timestamp': row['session'], **{k:row[k] for k in ('open','high','low','close','volume')}, '_source':'YAHOO'})
+            last = row['session']
+        if not additions:
+            updated.append(manifest); continue
+        charts[key] = [{**r, '_source':'IRESS'} for r in rows] + additions
+        receipt = {'provider':'YAHOO', 'capture_sha256':public['source_sha256'],
+                   'acquired_at':public['acquired_at'], 'first_session':additions[0]['timestamp'],
+                   'overlap':len(overlap), 'mismatches':sum(a != b for _, a, b in overlap),
+                   'mismatch_sessions':[day for day,a,b in overlap if a != b][:100],
+                   'recent_overlap':len(recent), 'recent_mismatches':0,
+                   'basis':'MATCHED_CLOSES_NOT_VERIFIED_PROVIDER_BASIS'}
+        provenance = {'provider':'IRESS+YAHOO', 'source_sha256':manifest.source_sha256,
+                      'acquired_at':manifest.acquired_at, 'supplemental_sources':[receipt]}
+        history = from_chart(key, {'bars':charts[key], 'provenance':provenance})
+        history.admit(history.sessions[0].key, history.sessions[-1].key, max(b.available_at for b in history.bars), activity_required=True)
+        updated.append(history)
+    return charts, updated
 
 
 def build(charts, manifests, benchmark_provenance=None):
@@ -115,12 +200,13 @@ def build(charts, manifests, benchmark_provenance=None):
     synthetic = all(m.grade == 'SYNTHETIC' for m in manifests)
     limitations=['FULL_FILL_ASSUMPTION','CLOSE_PROXY_NOT_BROKER_FILL','DAILY_INTRABAR_PATH_UNKNOWN','DAILY_SETUP_THRESHOLDS_ARE_GUESSES']
     if not synthetic:
-        limitations += ['OBSERVED_PROVIDER_SESSIONS_NOT_VERIFIED_EXCHANGE_CALENDAR', 'RECONSTRUCTED_HISTORICAL_AVAILABILITY', 'PRICE_ADJUSTMENT_AND_CORPORATE_ACTIONS_UNVERIFIED', 'NO_CORPORATE_ACTIONS_APPLIED', 'SINGLE_INSTRUMENT_RESEARCH_ONLY']
+        limitations += ['OBSERVED_PROVIDER_SESSIONS_NOT_VERIFIED_EXCHANGE_CALENDAR', 'RECONSTRUCTED_HISTORICAL_AVAILABILITY', 'PRICE_ADJUSTMENT_AND_CORPORATE_ACTIONS_UNVERIFIED', 'NO_CORPORATE_ACTIONS_APPLIED']
+        if len(manifests) == 1: limitations.append('SINGLE_INSTRUMENT_RESEARCH_ONLY')
     meta={'grade':'SYNTHETIC' if synthetic else 'ASSUMPTION_LIMITED','limitations':limitations,
         'cost_basis':costs.basis,'initial_cash':1000000,'created_at':as_of.isoformat(),
         'created_at_basis':'SIMULATED_AS_OF_NOT_WALL_CLOCK' if synthetic else 'RECONSTRUCTED_REPLAY_AS_OF_NOT_WALL_CLOCK',
         'data_basis':'SYNTHETIC_FIXTURE' if synthetic else 'IRESS_OHLCV_OST_BENCHMARK_CLOSES',
-        'source_receipts': [] if synthetic else ([{'instrument':m.instrument,'provider':m.provider,'source_sha256':m.source_sha256,'acquired_at':m.acquired_at} for m in manifests] + ([{'instrument':'ETF_STX40', **benchmark_provenance}] if benchmark_provenance else [])),
+        'source_receipts': [] if synthetic else ([{'instrument':m.instrument,'provider':m.provider,'source_sha256':m.source_sha256,'acquired_at':m.acquired_at,'supplemental_sources':m.supplemental_sources} for m in manifests] + ([{'instrument':'ETF_STX40', **benchmark_provenance}] if benchmark_provenance else [])),
         'live_execution':False}
     identity = {'bars':bars,'strategies':results,'meta':meta}
     config_hash=hashlib.sha256(json.dumps(identity,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
@@ -130,10 +216,14 @@ def build(charts, manifests, benchmark_provenance=None):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--demo',action='store_true'); parser.add_argument('--dataset'); parser.add_argument('--output-dir')
+    parser.add_argument('--research-history-dir', default=str(ROOT.parent/'jse-strategy-research/data/p1-prospective-events-2026-10-28/intake'))
     args=parser.parse_args()
     if args.demo == bool(args.dataset): parser.error('choose --demo or --dataset')
     payload = None if args.demo else json.loads(Path(args.dataset).read_text(encoding='utf-8'))
     charts, manifests = demo() if args.demo else load_real(args.dataset, payload)
+    if not args.demo:
+        charts, manifests = add_research_histories(charts, manifests, args.research_history_dir)
+        charts, manifests = append_public_bars(charts, manifests, Path(args.dataset).parent/'radar-public-prices')
     benchmark_provenance = None if args.demo else payload['charts']['ETF_STX40']['provenance']
     run=build(charts,manifests,benchmark_provenance)
     directory=Path(args.output_dir or os.environ.get('LOCAL_BACKTEST_REPORT_DIR',''))

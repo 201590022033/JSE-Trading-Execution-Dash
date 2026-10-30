@@ -1,3 +1,15 @@
+## Multi-stock zebra and session freshness — 30 October 2026
+
+R12 remains ACTIVE/PARTIAL and P1 open. The research-only radar expands via
+source-linked SENS codes and exact Yahoo equity metadata, with a verified BVT
+mapping. BVT's IRESS/Yahoo close handover and a five-share lab replay are
+available; BTI's two older source discrepancies are retained and disclosed
+while its recent matched source history permits an exploratory handover. Local
+source freshness now uses the reviewed 2026 JSE calendar and a separate HLC
+research calculation can use OST observations without fabricated opens.
+The 02:00 SAST availability convention, prospective plans and tighter paper
+limits remain. See `docs/changes/2026-10-30-zebra-multistock-and-freshness.md`.
+
 ## Zebra and historical research handover — 30 October 2026
 
 R12 remains ACTIVE/PARTIAL; P1 remains open. A verified research-panel handover

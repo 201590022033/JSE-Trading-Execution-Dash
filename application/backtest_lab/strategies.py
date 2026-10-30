@@ -26,6 +26,8 @@ def evaluate(strategy, instrument, i, bars_context):
     low = [float(x['low']) for x in rows]
     volumes = [float(x['volume']) for x in rows]
     session = rows[-1]['timestamp'][:10]
+    source_ok = len({row.get('_source') for row in rows[-21:]}) <= 1
+    source_rule = condition('Source continuity', 'Prior 20 and current bars use the same provider', None, source_ok)
     if strategy == 'swing':
         from application.opportunities.public_research import _available_at
         from datetime import timedelta
@@ -40,6 +42,7 @@ def evaluate(strategy, instrument, i, bars_context):
             condition('Volume', 'Volume above prior 20-session average', v.get('relative_volume20'), c.get('volume_above_prior20')),
             condition('Benchmark', 'Outperform aligned benchmark over 20 sessions', v.get('relative_return20'), c.get('outperforming_benchmark20')),
             condition('Snapshot eligibility', 'Complete snapshot and valid shadow stop', None, c.get('core_setup'))]
+        traces.append(source_rule)
         return traces, geometry.get('stop')
     e9, e21 = _ema(close, 9), _ema(close, 21)
     avgvol = mean(volumes[-21:-1]); rv = volumes[-1] / avgvol if avgvol else None
@@ -69,4 +72,5 @@ def evaluate(strategy, instrument, i, bars_context):
     else:
         raise ValueError('unknown strategy')
     traces.append(condition('Stop geometry', 'Positive stop below signal close', stop, 0 < stop < close[-1]))
+    traces.append(source_rule)
     return traces, stop
