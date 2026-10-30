@@ -79,6 +79,55 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         data['live_execution']=False
         out=jsonify(data);out.headers['Cache-Control']='no-store'
         return out,status
+    def read_zebra():
+        root = folder()
+        if root is None:
+            raise ValueError('report directory missing')
+        raw = (root.parent / 'zebra-handover.json').read_bytes()
+        if len(raw) > 10_000_000:
+            raise ValueError('oversized handover')
+        data = json.loads(raw)
+        body = {k: v for k, v in data.items() if k != 'sha256'}
+        digest = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+        if data.get('schema') != 'zebra-close-handover-v1' or data.get('sha256') != digest:
+            raise ValueError('handover integrity mismatch')
+        return data
+    @bp.get('/api/v1/backtest-lab/zebra-history')
+    def zebra_history():
+        try:
+            data = read_zebra()
+            rows = data['rows']
+            return response({'state': 'AVAILABLE', 'panel_id': data['panel_id'],
+                'summary': data['summary'], 'observations': len(rows),
+                'extension_rows': data.get('extension_rows', 0),
+                'first_session': rows[0]['session'] if rows else None,
+                'last_session': rows[-1]['session'] if rows else None,
+                'latest_close': rows[-1] if rows else None,
+                'availability': data['availability'], 'research_only': True})
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            return response({'state': 'UNAVAILABLE'}, 503)
+    @bp.get('/api/v1/backtest-lab/zebra-history/observations')
+    def zebra_observations():
+        from datetime import date, datetime, timezone
+        try:
+            after = request.args.get('after', '0001-01-01')
+            date.fromisoformat(after)
+            limit = int(request.args.get('limit', 600))
+            if not 1 <= limit <= 1000:
+                raise ValueError('bounded page required')
+        except (ValueError, TypeError):
+            return response({'state': 'INVALID_REQUEST'}, 400)
+        try:
+            data = read_zebra()
+            now = datetime.now(timezone.utc)
+            eligible = [r for r in data['rows'] if r['session'] > after and
+                        datetime.fromisoformat(r['available_at'].replace('Z', '+00:00')) <= now]
+            page = eligible[:limit]
+            return response({'state': 'AVAILABLE', 'panel_id': data['panel_id'],
+                'availability': data['availability'], 'research_only': True, 'rows': page,
+                'next_after': page[-1]['session'] if len(eligible) > limit else None})
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            return response({'state': 'UNAVAILABLE'}, 503)
     @bp.get('/api/v1/backtest-lab/swing-funnel')
     def swing_funnel():
         root = folder()
@@ -93,6 +142,35 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
                 raise ValueError('invalid funnel')
             return response({'state': 'AVAILABLE', 'report': report})
         except (OSError, ValueError, TypeError, AttributeError):
+            return response({'state': 'UNAVAILABLE'}, 503)
+    @bp.get('/api/v1/backtest-lab/radar-price-capture')
+    def radar_price_capture():
+        root = folder()
+        if root is None:
+            return response({'state': 'UNAVAILABLE'}, 503)
+        try:
+            archive = root.parent.parent / 'local-swing-data' / 'radar-public-prices'
+            paths = sorted(archive.glob('attempt-*.json'), reverse=True)
+            if not paths:
+                raise ValueError('no capture attempt')
+            raw = paths[0].read_bytes()
+            if len(raw) > 100000:
+                raise ValueError('oversized attempt')
+            report = json.loads(raw)
+            if report.get('live_execution') is not False or not isinstance(report.get('results'), list):
+                raise ValueError('invalid capture attempt')
+            return response(report)
+        except (OSError, ValueError, TypeError, AttributeError):
+            return response({'state': 'UNAVAILABLE'}, 503)
+    @bp.get('/api/v1/backtest-lab/radar-price-capture/<instrument>')
+    def radar_price_history(instrument):
+        from application.opportunities.radar_price_capture import latest_close_history
+        root = folder()
+        if root is None:
+            return response({'state': 'UNAVAILABLE'}, 503)
+        try:
+            return response(latest_close_history(root.parent.parent / 'local-swing-data' / 'radar-public-prices', instrument))
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
             return response({'state': 'UNAVAILABLE'}, 503)
     @bp.get('/api/v1/backtest-lab/runs')
     def runs():

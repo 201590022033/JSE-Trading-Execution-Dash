@@ -14,6 +14,9 @@ sys.path.insert(0, str(ROOT))
 from application.backtest_lab.strategies import evaluate
 from application.opportunities.source_resolution import attach_iress_research
 from application.backtest_lab.observed_history import verify_ost_benchmark
+from application.opportunities.swing_technical import snapshot
+from application.opportunities.public_research import _available_at
+from datetime import timedelta
 
 
 def measure(dataset, folder):
@@ -44,11 +47,14 @@ def measure(dataset, folder):
                     bucket['passed'][j] += 1
             if all(item['ok'] for item in trace) and stop is not None:
                 bucket['signals'] += 1
+    as_of = _available_at(charts['SASOL'][-1]['timestamp']) + timedelta(seconds=1)
+    technical = snapshot(share, evaluated_at=as_of, benchmark_chart=benchmark)
     return {'schema': 'backtest-lab-real-funnel-v1', 'instrument': 'SASOL',
             'period': [charts['SASOL'][0]['timestamp'][:10], charts['SASOL'][-1]['timestamp'][:10]],
             'rules': names or [], 'years': dict(sorted(counts.items())),
             'share_source': share['provenance'], 'benchmark_source': benchmark['provenance'],
             'dataset_observed_at': dataset['observed_at'],
+            'latest_technical_snapshot': technical,
             'limitations': ['RETROSPECTIVE_RECONSTRUCTED_AVAILABILITY', 'PROVIDER_ADJUSTMENT_AND_CALENDAR_UNVERIFIED',
                             'SIGNAL_FUNNEL_NOT_REPLAY_OR_FORECAST'],
             'live_execution': False}

@@ -48,6 +48,47 @@ def attach_supplements(dataset, supplement, now):
     return result
 
 
+def refresh_zebra(panel_path, output_path, dataset_path=None):
+    """Publish a verified research handover independently of current quotes."""
+    from scripts.zebra_handover import handover, verified_extension
+    panel_path, output_path = Path(panel_path), Path(output_path)
+    if panel_path.stat().st_size > 30000000:
+        raise ValueError('panel too large')
+    extension = None
+    if dataset_path:
+        try:
+            extension = verified_extension(dataset_path)
+        except (OSError, ValueError, TypeError, KeyError):
+            # Rebuild the panel anyway, but do not silently erase a previously
+            # longer verified handover if this optional source is unavailable.
+            if output_path.exists():
+                return {'state': 'EXTENSION_UNAVAILABLE_PRIOR_HANDOVER_RETAINED'}
+    result = handover(json.loads(panel_path.read_text(encoding='utf-8')), extension)
+    if output_path.exists():
+        old = json.loads(output_path.read_text(encoding='utf-8'))
+        if old.get('rows') and result['rows'] and old['rows'][-1]['session'] > result['rows'][-1]['session']:
+            return {'state': 'NEW_INPUT_SHORTER_PRIOR_HANDOVER_RETAINED'}
+    raw = (json.dumps(result, sort_keys=True, separators=(',', ':'), allow_nan=False)+'\n').encode()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output_path.with_suffix('.tmp')
+    temporary.write_bytes(raw)
+    os.replace(temporary, output_path)
+    return {'state': 'AVAILABLE', 'panel_id': result['panel_id'], 'close_rows': len(result['rows']),
+            'last_session': result['rows'][-1]['session'] if result['rows'] else None}
+
+
+def refresh_historical_funnel(dataset, folder, output_path):
+    """Refresh the read-only historical feature view from retained raw sources."""
+    from scripts.backtest_lab_real_funnel import measure
+    report = measure(dataset, folder)
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_suffix('.tmp')
+    temporary.write_text(json.dumps(report, sort_keys=True, ensure_ascii=False, allow_nan=False)+'\n', encoding='utf-8')
+    os.replace(temporary, output)
+    return {'state': 'AVAILABLE', 'last_session': report['period'][-1], 'signals': report['years']['ALL']['signals']}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--upload", action="store_true")
@@ -62,6 +103,19 @@ def main():
     folder.mkdir(parents=True, exist_ok=True)
     latest = folder / "latest.json"
     now = datetime.now(timezone.utc)
+    panel = Path(os.environ.get('ZEBRA_RESEARCH_PANEL') or ROOT.parent / 'jse-strategy-research/data/p1-zebra-2026-10-21/panel.json')
+    if not args.retry_upload:
+        try:
+            print(json.dumps({'zebra_handover': refresh_zebra(panel, ROOT / 'runtime/local-backtest/zebra-handover.json', latest)}))
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            print(json.dumps({'zebra_handover': {'state': 'FAILED', 'error_type': type(exc).__name__}}))
+        # Radar capture is a separate local public-source lane: its failure must
+        # not suppress the existing OST collection or upload.
+        from scripts.capture_radar_public_prices import run as capture_radar_prices
+        try:
+            print(json.dumps({'radar_public_prices': capture_radar_prices()}, sort_keys=True))
+        except Exception as exc:
+            print(json.dumps({'radar_public_prices': {'state': 'FAILED', 'error_type': type(exc).__name__}}))
     from application.opportunities.ost_data import read_primary, fresh_charts, SCHEMA, POLICY
     primary = read_primary(folder)
     if primary is not None:
@@ -74,6 +128,14 @@ def main():
         dataset = validate_dataset(attach_iress_research(dataset, now, folder), now)
         from application.opportunities.ost_data import atomic_json
         atomic_json(latest, dataset)
+        try:
+            print(json.dumps({'zebra_handover_updated': refresh_zebra(panel, ROOT / 'runtime/local-backtest/zebra-handover.json', latest)}))
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            print(json.dumps({'zebra_handover_updated': {'state': 'FAILED_PRIOR_HANDOVER_RETAINED', 'error_type': type(exc).__name__}}))
+        try:
+            print(json.dumps({'historical_funnel': refresh_historical_funnel(dataset, folder, ROOT / 'runtime/local-backtest/lab-swing-funnel.json')}))
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            print(json.dumps({'historical_funnel': {'state': 'FAILED_PRIOR_REPORT_RETAINED', 'error_type': type(exc).__name__}}))
         from application.opportunities.source_resolution import local_audit
         atomic_json(folder / 'source-resolution-latest.json', local_audit(dataset, now, folder))
     elif args.retry_upload:

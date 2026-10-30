@@ -1,3 +1,14 @@
+## Zebra and historical research handover — 30 October 2026
+
+R12 remains ACTIVE/PARTIAL; P1 remains open. A verified research-panel handover
+now exposes 8,472 source-labelled closes through 27 October without expiring the history.
+The daily local collector also attempts bounded Yahoo captures for linked radar
+issuers independently of OST freshness. Initial ABSPJ and IMPJ captures each
+contained 250 completed closes through 28 October. The current worker and
+prospective comparison contracts remain unchanged; automatic fusion, broader
+issuer mapping and IRESS/OST automation are unfinished. See
+`docs/changes/2026-10-30-zebra-radar-handover.md`.
+
 ## Backtest Lab — partial implementation, 29 October 2026
 
 The new dashboard tab runs a clearly labelled synthetic demo from frozen local

@@ -24,6 +24,7 @@ class HistoricalFunnelTests(unittest.TestCase):
             return ([{'c': str(j), 'v': 1, 'ok': not (index == 51 and j == 1)} for j in range(6)], 1)
         with patch('scripts.backtest_lab_real_funnel.attach_iress_research', return_value=enriched) as attach, \
              patch('scripts.backtest_lab_real_funnel.verify_ost_benchmark'), \
+             patch('scripts.backtest_lab_real_funnel.snapshot', return_value={'state': 'AVAILABLE'}), \
              patch('scripts.backtest_lab_real_funnel.evaluate', side_effect=rule):
             result = measure(dataset, Path('.'))
         self.assertEqual(result['years']['ALL'], {'checked': 3, 'passed': [3, 2, 2, 2, 2, 2], 'signals': 2, 'benchmark_missing': 0})

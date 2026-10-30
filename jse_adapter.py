@@ -172,7 +172,7 @@ class YahooFinanceFetcher(PriceFetcher):
         Daily timestamps identify sessions, not the time of the latest trade.
         """
         import math
-        if period not in {"1d", "1mo", "3mo", "1y"}:
+        if period not in {"1d", "1mo", "3mo", "1y", "5y"}:
             raise ValueError("Unsupported chart period")
         symbol = JSE_TICKERS.get(ticker, {}).get("yahoo_symbol", ticker)
         stock = yf.Ticker(symbol)
