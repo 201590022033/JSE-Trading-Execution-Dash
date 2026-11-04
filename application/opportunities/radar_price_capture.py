@@ -16,7 +16,9 @@ RESEARCH_ISSUERS = {'BVT': {'name': 'The Bidvest Group Limited', 'sector': 'Indu
 
 
 def research_catalog():
-    return {**public_share_catalog(), **RESEARCH_ISSUERS}
+    # The four listed JSE ETFs are research context, not broker contracts.
+    from .public_research import public_etf_catalog
+    return {**public_share_catalog(), **RESEARCH_ISSUERS, **public_etf_catalog()}
 
 
 def discovered_issuers(radar):

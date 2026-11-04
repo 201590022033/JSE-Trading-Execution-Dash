@@ -20,10 +20,18 @@ def run():
         response.raise_for_status()
         radar = response.json()
         radar.setdefault('source_leads', []).append({'instrument_ids':['SASOL'], 'source_id':'zebra-sasol-daily-continuation'})
-        report = capture(radar, YahooFinanceFetcher(), folder)
+        fetcher = YahooFinanceFetcher()
+        report = capture(radar, fetcher, folder)
+        # Keep benchmark and sector context in a separate bounded batch so
+        # current radar issuers cannot starve it (or vice versa).
+        context_ids = ['ETF_STX40', 'ETF_STXFIN', 'ETF_STXRES', 'ETF_STXIND']
+        context_radar = {'source_leads': [{'instrument_ids': context_ids,
+                                            'source_id': 'daily-jse-etf-context'}]}
+        context = capture(context_radar, fetcher, folder, limit=len(context_ids))
+        report['context'] = context
         from application.opportunities.zebra_public_handover import update_public_handover
         report['handover'] = []
-        for item in report['results']:
+        for item in report['results'] + context['results']:
             if item['state'] == 'CAPTURED':
                 try:
                     report['handover'].append(update_public_handover(item['instrument'], folder, ROOT/'runtime/local-backtest'))

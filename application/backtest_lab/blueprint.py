@@ -128,6 +128,37 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
                 'next_after': page[-1]['session'] if len(eligible) > limit else None})
         except (OSError, ValueError, TypeError, KeyError, AttributeError):
             return response({'state': 'UNAVAILABLE'}, 503)
+    def read_public_history(root, instrument):
+        raw = (root.parent/('zebra-public-'+instrument+'.json')).read_bytes()
+        if len(raw) > 4_000_000:
+            raise ValueError('oversized handover')
+        data = json.loads(raw)
+        body = {k:v for k,v in data.items() if k != 'sha256'}
+        expected = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+        if data.get('sha256') != expected or data.get('instrument') != instrument or data.get('schema') != 'zebra-public-instrument-v1':
+            raise ValueError('source identity or handover hash mismatch')
+        return data
+
+    @bp.get('/api/v1/backtest-lab/windowed-technical/<instrument>')
+    def windowed_technical(instrument):
+        from datetime import datetime, timezone
+        from application.opportunities.windowed_research import calculate
+        if not re.fullmatch('[A-Z0-9_]{2,16}', instrument):
+            return response({'state': 'INVALID_REQUEST'}, 400)
+        root = folder()
+        if root is None:
+            return response({'state': 'UNAVAILABLE'}, 503)
+        try:
+            data = read_public_history(root, instrument)
+            benchmark = read_public_history(root, 'ETF_STX40')
+            now = datetime.now(timezone.utc)
+            acquired = datetime.fromisoformat(benchmark['acquired_at'].replace('Z', '+00:00'))
+            if acquired.tzinfo is None or acquired > now or benchmark.get('live_execution') is not False:
+                raise ValueError('valid benchmark receipt required')
+            return response({'state': 'AVAILABLE', 'report': calculate(instrument, data, benchmark, now)})
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, OverflowError):
+            return response({'state': 'UNAVAILABLE'}, 503)
+
     @bp.get('/api/v1/backtest-lab/zebra-history/instrument/<instrument>')
     def zebra_instrument(instrument):
         from datetime import date
@@ -145,14 +176,7 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         if root is None:
             return response({'state':'UNAVAILABLE'}, 503)
         try:
-            raw = (root.parent/('zebra-public-'+instrument+'.json')).read_bytes()
-            if len(raw) > 4_000_000:
-                raise ValueError('oversized handover')
-            data = json.loads(raw)
-            body = {k:v for k,v in data.items() if k != 'sha256'}
-            expected = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
-            if data.get('sha256') != expected or data.get('instrument') != instrument or data.get('schema') != 'zebra-public-instrument-v1':
-                raise ValueError('source identity or handover hash mismatch')
+            data = read_public_history(root, instrument)
             eligible = [row for row in data['rows'] if row['session'] > after]
             page = eligible[:limit]
             return response({'state':'AVAILABLE','instrument':instrument,'rows':page,
