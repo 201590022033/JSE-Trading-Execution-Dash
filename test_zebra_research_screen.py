@@ -85,12 +85,16 @@ class ZebraScreenTests(unittest.TestCase):
 
     def test_freshness_is_recomputed_after_clock_advances(self):
         with tempfile.TemporaryDirectory() as root:
-            at=[NOW];worker=ZebraResearchScreen(root,loader=lambda now:fixture(),clock=lambda:at[0])
+            data=fixture()
+            for item in data['instruments'].values():
+                item['rows']=[row for row in item['rows'] if row['session']!='2026-11-04']
+            data['expected_session']='2026-11-03'
+            at=[NOW];worker=ZebraResearchScreen(root,loader=lambda now:data,clock=lambda:at[0])
             worker.trigger();wait(worker)
             self.assertEqual(worker.listing(1)[0]['provenance']['freshness'],'LATEST_EXPECTED_SESSION')
             at[0]+=timedelta(days=1)
             self.assertEqual(worker.listing(1)[0]['provenance']['freshness'],'HISTORICAL_NOT_CURRENT')
-            self.assertEqual(worker.status()['snapshot_expected_session'],'2026-11-04')
+            self.assertEqual(worker.status()['snapshot_expected_session'],'2026-11-03')
             worker.pool.shutdown(wait=True)
 
     def test_fallback_prior_observation_is_not_mislabeled_daily(self):

@@ -1,3 +1,27 @@
+## Research redesign: M5 macro and proxy context cycle — 5 November 2026
+
+Calendar-source macro leads and keyword-only fundamental tags join the retained SENS/Hermes archive. Eligible context can reach the training-only proposer, while later or unknown evidence remains an annotation. A USD/ZAR reference was captured and a labelled Sasol Brent/FX trade-subset comparison was retained. M5 remains open for a genuine matched context-dependent replay, structured fundamentals and prospective evidence. See `docs/changes/2026-11-05-m5-macro-proxy-cycle.md`.
+
+## Research redesign: M5 source-context work started — 5 November 2026
+
+Radar SENS and Hermes issuer-news revisions can be joined to research cases with publication, acquisition and receipt clocks; late or uncertain items remain descriptive and price-only work continues. First Sasol/BAT coverage audits and remaining work are recorded in `docs/changes/2026-11-05-m5-context-start.md`. M5 remains open.
+
+## Research redesign: M4 local workflow implemented — 5 November 2026
+
+The queue, recovery, training-only proposal cycle, sector grouping, interaction plan, source links and holdout ledger are implemented and tested; the live dashboard process needs a restart to load the latest read routes. One real model call and real instrument/sector examples are retained. The worker is explicitly started, not scheduled, and its results remain exploratory. See `docs/changes/2026-11-05-m4-end-to-end.md`. M5 context and prospective outcomes remain open.
+
+## Research redesign: M4 component learning in progress — 5 November 2026
+
+Paired component cycles, a training-only proposer interface, deterministic fallback and retained experiment records are implemented. Two real candidates per instrument were recorded in the latest namespace, alongside earlier prototype trials. M4 remains partial: global trial accounting, robust queued/model recovery, actual cloud verification, broader diagnostics, sector pooling, source lineage and protected holdout handling remain. See `docs/changes/2026-11-05-component-learning-progress.md`.
+
+## Research redesign: M3 component engine implemented locally — 5 November 2026
+
+Versioned component controls and exploratory NewGold/Sasol replays are available through the read-only Lab API. M4's automatic learning loop and M5's point-in-time event and fundamental context remain separate work. The running dashboard must be restarted to load the new endpoint. Details and test results: `docs/changes/2026-11-05-component-gold-research.md`. R12 remains ACTIVE/PARTIAL and P1 open.
+
+## Research redesign: M2 completed locally — 5 November 2026
+
+Dated benchmark mapping, per-session fallbacks, the three-sector replay and the technical and Lab views are connected. Missing historical sector membership is retained as an explicitly retrospective proxy rather than blocking the stock. See `docs/changes/2026-11-05-dated-sector-benchmarks.md`. M3 component-level experiments are next; R12 remains ACTIVE/PARTIAL and P1 open.
+
 ## Research redesign: M2 field-level flow integrated locally — 5 November 2026
 
 The v2 Zebra field reader, selectable-segment multi-share replay and technical history view are connected. Retrospective BTI/SASOL replay and its source coverage are recorded in `docs/changes/2026-11-05-zebra-field-windows.md`. Sector proxies use current research classifications; independently dated historical memberships remain unavailable and are labelled. M3 component experiments are the next implementation step. R12 remains ACTIVE/PARTIAL and P1 remains open.

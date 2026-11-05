@@ -8,7 +8,7 @@ from application.opportunities.session_freshness import next_session
 
 VERSION='zebra-field-windows-v2'
 FIELDS=('open','high','low','close','volume')
-SECTOR_PROXY={'Financials':'ETF_STXFIN','Financial':'ETF_STXFIN','Banks':'ETF_STXFIN',
+SECTOR_PROXY={'Financials':'ETF_STXFIN','Financial':'ETF_STXFIN','Financial Services':'ETF_STXFIN','Banks':'ETF_STXFIN',
               'Mining':'ETF_STXRES','Resources':'ETF_STXRES','Energy':'ETF_STXRES',
               'Industrials':'ETF_STXIND','Industrial':'ETF_STXIND'}
 
@@ -47,13 +47,45 @@ def capabilities(row):
             'hlc':bool(hlc),'ohlcv':bool(ohlcv)}
 
 
-def benchmark_for(item, instruments):
-    preferred=SECTOR_PROXY.get(item.get('sector'))
-    if preferred and instruments.get(preferred,{}).get('rows'):
-        return {'instrument':preferred,'basis':'CURRENT_SECTOR_PROXY_NOT_HISTORICAL_MEMBERSHIP'}
-    if instruments.get('ETF_STX40',{}).get('rows'):
-        return {'instrument':'ETF_STX40','basis':'BROAD_MARKET_FALLBACK'}
-    return {'instrument':None,'basis':'NO_BENCHMARK_STOCK_ONLY'}
+def benchmark_for(item, instruments, as_of=None):
+    """Select a dated, source-attributed mapping or a labelled fallback.
+
+    Sector-history entries need an effective start and evidence; undated current
+    categories remain a retrospective research proxy, never historical fact.
+    """
+    if as_of is not None: date.fromisoformat(as_of)
+    matches=[]
+    if as_of:
+        for entry in item.get('sector_history',[]):
+            try:
+                start=entry['effective_from']; end=entry.get('effective_to')
+                date.fromisoformat(start)
+                if end: date.fromisoformat(end)
+                if entry.get('evidence') and start<=as_of and (not end or as_of<=end): matches.append(entry)
+            except (TypeError,ValueError,KeyError): continue
+    sector=matches[0]['sector'] if len(matches)==1 else item.get('sector')
+    basis='DATED_SECTOR_MAPPING' if len(matches)==1 else 'CURRENT_SECTOR_PROXY_NOT_HISTORICAL_MEMBERSHIP'
+    if len(matches)>1: basis='OVERLAPPING_DATED_MAPPINGS_CURRENT_PROXY'
+    preferred=SECTOR_PROXY.get(sector)
+    def available(key):
+        rows=instruments.get(key,{}).get('rows',[])
+        return bool(rows) if not as_of else any(r.get('session')==as_of and r.get('close') is not None for r in rows)
+    result={'as_of':as_of,'sector':sector,'sector_basis':basis}
+    if len(matches)==1:
+        result['mapping']={k:matches[0].get(k) for k in ('effective_from','effective_to','evidence','acquired_at','mapping_archive_sha256')}
+        acquired=matches[0].get('acquired_at')
+        result['mapping_knowledge']=('ACQUIRED_AFTER_SESSION_RETROSPECTIVE' if acquired and acquired[:10]>as_of else
+                                     'ACQUIRED_ON_SESSION_TIME_NOT_CHECKED' if acquired and acquired[:10]==as_of else
+                                     'ACQUIRED_BEFORE_SESSION' if acquired else 'ACQUISITION_UNKNOWN')
+    else:
+        result['mapping_knowledge']='CURRENT_CLASSIFICATION_RETROSPECTIVE'
+    if preferred and available(preferred):
+        return {**result,'instrument':preferred,'basis':basis}
+    if available('ETF_STX40'):
+        return {**result,'instrument':'ETF_STX40','basis':'BROAD_MARKET_FALLBACK',
+                'preferred_sector_proxy':preferred}
+    return {**result,'instrument':None,'basis':'NO_BENCHMARK_STOCK_ONLY',
+            'preferred_sector_proxy':preferred}
 
 
 def describe(data, keys=None):
@@ -76,7 +108,8 @@ def describe(data, keys=None):
                    'sma20':sum(r['close'] for r in last[-20:])/20 if len(last)>=20 else None,
                    'return20':last[-1]['close']/last[-21]['close']-1 if len(last)>=21 else None,
                    'consecutive_observations':len(last)}
-        result[key]={'fields':counts,'windows':windows,'technical':technical,'benchmark':benchmark_for(item,instruments),
+        result[key]={'fields':counts,'windows':windows,'technical':technical,
+                     'benchmark':benchmark_for(item,instruments,last[-1]['session'] if last else None),
                      'rows':[{**r,'capabilities':capabilities(r)} for r in rows]}
     return {'version':VERSION,'gap_policy':'SPLIT_AT_KNOWN_JSE_GAP_OR_UNREVIEWED_WEEKDAY_GAP',
             'availability':data.get('availability'),'instruments':result,'live_execution':False}

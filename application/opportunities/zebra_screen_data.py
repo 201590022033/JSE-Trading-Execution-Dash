@@ -279,6 +279,31 @@ def _iress_captures(intake, codes, now, diagnostics):
             diagnostics['IRESS']['invalid_captures'] += 1
 
 
+def _prospective_iress_captures(folder, codes, now, diagnostics):
+    """Read retained native IRESS downloads without merging provider identity."""
+    from .source_resolution import parse_iress_export
+    root=folder/'prospective-price-captures'
+    for path in sorted(root.glob('*/IRESS/*.json')):
+        try:
+            raw,item=_load_json(path); key=item['instrument_id']; digest=item['source_sha256']
+            acquired=_time(item['acquired_at'])
+            if key not in codes or acquired>now: continue
+            if (item.get('schema')!='prospective-price-capture-v1' or item.get('provider')!='IRESS'
+                    or path.parent.parent.name!=key or not re.fullmatch('[0-9a-f]{64}',digest)
+                    or not path.stem.endswith('-'+digest)): raise ValueError('IRESS receipt identity')
+            source=(folder/'alternative-exports'/(key+'-IRESS-'+digest+'.csv')).read_bytes()
+            if sha256(source).hexdigest()!=digest: raise ValueError('IRESS raw hash')
+            chart=parse_iress_export(source,key,codes[key]+'.JSE',acquired.isoformat(),acquired)
+            if chart['bars']!=item['bars']: raise ValueError('IRESS receipt differs from source')
+            diagnostics['IRESS']['accepted_captures'] += 1
+            yield {'instrument':key,'provider':'IRESS','acquired_at':acquired.isoformat(),
+                   'source_sha256':sha256(raw).hexdigest(),'rows':chart['bars'],
+                   'field_receipts':{field:{'acquired_at':acquired.isoformat(),'source_sha256':digest}
+                                     for field in FIELDS}}
+        except (OSError,ValueError,KeyError,TypeError,AttributeError,UnicodeError):
+            diagnostics['IRESS']['invalid_captures'] += 1
+
+
 def _ost_raw_fields(raw):
     """Read OST cents/volume per field, isolating malformed rows and values."""
     from .ost_data import _history_text
@@ -336,12 +361,36 @@ def _ost_captures(folder, codes, now, diagnostics):
         diagnostics['OST']['invalid_captures'] += 1
 
 
-def load_zebra_screen_data(root=None, now=None, *, max_rows=None):
+def load_zebra_screen_data(root=None, now=None, *, max_rows=None, instruments=None):
     """Read local captures only and provide research data for each instrument."""
     root=Path(root) if root is not None else Path(__file__).resolve().parents[2]
     now=_time(now or datetime.now(timezone.utc)); folder=root/'runtime/local-swing-data'
     codes=mappings(folder/'radar-public-prices')
     labels=classifications(codes)['instruments']; catalog=research_catalog()
+    # Optional dated evidence supplements current groupings; an absent or bad
+    # mapping file never prevents independent stock-price research.
+    sector_history={}
+    for mapping_path in sorted((folder/'dated-sector-mappings').glob('*.json')):
+      try:
+        raw=mapping_path.read_bytes()
+        if len(raw)>4_000_000 or sha256(raw).hexdigest()!=mapping_path.stem: continue
+        mapping=json.loads(raw)
+        if mapping.get('schema')=='dated-sector-mappings-v1' and isinstance(mapping.get('instruments'),dict):
+            for key,entries in mapping['instruments'].items():
+                if not isinstance(entries,list): continue
+                valid=[]
+                for entry in entries:
+                    try:
+                        if not isinstance(entry,dict) or not entry.get('sector') or not entry.get('evidence'): continue
+                        date.fromisoformat(entry['effective_from'])
+                        if entry.get('effective_to'): date.fromisoformat(entry['effective_to'])
+                        acquired=_time(entry['acquired_at'])
+                        if acquired>now: continue
+                        valid.append({**{k:entry.get(k) for k in ('sector','effective_from','effective_to','evidence','acquired_at')},
+                                      'mapping_archive_sha256':mapping_path.stem})
+                    except (KeyError,ValueError,TypeError,AttributeError): continue
+                if valid: sector_history.setdefault(key,[]).extend(valid)
+      except (OSError,ValueError,TypeError,AttributeError,UnicodeError): continue
     diagnostics={p:{'accepted_captures':0,'invalid_captures':0} for p in SOURCE_PRIORITY}
     intake=root.parent/'jse-strategy-research/data/p1-prospective-events-2026-10-28/intake'
     def captures():
@@ -349,8 +398,13 @@ def load_zebra_screen_data(root=None, now=None, *, max_rows=None):
         yield from _sharedata_captures(folder/'sharedata-prices',codes,now,diagnostics)
         yield from _eodhd_captures(folder,codes,now,diagnostics)
         yield from _iress_captures(intake,codes,now,diagnostics)
+        yield from _prospective_iress_captures(folder,codes,now,diagnostics)
         yield from _ost_captures(folder,codes,now,diagnostics)
-    data=merge_captures(captures(),now=now,max_rows=max_rows)
+    # Restrict merging, not identity validation: an individual research view
+    # need not normalize every other issuer's entire archive.
+    selected=set(instruments) if instruments is not None else None
+    data=merge_captures((c for c in captures() if selected is None or c['instrument'] in selected),
+                        now=now,max_rows=max_rows)
     from market_chart_registry import MARKET_CHART_INSTRUMENTS
     for key,item in data.items():
         info=catalog.get(key,{}); label=labels.get(key,{})
@@ -363,6 +417,7 @@ def load_zebra_screen_data(root=None, now=None, *, max_rows=None):
         item.update(name=info.get('name',key),symbol=codes[key]+'.JO',
             sector=label.get('sector','Unclassified'),industry=label.get('industry','Unspecified'),
             asset_class=asset_class,asset_class_basis=class_basis)
+        item['sector_history']=sector_history.get(key,[])
         item['source_summary']=sorted({source for row in item['rows'] for v in row['fields'].values()
                                        for source in [v['source'], *(a['source'] for a in v['alternatives'])] if source})
     return {'state':'AVAILABLE' if data else 'UNAVAILABLE','as_of':now.isoformat(),

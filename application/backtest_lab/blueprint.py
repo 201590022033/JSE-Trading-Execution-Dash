@@ -80,6 +80,119 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         out=jsonify(data);out.headers['Cache-Control']='no-store'
         return out,status
 
+    def component_report(path):
+        if not re.fullmatch(r'[0-9a-f]{64}',path.stem):raise ValueError('invalid study id')
+        raw=path.read_bytes()
+        if len(raw)>64_000_000 or hashlib.sha256(raw).hexdigest()!=path.stem:
+            raise ValueError('component study integrity mismatch')
+        data=json.loads(raw)
+        if data.get('schema')!='bounded-component-diagnostic-v1' or data.get('live_execution') is not False:
+            raise ValueError('invalid component study')
+        return data
+
+    def context_report(path):
+        if not re.fullmatch(r'[0-9a-f]{64}',path.stem):raise ValueError('invalid context report id')
+        raw=path.read_bytes()
+        if len(raw)>16_000_000 or hashlib.sha256(raw).hexdigest()!=path.stem:raise ValueError('context integrity mismatch')
+        body=json.loads(raw)
+        if body.get('schema')!='m5-sens-coverage-v1' or body.get('live_execution') is not False:raise ValueError('invalid context report')
+        return body
+
+    @bp.get('/api/v1/backtest-lab/context-research')
+    def context_research():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        directory=root.parent/'context-research'; reports=[]
+        if directory.is_dir():
+            for path in sorted(directory.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:100]:
+                try:
+                    body=context_report(path)
+                    reports.append({'report_id':path.stem,'instrument':body['instrument'],'created_at':body['created_at'],
+                        'coverage':body['coverage'],'source_count':len(body['relevant_sources']),'experiment_id':body['experiment_id']})
+                except (OSError,ValueError,KeyError,TypeError):continue
+        return response({'state':'AVAILABLE','reports':reports})
+
+    @bp.get('/api/v1/backtest-lab/context-research/<report_id>')
+    def context_research_detail(report_id):
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        if not re.fullmatch(r'[0-9a-f]{64}',report_id):return response({'state':'NOT_FOUND'},404)
+        try:return response({'state':'AVAILABLE','report':context_report(root.parent/'context-research'/(report_id+'.json'))})
+        except (OSError,ValueError,KeyError,TypeError):return response({'state':'NOT_FOUND'},404)
+
+    @bp.get('/api/v1/backtest-lab/context-proxies')
+    def context_proxies():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        directory=root.parent/'context-research';reports=[]
+        if directory.is_dir():
+            for path in sorted(directory.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:100]:
+                try:
+                    raw=path.read_bytes()
+                    if len(raw)>16_000_000 or hashlib.sha256(raw).hexdigest()!=path.stem:continue
+                    body=json.loads(raw)
+                    if body.get('schema')=='m5-proxy-comparison-v1' and body.get('live_execution') is False:
+                        reports.append({'report_id':path.stem,'instrument':body['instrument'],
+                            'created_at':body['created_at'],'sources':body['sources'],
+                            'comparisons':{k:v['comparisons'] for k,v in body['stages'].items()},
+                            'limitations':body['limitations']})
+                except (OSError,ValueError,KeyError,TypeError):continue
+        return response({'state':'AVAILABLE','reports':reports})
+
+    @bp.get('/api/v1/backtest-lab/learning-status')
+    def learning_status():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        directory=root.parent/'component-learning'; reports=[]
+        if directory.is_dir():
+            for path in sorted(directory.glob('*.json')):
+                if not re.fullmatch(r'[A-Z0-9_]{2,16}',path.stem):continue
+                try:
+                    if path.stat().st_size>1_000_000:continue
+                    body=json.loads(path.read_text(encoding='utf-8'))
+                    if body.get('schema')=='component-learning-status-v1' and body.get('live_execution') is False:
+                        reports.append(body)
+                except (OSError,ValueError,TypeError):continue
+        from application.backtest_lab.sector_learning import pooled
+        return response({'state':'AVAILABLE','reports':reports,'sector_comparisons':pooled(reports)['groups']})
+
+    @bp.get('/api/v1/backtest-lab/learning-artifacts/<artifact_id>')
+    def learning_artifact(artifact_id):
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        if not re.fullmatch(r'[0-9a-f]{64}',artifact_id):return response({'state':'NOT_FOUND'},404)
+        for kind in ('artifacts','inputs'):
+            try:
+                raw=(root.parent/'component-learning'/kind/(artifact_id+'.json')).read_bytes()
+                if len(raw)>64_000_000 or hashlib.sha256(raw).hexdigest()!=artifact_id:continue
+                return response({'state':'AVAILABLE','artifact':json.loads(raw)})
+            except (OSError,ValueError,UnicodeDecodeError):continue
+        return response({'state':'NOT_FOUND'},404)
+
+    @bp.get('/api/v1/backtest-lab/component-studies')
+    def component_studies():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        directory=root.parent/'component-research'
+        if not directory.is_dir():return response({'state':'AVAILABLE','studies':[]})
+        studies=[]
+        for path in sorted(directory.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:100]:
+            try:
+                data=component_report(path)
+                studies.append({'study_id':path.stem,'window':data['window'],'trial_count':data['trial_count'],
+                                'instrument':data['trials'][0]['result']['instrument'] if data.get('trials') else None,
+                                'limitations':data.get('limitations',[])})
+            except (OSError,ValueError,KeyError,TypeError,AttributeError):continue
+        return response({'state':'AVAILABLE','studies':studies})
+
+    @bp.get('/api/v1/backtest-lab/component-studies/<study_id>')
+    def component_study(study_id):
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        if not re.fullmatch(r'[0-9a-f]{64}',study_id):return response({'state':'NOT_FOUND'},404)
+        try:return response({'state':'AVAILABLE','study':component_report(root.parent/'component-research'/(study_id+'.json'))})
+        except (OSError,ValueError,KeyError,TypeError,AttributeError):return response({'state':'NOT_FOUND'},404)
+
     @bp.get('/api/v1/backtest-lab/zebra-fields/<instrument>')
     def zebra_field_history(instrument):
         """Expose field availability and retained provenance for research."""
@@ -87,7 +200,7 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
             return response({'state':'INVALID_INSTRUMENT'},400)
         from application.opportunities.zebra_screen_data import load_zebra_screen_data
         from application.backtest_lab.zebra_field_windows import describe
-        data=load_zebra_screen_data(max_rows=600)
+        data=load_zebra_screen_data(max_rows=600, instruments={instrument,'ETF_STX40','ETF_STXFIN','ETF_STXRES','ETF_STXIND'})
         if instrument not in data['instruments']:
             return response({'state':'UNAVAILABLE','instrument':instrument},404)
         # The benchmark selection sees the complete instrument catalog.

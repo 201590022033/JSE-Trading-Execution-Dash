@@ -29,4 +29,13 @@ class ZebraReplayV2Tests(unittest.TestCase):
   with TemporaryDirectory() as d:
    p=Path(d)/(first['meta']['config_hash']+'.json');p.write_text(json.dumps(first),encoding='utf-8')
    self.assertEqual(_read(Path(d),p.stem)['meta']['config_hash'],p.stem)
+  switch=rows[60]['session']
+  data['instruments']['BTI']['sector_history']=[
+   {'sector':'Financials','effective_from':rows[0]['session'],'effective_to':rows[59]['session'],'evidence':'archive:A'},
+   {'sector':'Mining','effective_from':switch,'evidence':'archive:B'}]
+  for key in ('ETF_STXFIN','ETF_STXRES'):
+   data['instruments'][key]={'asset_class':'index_etf','rows':rows}
+  dated=build(data)['meta']['sector_benchmarks_by_session']['BTI']
+  self.assertEqual(dated[rows[55]['session']]['instrument'],'ETF_STXFIN')
+  self.assertEqual(dated[switch]['instrument'],'ETF_STXRES')
 if __name__=='__main__':unittest.main()

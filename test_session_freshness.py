@@ -8,6 +8,10 @@ def now(value):
 
 
 class SessionFreshnessTests(unittest.TestCase):
+    def test_2026_election_holiday_preserves_november_third_close(self):
+        from application.opportunities.session_freshness import next_session
+        self.assertEqual(latest_expected_session(now('2026-11-05T09:00:00')),'2026-11-03')
+        self.assertEqual(next_session('2026-11-03'),'2026-11-05')
     def test_weekend_and_public_holiday_preserve_last_session(self):
         # Good Friday and Easter Monday: Thursday remains the latest close.
         instant = now('2026-04-07T06:00:00')

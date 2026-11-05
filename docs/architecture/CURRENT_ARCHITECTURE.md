@@ -1,3 +1,7 @@
+## M5 research context — 5 November 2026
+
+The component research lane can read optional, source-clocked SENS, Hermes and calendar evidence into training-only proposer context. Reconstructed Brent and USD/ZAR captures provide a separately labelled descriptive overlay; price-only studies do not depend on them. Read-only dashboard routes expose saved coverage and comparisons. No model or broker operation is triggered by reads. See ADR0094 and `docs/changes/2026-11-05-m5-macro-proxy-cycle.md`.
+
 ## Public SENS source delivery — 28 October 2026
 
 The local radar capture slots consume a bounded, replay-verified public SENS

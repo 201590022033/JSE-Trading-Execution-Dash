@@ -116,6 +116,44 @@ class ZebraScreenDataTests(unittest.TestCase):
         self.assertEqual(data['instruments']['ETF_STX40']['asset_class'],'index_etf')
         self.assertEqual(data['instruments']['AGOGE']['asset_class'],'listed_etf')
 
+    def test_dated_sector_mappings_require_hash_and_actual_receipt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp)/'runtime/local-swing-data/dated-sector-mappings';folder.mkdir(parents=True)
+            item={'schema':'dated-sector-mappings-v1','instruments':{'SASOL':[
+                {'sector':'Energy','effective_from':'2025-01-01','evidence':'issuer:record',
+                 'acquired_at':'2026-11-04T07:00:00+00:00'},
+                {'sector':'Mining','effective_from':'2026-01-01','evidence':'future:record',
+                 'acquired_at':'2027-01-01T00:00:00+00:00'}]}}
+            raw=json.dumps(item).encode();digest=sha256(raw).hexdigest()
+            (folder/(digest+'.json')).write_bytes(raw)
+            (folder/('a'*64+'.json')).write_bytes(raw)
+            captures=[cap('YAHOO',[{'session':'2026-11-02','close':10}],instrument='SASOL')]
+            with patch('application.opportunities.zebra_screen_data._public_captures',return_value=iter(captures)):
+                result=load_zebra_screen_data(tmp,NOW,instruments={'SASOL'})
+            mappings=result['instruments']['SASOL']['sector_history']
+            self.assertEqual(len(mappings),1)
+            self.assertEqual(mappings[0]['mapping_archive_sha256'],digest)
+            self.assertEqual(mappings[0]['sector'],'Energy')
+
+    def test_prospective_iress_receipt_is_raw_verified_and_retains_older_history(self):
+        from application.opportunities.source_resolution import parse_iress_export
+        from application.opportunities.prospective_prices import record_capture
+        from application.opportunities.zebra_screen_data import _prospective_iress_captures
+        from datetime import timedelta
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);acquired=NOW-timedelta(hours=1)
+            raw=b'Date,Open,High,Low,Close,Volume\n02/11/2026,1000,1100,900,1050,100\n'
+            digest=sha256(raw).hexdigest();archive=folder/'alternative-exports';archive.mkdir()
+            (archive/('SASOL-IRESS-'+digest+'.csv')).write_bytes(raw)
+            chart=parse_iress_export(raw,'SASOL','SOL.JSE',acquired.isoformat(),acquired)
+            record_capture(folder,'SASOL','IRESS',chart,acquired.isoformat(),digest)
+            diagnostic={'IRESS':{'accepted_captures':0,'invalid_captures':0}}
+            captures=list(_prospective_iress_captures(folder,{'SASOL':'SOL'},NOW,diagnostic))
+            self.assertEqual(captures[0]['rows'][0]['close'],10.5)
+            self.assertEqual(captures[0]['field_receipts']['close']['source_sha256'],digest)
+            (archive/('SASOL-IRESS-'+digest+'.csv')).write_bytes(raw+b'bad')
+            self.assertEqual(list(_prospective_iress_captures(folder,{'SASOL':'SOL'},NOW,diagnostic)),[])
+
     def test_screen_discovery_requires_exact_yahoo_equity_exchange_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder=Path(tmp); diagnostics={'YAHOO':{'accepted_captures':0,'invalid_captures':0}}

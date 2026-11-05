@@ -37,21 +37,25 @@ def build(data, selected=None, segment_index=-1):
         provenance={'provider':'ZEBRA_FIELD_BRANCH','source_sha256':latest['source_sha256'],
                     'acquired_at':latest['acquired_at']}
         charts[key]=rows;manifests.append(from_chart(key,{'bars':rows,'provenance':provenance}))
-        proxies[key]=benchmark_for(item,instruments)
+        proxies[key]=benchmark_for(item,instruments,segment[-1]['session'])
     if not manifests: raise ValueError('no complete contiguous 52-session OHLCV research segment')
     for name,item in instruments.items():
         if item.get('asset_class') in ('index_etf','listed_etf'):
             charts[name]=[{'timestamp':r['session'],'close':r['close']} for r in item['rows'] if r.get('close') is not None]
     as_of=max(b.available_at for m in manifests for b in m.bars)+timedelta(days=8)
     costs=Costs(fee_bps=Decimal(8),minimum_fee=Decimal(60),spread_bps=Decimal(20),slippage_bps=Decimal(5))
+    # Freeze the mapping used for each observation; benchmark availability and
+    # dated classifications can change during a replay.
+    benchmark_by_day={m.instrument:{row['timestamp']:benchmark_for(instruments[m.instrument],instruments,row['timestamp'])
+                                    for row in charts[m.instrument]} for m in manifests}
     results=[]
     for sid,name,profile,version in PROFILES:
         signals=[];traces=[];rejected=[];count=0;passed=None;last_conditions=[]
         for m in manifests:
             rows=charts[m.instrument]; local=dict(charts)
-            benchmark=proxies[m.instrument]['instrument']
-            local['ETF_STX40']=charts.get(benchmark,[]) if benchmark else []
             for i in range(50,len(rows)):
+                benchmark=benchmark_by_day[m.instrument][rows[i]['timestamp']]['instrument']
+                local['ETF_STX40']=charts.get(benchmark,[]) if benchmark else []
                 conditions,stop=evaluate_mixed(sid,m.instrument,i,local)
                 if not conditions: continue
                 last_conditions=conditions;count+=1
@@ -87,7 +91,8 @@ def build(data, selected=None, segment_index=-1):
         'SECTOR_CLASSIFICATION_IS_CURRENT_RESEARCH_PROXY'],
         'cost_basis':costs.basis,'initial_cash':1000000,'created_at':as_of.isoformat(),
         'created_at_basis':'RECONSTRUCTED_REPLAY_AS_OF_NOT_WALL_CLOCK','data_basis':'ZEBRA_FIELD_RESEARCH_V2',
-        'coverage':coverage,'sector_benchmarks':proxies,'field_lineage':field_lineage,'live_execution':False}
+        'coverage':coverage,'sector_benchmarks':proxies,'sector_benchmarks_by_session':benchmark_by_day,
+        'field_lineage':field_lineage,'live_execution':False}
     identity={'bars':bars,'strategies':results,'meta':meta}
     digest=sha256(json.dumps(identity,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
     return {**identity,'meta':{**meta,'config_hash':digest}}
@@ -99,7 +104,9 @@ def main():
     args=p.parse_args()
     folder=Path(args.output_dir or os.environ.get('LOCAL_BACKTEST_REPORT_DIR',''))/'lab'
     if not args.output_dir and not os.environ.get('LOCAL_BACKTEST_REPORT_DIR'):p.error('set output directory')
-    run=build(load_zebra_screen_data(),set(args.instrument) if args.instrument else None,args.segment_index)
+    selected=set(args.instrument) if args.instrument else None
+    capture_keys=(selected | {'ETF_STX40','ETF_STXFIN','ETF_STXRES','ETF_STXIND'}) if selected else None
+    run=build(load_zebra_screen_data(instruments=capture_keys),selected,args.segment_index)
     folder.mkdir(parents=True,exist_ok=True);target=folder/(run['meta']['config_hash']+'.json')
     raw=(json.dumps(run,sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False)+'\n').encode()
     if target.exists() and target.read_bytes()!=raw:raise ValueError('frozen report collision')

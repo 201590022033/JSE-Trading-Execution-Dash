@@ -30,6 +30,23 @@ class ZebraFieldWindowsTests(unittest.TestCase):
         rows=[{'session':'2025-01-03','close':1},{'session':'2025-01-06','close':2},
               {'session':'2025-01-08','close':3}]
         self.assertEqual([len(s) for s in valid_segments(rows)],[2,1])
+    def test_dated_sector_change_and_per_session_fallback(self):
+        item={'sector':'Mining','sector_history':[
+            {'sector':'Financials','effective_from':'2025-01-01','effective_to':'2025-12-31',
+             'evidence':'retained:sector-2025','acquired_at':'2026-01-02T00:00:00Z'},
+            {'sector':'Mining','effective_from':'2026-01-01','evidence':'retained:sector-2026'}]}
+        data={'ETF_STXFIN':{'rows':[{'session':'2025-11-04','close':1}]},
+              'ETF_STXRES':{'rows':[{'session':'2026-11-04','close':2}]},
+              'ETF_STX40':{'rows':[{'session':'2026-11-05','close':3}]}}
+        old=benchmark_for(item,data,'2025-11-04');new=benchmark_for(item,data,'2026-11-04')
+        self.assertEqual((old['instrument'],old['basis']),('ETF_STXFIN','DATED_SECTOR_MAPPING'))
+        self.assertEqual(old['mapping']['acquired_at'],'2026-01-02T00:00:00Z')
+        self.assertEqual(old['mapping_knowledge'],'ACQUIRED_AFTER_SESSION_RETROSPECTIVE')
+        self.assertEqual(new['instrument'],'ETF_STXRES')
+        self.assertEqual(benchmark_for(item,data,'2026-11-05')['instrument'],'ETF_STX40')
+        self.assertIsNone(benchmark_for(item,data,'2026-11-06')['instrument'])
+        self.assertEqual(benchmark_for(item,data,'2024-11-04')['sector_basis'],
+                         'CURRENT_SECTOR_PROXY_NOT_HISTORICAL_MEMBERSHIP')
     def test_close_only_technical_values_do_not_need_open_or_volume(self):
         from application.opportunities.session_freshness import next_session
         day='2026-01-02'; rows=[]

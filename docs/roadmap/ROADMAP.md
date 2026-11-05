@@ -1,3 +1,7 @@
+## M5 macro and context research — 5 November 2026
+
+M5 is active within the existing research redesign: source-clocked optional SENS, news and calendar context and labelled Brent/FX descriptive comparisons are available. The first matched subset is tiny; genuine context-dependent replay, structured fundamental evidence and prospective outcomes remain open. See ADR0094 and `docs/changes/2026-11-05-m5-macro-proxy-cycle.md`.
+
 ## Daily public SENS discovery — 28 October 2026
 
 The scheduled local radar intake now receives verified Moneyweb and ShareData
