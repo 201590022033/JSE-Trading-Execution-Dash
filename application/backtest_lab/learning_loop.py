@@ -224,9 +224,10 @@ def run_cycle(repo, manifest, charts, baseline, *, artifact_dir, budget=8, propo
         raise ValueError('bounded budget and cycle required')
     split = split_sessions(manifest); sessions = manifest.sessions
     from datetime import timedelta
-    from application.backtest_lab.research_context import evaluate as evaluate_context
+    from application.backtest_lab.research_context import evaluate as evaluate_context, fundamental_facts
     training_cutoff=(manifest.bars[split['train'][1]].available_at+timedelta(seconds=1)).isoformat()
-    usable_context=evaluate_context(context_items,manifest.instrument,training_cutoff)['available']
+    usable_context=[{**item,'fundamental_facts':fundamental_facts(item)} for item in
+                    evaluate_context(context_items,manifest.instrument,training_cutoff)['available']]
     version = '1'
     root=Path(__file__).resolve().parents[2]
     code_hashes={name:sha256((root/name).read_bytes()).hexdigest() for name in

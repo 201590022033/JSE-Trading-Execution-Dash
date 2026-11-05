@@ -88,6 +88,30 @@ def calendar_item(record):
         'instrument':None,'mapping_basis':'CALENDAR_SOURCE_RELEVANCE_UNREVIEWED',
         'revision_id':record['record_id'],'headline':title[:300],'excerpt':body[:1500]}
 
+def fundamental_facts(item):
+    """Extract only explicitly phrased percentage changes with a source quote.
+
+    The statement period remains unknown unless separately verified. These are
+    research leads rather than a normalized financial-statement database.
+    """
+    import re
+    text=item.get('excerpt') or ''
+    pattern=re.compile(r'\b(revenue|headline earnings per share|earnings per share)\s+'
+        r'(increased|decreased|rose|fell)\s+by\s+(\d+(?:\.\d+)?)\s*(?:%|per cent)(?!\w)',re.IGNORECASE)
+    facts=[]
+    for match in pattern.finditer(text):
+        direction=match.group(2).lower();value=float(match.group(3))
+        from math import isfinite
+        if not isfinite(value):continue
+        if direction in ('decreased','fell'):value=-value
+        facts.append({'metric':match.group(1).lower(),'change_pct':value,'period':'UNKNOWN',
+            'quote':match.group(0),'source_id':item.get('source_id'),'url':item.get('url'),
+            'published_at':item.get('published_at'),'acquired_at':item.get('acquired_at'),
+            'source_received_at':item.get('source_received_at'),'received_at':item.get('received_at'),
+            'content_sha256':item.get('content_sha256'),'revision_id':item.get('revision_id'),
+            'basis':'EXPLICIT_TEXT_PATTERN_UNREVIEWED'})
+    return facts
+
 def evaluate(items,instrument,decision_at,*,sector=None):
     """Partition directly relevant items; keep late/unknown revisions visible."""
     cutoff=_at(decision_at)

@@ -1,3 +1,11 @@
+## Research redesign: M5 Sasol evidence timeline — 5 November 2026
+
+Retained issuer documents, extracted source-quoted financial values, Zebra history, resources ETF, Brent and USD/ZAR now connect to Sasol trade cases and retrospective proxy-filter replays. A user-invoked research brief exposes the selected case without a model call. Sample sizes remain very small; capture timing is explicit and M5 remains open. See `docs/changes/2026-11-05-sasol-context-research.md`.
+
+## Research redesign: M5 matched context replay — 5 November 2026
+
+A price-only control and an event-context candidate now run through the same daily engine with retained source clocks and evidence. Sasol/BAT first runs were identical because no recent source was eligible; this is not evidence of improvement. A narrow source-quoted fundamental percentage adapter is available; richer factual coverage and prospectively available context remain open. See `docs/changes/2026-11-05-m5-matched-replay.md`. M5 remains open.
+
 ## Research redesign: M5 macro and proxy context cycle — 5 November 2026
 
 Calendar-source macro leads and keyword-only fundamental tags join the retained SENS/Hermes archive. Eligible context can reach the training-only proposer, while later or unknown evidence remains an annotation. A USD/ZAR reference was captured and a labelled Sasol Brent/FX trade-subset comparison was retained. M5 remains open for a genuine matched context-dependent replay, structured fundamentals and prospective evidence. See `docs/changes/2026-11-05-m5-macro-proxy-cycle.md`.

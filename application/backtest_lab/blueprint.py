@@ -98,6 +98,22 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         if body.get('schema')!='m5-sens-coverage-v1' or body.get('live_execution') is not False:raise ValueError('invalid context report')
         return body
 
+    @bp.get('/api/v1/backtest-lab/sasol-timeline')
+    def sasol_timeline():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        directory=root.parent/'context-research'
+        if directory.is_dir():
+            for path in sorted(directory.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:100]:
+                try:
+                    raw=path.read_bytes()
+                    if len(raw)>32_000_000 or hashlib.sha256(raw).hexdigest()!=path.stem:continue
+                    report=json.loads(raw)
+                    if report.get('schema')=='sasol-research-timeline-v1' and report.get('live_execution') is False:
+                        return response({'state':'AVAILABLE','report_id':path.stem,'report':report})
+                except (OSError,ValueError,KeyError,TypeError):continue
+        return response({'state':'UNAVAILABLE','reason':'No retained Sasol timeline'},503)
+
     @bp.get('/api/v1/backtest-lab/context-research')
     def context_research():
         root=folder()
@@ -138,6 +154,56 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
                             'limitations':body['limitations']})
                 except (OSError,ValueError,KeyError,TypeError):continue
         return response({'state':'AVAILABLE','reports':reports})
+
+    @bp.get('/api/v1/backtest-lab/context-matched')
+    def context_matched():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        directory=root.parent/'context-research';reports=[]
+        if directory.is_dir():
+            for path in sorted(directory.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:100]:
+                try:
+                    raw=path.read_bytes()
+                    if len(raw)>32_000_000 or hashlib.sha256(raw).hexdigest()!=path.stem:continue
+                    body=json.loads(raw)
+                    if body.get('schema')!='m5-matched-context-study-v1' or body.get('live_execution') is not False:continue
+                    summaries={}
+                    for stage,value in body['results'].items():
+                        summaries[stage]={'baseline_signals':len(value['baseline']['signals']),
+                            'baseline_trades':len(value['baseline']['trades']),
+                            'baseline_net':round(sum(float(t['net_pnl']) for t in value['baseline']['trades']),2),
+                            'candidate_signals':len(value['candidate']['signals']),
+                            'candidate_trades':len(value['candidate']['trades']),
+                            'candidate_net':round(sum(float(t['net_pnl']) for t in value['candidate']['trades']),2),
+                            'suppressed':sum(x['candidate_state']=='CONTEXT_SUPPRESSED' for x in value['context_checks'])}
+                    proxy_variants={}
+                    for stage,variants in body.get('proxy_variants',{}).items():
+                        proxy_variants[stage]={name:{'signals':len(v['candidate']['signals']),
+                            'trades':len(v['candidate']['trades']),
+                            'net':round(sum(float(t['net_pnl']) for t in v['candidate']['trades']),2),
+                            'suppressed':sum(x['candidate_state']=='CONTEXT_SUPPRESSED' for x in v['context_checks']),
+                            'reference_available':sum(x['baseline_state']=='SIGNAL' and x.get('proxy_reference') is not None for x in v['context_checks']),
+                            'reference_missing':sum(x['baseline_state']=='SIGNAL' and x.get('proxy_reference') is None for x in v['context_checks'])}
+                            for name,v in variants.items()}
+                    reports.append({'report_id':path.stem,'instrument':body['instrument'],'family':body.get('family','swing'),
+                                    'created_at':body['created_at'],'stages':summaries,
+                                    'proxy_variants':proxy_variants,'proxy_receipts':body.get('proxy_receipts',{}),
+                                    'proxy_trial_count':body.get('proxy_trial_count',0)})
+                except (OSError,ValueError,KeyError,TypeError):continue
+        return response({'state':'AVAILABLE','reports':reports})
+
+    @bp.get('/api/v1/backtest-lab/context-matched/<report_id>')
+    def context_matched_detail(report_id):
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        if not re.fullmatch(r'[0-9a-f]{64}',report_id):return response({'state':'NOT_FOUND'},404)
+        try:
+            raw=(root.parent/'context-research'/(report_id+'.json')).read_bytes()
+            if len(raw)>32_000_000 or hashlib.sha256(raw).hexdigest()!=report_id:raise ValueError('integrity mismatch')
+            body=json.loads(raw)
+            if body.get('schema')!='m5-matched-context-study-v1' or body.get('live_execution') is not False:raise ValueError('invalid report')
+            return response({'state':'AVAILABLE','report':body})
+        except (OSError,ValueError,KeyError,TypeError):return response({'state':'NOT_FOUND'},404)
 
     @bp.get('/api/v1/backtest-lab/learning-status')
     def learning_status():
