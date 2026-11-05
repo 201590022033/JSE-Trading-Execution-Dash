@@ -1,0 +1,9 @@
+# Sector and instrument research wiring
+
+The research taxonomy groups the current frozen 34-instrument replay by sector and industry. Broad sectors are local research groupings, while detailed industry names use the source URLs stored in the taxonomy. Future Backtest Lab runs include the taxonomy in the frozen run metadata. Older runs are analysed using the current taxonomy and explicitly identified as such.
+
+The sector-research endpoint derives closed-trade contributions and exploratory sector hypothesis leads from the selected frozen portfolio replay. Its default instrument contender is the tested strategy with the highest closed-trade net P&L among strategies that actually traded that instrument. A positive result is a backtested top contender, a negative result is the least negative observed result, and no-trade strategies cannot become a contender. These are retrospective, shared-cash results, not sector-only replays, validated forecasts, a recommendation, or live execution.
+
+The legacy swing hypothesis evaluator includes sector and instrument summaries, and its explicit CLI supports a sector scope. Sector-scoped proposals retain the existing single daily model-call budget, training/holdout split and separate research identity. No model call was made for this change. The existing legacy v3 input restriction still applies: these changes do not claim that the Zebra v3 dataset can currently enter that AI hypothesis loop. Backtest Lab sector analysis uses the frozen replay instead.
+
+The detailed industry sources include [Sharenet's JSE instrument listing](https://www.sharenet.co.za/v3/dnfile_full.php), [BAT's tobacco classification](https://dn.sharenet.co.za/v3/quickshare.php?scode=BTI), and [Sasol's diversified chemicals classification](https://dn.sharenet.co.za/v3/quickshare.php?scode=SOL). The broad Sasol research sector remains Energy; it is not represented as an official exchange classification.

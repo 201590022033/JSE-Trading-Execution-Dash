@@ -4,11 +4,12 @@ from datetime import timedelta
 from pathlib import Path
 import tempfile
 import unittest
+import requests
 from unittest.mock import Mock, patch
 from flask import Flask
 
 from application.opportunities.swing_research import (accept_dataset, validate_dataset, validate_proposal,
-    run_research, latest_dataset, UploadedFetcher, BASELINE, ACCOUNT, evaluate)
+    run_research, latest_dataset, UploadedFetcher, BASELINE, ACCOUNT, evaluate, proposal_failure_code)
 from application.opportunities.swing_research_api import create_research_blueprint
 from persistence.sqlite_repository import SQLiteRepository
 from persistence.postgres_repository import PostgresRepository
@@ -103,6 +104,35 @@ class ResearchTests(unittest.TestCase):
         self.assertIsNone(result["proposal"])
         self.assertIsNone(result["holdout_variant"])
         self.assertNotIn("private details", str(result))
+        self.assertEqual(result['proposal_failure_code'], 'PROPOSAL_UNEXPECTED_ERROR')
+
+    def test_proposal_errors_are_classified_without_exception_text(self):
+        response = requests.Response()
+        response.status_code = 429
+        for exc, code in [(requests.Timeout('secret'), 'PROVIDER_TIMEOUT'),
+                          (requests.HTTPError('secret', response=response), 'PROVIDER_RATE_OR_QUOTA_LIMIT'),
+                          (requests.ConnectionError('secret'), 'PROVIDER_CONNECTION_ERROR'),
+                          (ValueError('secret'), 'PROVIDER_RESPONSE_OR_HYPOTHESIS_INVALID')]:
+            self.assertEqual(proposal_failure_code(exc), code)
+
+    def test_evaluation_reports_monotonic_condition_funnel(self):
+        data = validate_dataset(self.data, self.now)
+        bars = data['charts']['TFMJ']['bars']
+        result = evaluate(data['charts'], BASELINE, bars[50]['timestamp'], bars[-1]['timestamp'])
+        funnel = result['funnel_by_instrument']['TFMJ']
+        self.assertGreater(funnel['checked'], 0)
+        counts = [funnel['checked'] - funnel['features_unavailable'], *funnel['passed']]
+        self.assertTrue(all(a >= b for a, b in zip(counts, counts[1:])))
+
+    def test_feature_cache_does_not_change_research_results(self):
+        data = validate_dataset(self.data, self.now)
+        bars = data['charts']['TFMJ']['bars']
+        args = (data['charts'], BASELINE, bars[50]['timestamp'], bars[-1]['timestamp'])
+        uncached = evaluate(*args, research_entry='CLOSE_ABOVE_EMA50')
+        cache = {}
+        evaluate(*args, feature_cache=cache)
+        cached = evaluate(*args, research_entry='CLOSE_ABOVE_EMA50', feature_cache=cache)
+        self.assertEqual(uncached, cached)
 
     def test_no_data_or_stale_data_does_not_call_ai(self):
         provider = Mock(side_effect=AssertionError())

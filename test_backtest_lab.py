@@ -1,4 +1,5 @@
 import json
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
@@ -67,6 +68,20 @@ class BacktestLabTests(unittest.TestCase):
             rid=self.save(root); p=Path(root)/'lab'/(rid+'.json')
             value=json.loads(p.read_text());value['meta']['grade']='VERIFIED';p.write_text(json.dumps(value))
             self.assertEqual(self.app(root).get('/api/v1/backtest-lab/runs/'+rid).status_code,404)
+
+    def test_forward_plan_is_read_only_and_content_checked(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder=Path(root)/'prospective';folder.mkdir()
+            plan={'schema':'sector-prospective-comparison-v1','registered_at':'2026-11-04T19:25:22+00:00',
+                  'cases':{},'signal_window':'First 20 observed sessions after registration','limitations':[]}
+            raw=json.dumps(plan,sort_keys=True,separators=(',',':')).encode()
+            path=folder/(hashlib.sha256(raw).hexdigest()+'.json');path.write_bytes(raw)
+            client=self.app(root);response=client.get('/api/v1/backtest-lab/prospective-plans')
+            self.assertEqual(response.status_code,200);self.assertEqual(len(response.json['plans']),1)
+            self.assertEqual(response.json['plans'][0]['state'],'REGISTERED_NOT_AUTOMATICALLY_SCORED')
+            self.assertFalse(response.json['live_execution']);self.assertEqual(response.headers['Cache-Control'],'no-store')
+            path.write_bytes(raw+b' ')
+            self.assertEqual(client.get('/api/v1/backtest-lab/prospective-plans').json['plans'],[])
 
     def test_local_model_subprocess_timeout_is_120_seconds(self):
         from application.backtest_lab.blueprint import local_advice

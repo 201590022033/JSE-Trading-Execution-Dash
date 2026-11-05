@@ -141,6 +141,13 @@ def main():
             print(json.dumps({'radar_public_prices': capture_radar_prices()}, sort_keys=True))
         except Exception as exc:
             print(json.dumps({'radar_public_prices': {'state': 'FAILED', 'error_type': type(exc).__name__}}))
+        # Refresh every mapped research issuer and ETF independently; one
+        # unavailable provider response must not suppress other instruments.
+        try:
+            from scripts.refresh_zebra_sources import run as refresh_sources
+            print(json.dumps({'zebra_source_refresh': refresh_sources(include_eodhd=True)}))
+        except Exception as exc:
+            print(json.dumps({'sharedata_consensus': {'state': 'FAILED_PRIOR_DATA_RETAINED', 'error_type': type(exc).__name__}}))
     from application.opportunities.ost_data import read_primary, fresh_charts, SCHEMA, POLICY
     primary = read_primary(folder)
     if primary is not None:

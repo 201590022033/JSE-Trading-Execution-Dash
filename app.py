@@ -1,5 +1,6 @@
 """OI2 operational dashboard; analysis-only, with no live execution path."""
 import os
+from pathlib import Path
 
 from flask import Flask, g, jsonify, render_template, request
 from flask_socketio import SocketIO
@@ -64,7 +65,14 @@ if paper_config:
 else:
     canonical_opportunity_refresh = OpportunityRefresh(canonical_opportunity_service,
                                                       runner=canonical_refresh_runner)
-app.register_blueprint(create_blueprint(canonical_opportunity_service, canonical_opportunity_refresh))
+zebra_research_screen = None
+zebra_screen_enabled = os.environ.get('ZEBRA_RESEARCH_SCREEN_ENABLED', '1' if paper_config else '0') == '1'
+if zebra_screen_enabled and not os.environ.get('RAILWAY_ENVIRONMENT_ID'):
+    from application.opportunities.zebra_research_screen import ZebraResearchScreen
+    from application.opportunities.zebra_screen_queue import record_research_screen
+    report_root = Path(os.environ.get('LOCAL_BACKTEST_REPORT_DIR') or Path(__file__).resolve().parent/'runtime/local-backtest')
+    zebra_research_screen = ZebraResearchScreen(report_root/'zebra-screen', on_success=record_research_screen)
+app.register_blueprint(create_blueprint(canonical_opportunity_service, canonical_opportunity_refresh, zebra_research_screen))
 from application.strategy_profiles import create_strategy_blueprint
 app.register_blueprint(create_strategy_blueprint())
 from application.opportunities.swing_research_api import create_research_blueprint
@@ -73,6 +81,8 @@ from application.opportunities.local_backtest_reports import create_local_backte
 app.register_blueprint(create_local_backtest_blueprint())
 from application.backtest_lab.blueprint import create_backtest_lab_blueprint
 app.register_blueprint(create_backtest_lab_blueprint())
+from application.opportunities.dashboard_activity import create_dashboard_activity_blueprint
+app.register_blueprint(create_dashboard_activity_blueprint())
 from application.opportunities.learning_overview import create_learning_overview_blueprint
 app.register_blueprint(create_learning_overview_blueprint(runtime_repository))
 from application.opportunities.ost_data_api import create_ost_blueprint
@@ -276,7 +286,14 @@ def market_feed(instrument):
 def news_feed(): return jsonify(feeds.news())
 @app.get("/api/opportunities")
 def opportunities():
-    """Compatibility read model backed only by the canonical M13 service."""
+    """Compatibility read of the local research screen or explicit paper view."""
+    if zebra_research_screen is not None and request.args.get('view') != 'paper':
+        items = zebra_research_screen.listing(limit=10)
+        status = zebra_research_screen.status()
+        return jsonify(state='AVAILABLE' if items else status['state'],
+                       data={'opportunities':items, 'scanned':status['scanned'],
+                             'method':'Zebra research price-momentum ranking', 'execution_enabled':False},
+                       canonical=True, research_screen=True, live_execution=False)
     try:
         items = canonical_opportunity_service.list_opportunities(limit=10)
         status = canonical_opportunity_refresh.status()

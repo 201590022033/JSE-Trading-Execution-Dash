@@ -1,0 +1,5 @@
+# EODHD Zebra collection — 4 November 2026
+
+The existing local swing collector now includes a quota-aware EODHD batch after its Yahoo and ShareData refresh. The batch checks the provider's usage endpoint, reserves one daily call, keeps a local append-only attempt journal, skips same-day repeats, and prioritizes never-attempted and oldest-attempted instruments. It runs only when the existing collector is invoked; no new Windows task is installed.
+
+The first batch added 14 captures; with the earlier Sasol capture, 15 of 38 mapped instruments have retained EODHD history. Datatec's unit check used its hash-bound ShareData history because no Yahoo capture was available. The earlier Heriot request returned empty history and is not counted as a capture. The next invocation after quota resets can continue the remaining instruments. Source receipts, original bytes, actual capture times, and independent-upstream uncertainty remain visible; no claim is made that all named feeds are independent. A pre-existing frozen replay does not automatically incorporate these later observations.

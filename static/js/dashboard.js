@@ -4,7 +4,7 @@ const num = v => Number.isFinite(v) ? v.toLocaleString('en-ZA', {maximumFraction
 const when = v => v ? (Number.isNaN(Date.parse(v)) ? v : new Date(v).toLocaleString('en-ZA')) : 'Not supplied';
 let instruments = [], chartInstruments = [], instrumentClasses = [], canonicalRecords = [], newsSnapshot = null, feedBusy = false, selectionVersion = 0;
 let chartPoll = null, newsPoll = null;
-let canonicalPoll = null, canonicalPollAttempts = 0;
+let canonicalPoll = null, canonicalPollAttempts = 0, canonicalRequestVersion = 0, canonicalDisplayedClass = null;
 let technicalRequestVersion = 0;
 let researchCalendarEvents = [];
 async function api(url, options = {}) {
@@ -130,10 +130,24 @@ async function loadAutomaticTechnicalScreen(instrumentId) {
       return;
     }
   }
-  if (version===technicalRequestVersion && $('#instrument').value===instrumentId) renderAutomaticTechnicalScreen(item,share);
+  if (version===technicalRequestVersion && $('#instrument').value===instrumentId) {
+    if (item?.research_screen) renderZebraTechnicalScreen(item);
+    else renderAutomaticTechnicalScreen(item,share);
+  }
 }
 function reviewTechnicalScreen(item) {
   const share=opportunityShare(item);
+  if (item.research_screen) {
+    $('#instrument').value=share?.instrument_id || '';
+    document.querySelector('nav button[data-tab="technical-view"]').click();
+    selectedChanged(item);
+    if (!share) {
+      chartSelectedChanged();
+      $('#notice').textContent='Saved research evidence is shown below; this share is not yet in the technical chart selector.';
+    }
+    renderZebraTechnicalScreen(item);
+    return;
+  }
   if (!share) return;
   $('#instrument').value=share.instrument_id;
   document.querySelector('nav button[data-tab="technical-view"]').click();
@@ -141,7 +155,38 @@ function reviewTechnicalScreen(item) {
   // Keep the clicked snapshot, even if a newer worker cycle finishes meanwhile.
   renderAutomaticTechnicalScreen(item,share);
 }
-function renderCanonicalCard(item) {
+function renderZebraTechnicalScreen(item) {
+  const technical=item.input_evidence?.technical || {};
+  const pct=value=>Number.isFinite(value)?`${num(value*100)}%`:'Unavailable';
+  $('#canonical-screen-title').textContent=`${item.display_name || item.research_key || item.instrument_id} · ${item.research_key || item.instrument_id}`;
+  $('#canonical-technical-screen').innerHTML=`<div class="canonical-screen-grid">${kv('Price session',item.provenance?.last_usable_session)}${kv('Source',item.provenance?.latest_provider)}${kv('Acquired',when(item.provenance?.latest_acquired_at))}${kv('One observed-session return',pct(technical.return_1d))}${kv('Five observed-session return',pct(technical.return_5d))}${kv('Twenty observed-session return',pct(technical.return_20d))}${kv('Available inputs',(item.feature_coverage?.available || []).join(', ') || 'None reported')}${kv('Missing inputs',(item.feature_coverage?.missing || []).join(', ') || 'None reported')}</div><p class="muted">Historical observations from the saved research screen; dates may contain gaps, and comparative momentum is not a forecast or live quote.</p>`;
+}
+function zebraScreenSummary(refresh,count) {
+  const result=`${count} research candidate${count===1?'':'s'} · ${refresh.scanned || 0} shares checked · ${refresh.unranked || 0} not ranked · ${(refresh.unavailable || []).length} unavailable`;
+  const completed=refresh.last_completed ? ` · last successful screen ${when(refresh.last_completed)}` : '';
+  const expected=refresh.expected_session ? ` · latest expected session ${refresh.expected_session}` : '';
+  if (refresh.running) return `Screening available Zebra histories… ${result}${completed}${expected}`;
+  if (refresh.state==='UNAVAILABLE') return `${result}${completed}${expected} · latest screen failed; any earlier results remain dated as shown.`;
+  if (refresh.state==='NOT_RUN') return 'No Zebra screen has run yet. Use “Run screen & rank” to start one.';
+  return result+completed+expected+'.';
+}
+function renderZebraCard(item,expectedSession=null) {
+  const p=item.provenance || {}, technical=item.input_evidence?.technical || {}, coverage=item.feature_coverage || {};
+  const pct=value=>Number.isFinite(value)?`${num(value*100)}%`:'Unavailable';
+  const close=Number.isFinite(item.close_zar) ? `R ${num(item.close_zar)}` : 'Unavailable';
+  const session=p.last_usable_session || item.latest_session;
+  const freshness=expectedSession && session ? (session===expectedSession ? 'Latest expected completed session' : `Expected ${expectedSession}; retained history through ${session}`) : 'Expected session not supplied';
+  return `<article class="panel canonical-card" data-opportunity-id="${esc(item.opportunity_id)}" data-research-only="true">
+    <div class="row"><div><span class="canonical-rank">Rank ${esc(item.rank)}</span><h3>${esc(item.display_name || item.research_key || item.instrument_id)} · ${esc(item.research_key || item.instrument_id)}</h3><span class="canonical-status">RESEARCH SCREEN</span></div><div><div class="canonical-score">${esc(item.ranking_score == null ? 'Not scored' : `${num(item.ranking_score)} / 100`)}</div><small>Comparative research score</small></div></div>
+    ${kv('Sector',item.sector)}${kv('Last completed session',session)}${kv('Session freshness',freshness)}${kv('Historical close',close)}${kv('Close source',p.latest_provider)}${kv('Source acquired',when(p.latest_acquired_at))}${kv('Observed closes',coverage.observed_closes)}
+    <h4>Available price evidence</h4>${kv('One observed-session return',pct(technical.return_1d))}${kv('Five observed-session return',pct(technical.return_5d))}${kv('Twenty observed-session return',pct(technical.return_20d))}${kv('Available features',(coverage.available || []).join(', ') || 'None reported')}${kv('Missing features',(coverage.missing || []).join(', ') || 'None reported')}
+    <small class="muted">Comparative price-momentum screen, not a probability of profit, a live quote or a trade recommendation.</small>${canonicalList(item.reasons,'No ranking reasons supplied.')}${canonicalList(item.uncertainty,'No additional uncertainty supplied.')}
+    <div class="paper-trade-actions"><button type="button" data-review-technical>Review technical screen</button></div>
+    <details><summary>Research provenance and trading boundary</summary><div class="canonical-detail" role="region" aria-label="Research detail for ${esc(item.research_key || item.instrument_id)}"><p class="muted">Open to inspect the source record.</p></div></details>
+  </article>`;
+}
+function renderCanonicalCard(item, refresh={}) {
+  if (item.research_screen) return renderZebraCard(item,refresh.expected_session);
   const regime = item.regime_context || {}, divergence = item.divergence_summary || {}, evidence = item.feature_evidence_summary || {};
   const components=item.ranking_components || {};
   const share = instruments.find(i=>i.yahoo_symbol === item.provenance?.data_symbol);
@@ -181,38 +226,55 @@ async function loadCanonicalDetail(card) {
   } catch(error) { node.innerHTML=`<p class="unavailable">Detail unavailable: ${esc(error.message)}</p>`; }
 }
 async function refreshCanonicalOpportunities(trigger=false) {
-  const status=$('#canonical-status'),cards=$('#canonical-cards');status.textContent='Refreshing canonical ranking…';
+  const status=$('#canonical-status'),cards=$('#canonical-cards'),version=++canonicalRequestVersion;
+  const selectedClass=$('#canonical-asset-class')?.value || 'cash_equity';
+  const previousRecords=canonicalRecords;
+  status.textContent=trigger && selectedClass!=='index_etf'?'Starting research screen…':'Reading latest research screen…';
   try {
-    if (trigger) {
+    if (trigger && selectedClass!=='index_etf') {
       clearTimeout(canonicalPoll); canonicalPollAttempts=0;
       await canonicalFetch('/api/v1/opportunities/refresh',{method:'POST'});
     }
-    const selectedClass=$('#canonical-asset-class')?.value || 'cash_equity';
+    if(version!==canonicalRequestVersion)return;
     const result=await canonicalFetch(selectedClass==='index_etf' ? '/api/v1/opportunities?asset_class=index_etf' : '/api/v1/opportunities');
+    if(version!==canonicalRequestVersion)return;
     canonicalRecords=result.opportunities || [];
     const items=canonicalRecords.slice(0,5);
     if (!Array.isArray(items)) throw Error('Malformed canonical response');
     const refresh=result.refresh || {};
+    if(result.research_screen && selectedClass!=='index_etf') $('#asset-class-status').textContent=`${refresh.scanned || 0} Zebra share histories checked in the latest screen. ETF results use the separate ETF view.`;
     const etf=selectedClass==='index_etf' ? refresh.etf_research : null;
-    status.textContent=refresh.running ? 'Checking the curated public-share universe and matured evidence…' : `${items.length} canonical research opportunit${items.length===1?'y':'ies'} available · ${refresh.scanned || 0} shares checked · ${refresh.unranked || 0} lacked enough evidence · ${(refresh.unavailable || []).length} data unavailable.`;
-    cards.innerHTML=items.length ? items.map(renderCanonicalCard).join('') : `<div class="panel canonical-empty"><h3>${refresh.running ? 'Research refresh in progress.' : 'No canonical opportunities available yet.'}</h3><p class="muted">${refresh.running ? 'Checking dated public price history and matured research outcomes.' : 'No share passed the current evidence gate. Legacy recommendations are not substituted.'}</p></div>`;
+    status.textContent=refresh.source==='ZEBRA_RESEARCH_SCREEN' ? zebraScreenSummary(refresh,items.length) : refresh.running ? 'Checking available research evidence…' : `${items.length} canonical research opportunit${items.length===1?'y':'ies'} available · ${refresh.scanned || 0} shares checked · ${refresh.unranked || 0} lacked enough evidence · ${(refresh.unavailable || []).length} data unavailable.`;
+    const emptyNote=refresh.running?'Checking retained price histories.':refresh.state==='NOT_RUN'?'No research screen has run yet. Use “Run screen & rank” to start one.':refresh.state==='UNAVAILABLE'?'The latest screen is unavailable; no saved research snapshot is available.':'No rankable observations were returned by the last screen. Legacy recommendations are not substituted.';
+    cards.innerHTML=items.length ? items.map(item=>renderCanonicalCard(item,refresh)).join('') : `<div class="panel canonical-empty"><h3>${refresh.running ? 'Research refresh in progress.' : 'No canonical opportunities available yet.'}</h3><p class="muted">${esc(emptyNote)}</p></div>`;
+    canonicalDisplayedClass=selectedClass;
     if(selectedClass==='index_etf') {
-      status.textContent=`${items.length} ETF research candidates · three-session shadow tracking · manual OST review only · actual cash and fees not configured. Negative/SHORT research means watch or avoid—not a cash-account short.`;
+      status.textContent=`${items.length} ETF research candidates · paper-worker state ${refresh.state || 'unavailable'} · last completed ${when(refresh.last_completed)} · three-session shadow tracking · manual OST review only. Negative/SHORT research means watch or avoid—not a cash-account short.`;
       cards.insertAdjacentHTML('beforeend',`<div class="panel"><h3>Mandatory ETF research admission</h3><p>No ETF is removed because your cash is too small. Research eligibility is not trading approval. Daily volume is not a verified bid/ask spread.</p>${etf ? etf.admissions.map(row=>kv(row.instrument_id,`${row.state} · one unit: ${row.unit_price_zar==null?'unavailable':'R '+num(row.unit_price_zar)} · ${row.sizing}`)).join('') : '<p>Waiting for the worker’s first ETF research snapshot. All four ETFs remain admitted; data has not been substituted.</p>'}</div>`);
     }
     cards.querySelectorAll('.canonical-card').forEach((card,index)=>{
       const item=items[index];
-      card.querySelector('[data-review-technical]').onclick=()=>reviewTechnicalScreen(item);
+      const review=card.querySelector('[data-review-technical]');
+      if(review)review.onclick=()=>reviewTechnicalScreen(item);
       if(item.provenance?.asset_class==='index_etf') {
-        card.querySelector('[data-review-technical]').onclick=()=>{card.querySelector('details').open=true;};
+        if(review)review.onclick=()=>{card.querySelector('details').open=true;};
       }
-      card.querySelector('[data-print-paper-trade]').onclick=()=>printPaperTrade(item);
+      const print=card.querySelector('[data-print-paper-trade]');
+      if(print)print.onclick=()=>printPaperTrade(item);
       const capture=card.querySelector('[data-capture-paper-trade]');
-      if(!capture.disabled)capture.onclick=()=>capturePaperTrade(item);
+      if(capture && !capture.disabled)capture.onclick=()=>capturePaperTrade(item);
     });
     if (refresh.running && canonicalPollAttempts++ < 40) canonicalPoll=setTimeout(()=>refreshCanonicalOpportunities(),3000);
     cards.querySelectorAll('details').forEach(detail=>detail.addEventListener('toggle',()=>{if(detail.open&&!detail.dataset.loaded){detail.dataset.loaded='true';loadCanonicalDetail(detail.closest('.canonical-card'));}}));
-  } catch(error) { status.textContent='Canonical opportunity service is unavailable.';cards.innerHTML=`<div class="panel canonical-empty canonical-error"><h3>Unable to load canonical opportunities.</h3><p class="muted">${esc(error.message)} No recommendation has been substituted.</p></div>`; }
+  } catch(error) {
+    if(version!==canonicalRequestVersion)return;
+    canonicalRecords=previousRecords;
+    if(canonicalDisplayedClass===selectedClass && canonicalRecords.length){
+      status.textContent='The latest screen request failed. Showing the previously loaded, dated research results.';
+    } else {
+      status.textContent='Canonical opportunity service is unavailable.';cards.innerHTML=`<div class="panel canonical-empty canonical-error"><h3>Unable to load canonical opportunities.</h3><p class="muted">${esc(error.message)} No recommendation has been substituted.</p></div>`;
+    }
+  }
 }
 function render(run) {
   $('#notice').textContent = `Run ${run.run_id} · ${run.overall_state} · ${when(run.completed_at)}`;
@@ -303,7 +365,7 @@ async function refreshOpportunities() {
     container.replaceChildren();
     for (const item of result.opportunities) {
       const row = document.createElement('p');
-      row.textContent = 'Rank ' + item.rank + ' · ' + item.instrument_id + ' · Research score ' + num(item.ranking_score) + ' · ' + item.direction + ' · ' + item.evidence_status;
+      row.textContent = 'Rank ' + item.rank + ' · ' + (item.research_key || item.instrument_id) + ' · Research score ' + num(item.ranking_score) + ' · ' + item.direction + ' · ' + (item.evidence_status || (item.research_screen ? 'RESEARCH SCREEN' : 'EVIDENCE NOT SUPPLIED'));
       container.appendChild(row);
     }
     if (!result.opportunities.length) container.textContent = 'No canonical opportunities available. No legacy data substituted.';
@@ -664,7 +726,7 @@ $('#auto-refresh').onchange=()=>{if($('#auto-refresh').checked) refreshFeeds();}
   $('#instrument').innerHTML='<option value="">Select an instrument</option>'+instruments.map(i=>`<option value="${i.instrument_id}">${esc(i.display_symbol)} · ${esc(i.name)}</option>`).join('');
   $('#canonical-asset-class').innerHTML=instrumentClasses.map(item=>`<option value="${esc(item.class_id)}" ${item.state==='AVAILABLE'?'':'disabled'}>${esc(item.label)} · ${esc(item.state.replaceAll('_',' '))}</option>`).join('');
   const activeClass=instrumentClasses.find(item=>item.state==='AVAILABLE');
-  $('#asset-class-status').textContent=activeClass ? `${activeClass.instrument_count} instruments · ${activeClass.reason} ETFs, CFDs and SSFs remain visible here with their evidence gates.` : 'No instrument class is currently available.';
+  $('#asset-class-status').textContent=activeClass ? 'Zebra cash-share coverage is reported when the screen completes. ETF results use the separate ETF view.' : 'No instrument class is currently available.';
   $('#asset-class-boundaries').innerHTML=instrumentClasses.filter(item=>item.state!=='AVAILABLE').map(item=>kv(`${item.label} · ${item.state.replaceAll('_',' ')}`,item.reason)).join('');
   const chartOptions=(items)=>items.map(i=>`<option value="${i.instrument_id}">${esc(i.display_symbol)} · ${esc(i.name)}</option>`).join('');
   $('#chart-instrument').innerHTML='<option value="">Select a chart</option>'+`<optgroup label="JSE cash shares">${chartOptions(instruments)}</optgroup>`+`<optgroup label="JSE index ETFs · shadow research">${chartOptions(chartInstruments.filter(i=>i.asset_class==='index_etf'))}</optgroup>`+`<optgroup label="CFD references · public proxies, not IG contracts">${chartOptions(chartInstruments.filter(i=>i.asset_class==='cfd_reference'))}</optgroup>`;

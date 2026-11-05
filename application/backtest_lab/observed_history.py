@@ -8,6 +8,16 @@ import hashlib
 import json
 from domain.backtest.data import Bar, Session, number
 from domain.evaluation.experiment import configuration_hash, utc
+from domain.backtest.engine import CashEquity
+
+
+class CashListedETF(CashEquity):
+    """Research-only cash settlement of a listed ETF; no broker-fee claim."""
+    version = 'cash-listed-etf-research-v1'
+
+    def validate(self, manifest):
+        if manifest.product != 'ETF' or manifest.currency != 'ZAR':
+            raise ValueError('ZAR listed ETF identity required')
 
 
 def research_intake_history(key, root):

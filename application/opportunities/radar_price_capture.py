@@ -68,9 +68,16 @@ def radar_instruments(radar, catalog=None, limit=10):
     return [(key, found[key]) for key in sorted(found)[:limit]]
 
 
-def capture(radar, fetcher, output, *, clock=None, limit=10):
+def capture(radar, fetcher, output, *, clock=None, limit=10, screen_issuers=None):
     clock = clock or (lambda: datetime.now(timezone.utc))
     catalog = {**discovered_issuers(radar), **research_catalog()}
+    # A screen-queued issuer may be requested only with exact JSE code/symbol;
+    # Yahoo metadata is still independently checked before retaining the capture.
+    for key,code in (screen_issuers or {}).items():
+        if (isinstance(key,str) and isinstance(code,str) and key == code and
+                re.fullmatch(r'[A-Z]{2,8}',key) and key not in catalog):
+            catalog[key] = {'name':key,'sector':'Unknown','yahoo_symbol':code+'.JO',
+                            'identity_basis':'SCREEN_YAHOO_METADATA'}
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     results = []
@@ -142,7 +149,7 @@ def latest_close_history(output, instrument):
     if (payload['instrument'] != instrument or payload['provider'] != 'YAHOO'
             or chart['symbol'] != expected or chart['currency'] != 'ZAR'):
         raise ValueError('source identity mismatch')
-    if instrument not in catalog and (payload.get('identity_basis') != 'SENS_CODE_YAHOO_METADATA' or chart.get('provider_symbol') != expected or chart.get('instrument_type') != 'EQUITY' or chart.get('exchange') != 'JNB'):
+    if instrument not in catalog and (payload.get('identity_basis') not in {'SENS_CODE_YAHOO_METADATA','SCREEN_YAHOO_METADATA'} or chart.get('provider_symbol') != expected or chart.get('instrument_type') != 'EQUITY' or chart.get('exchange') != 'JNB'):
         raise ValueError('unverified discovered source identity')
     acquired = datetime.fromisoformat(payload['acquired_at'])
     from .swing_data_quality import real_ohlc

@@ -32,7 +32,7 @@ def _read(folder, run_id):
     if not re.fullmatch(r'[0-9a-f]{64}', run_id): raise ValueError('invalid run id')
     path = folder / (run_id+'.json')
     raw = path.read_bytes()
-    if len(raw)>20_000_000: raise ValueError('report too large')
+    if len(raw)>64_000_000: raise ValueError('report too large')
     run=json.loads(raw); meta=run['meta']
     if meta['config_hash'] != run_id or not isinstance(meta['limitations'],list) or not meta['grade'] or not meta['cost_basis']:
         raise ValueError('invalid report metadata')
@@ -79,6 +79,24 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         data['live_execution']=False
         out=jsonify(data);out.headers['Cache-Control']='no-store'
         return out,status
+
+    @bp.get('/api/v1/backtest-lab/zebra-fields/<instrument>')
+    def zebra_field_history(instrument):
+        """Expose field availability and retained provenance for research."""
+        if not re.fullmatch(r'[A-Z0-9_]{2,16}', instrument):
+            return response({'state':'INVALID_INSTRUMENT'},400)
+        from application.opportunities.zebra_screen_data import load_zebra_screen_data
+        from application.backtest_lab.zebra_field_windows import describe
+        data=load_zebra_screen_data(max_rows=600)
+        if instrument not in data['instruments']:
+            return response({'state':'UNAVAILABLE','instrument':instrument},404)
+        # The benchmark selection sees the complete instrument catalog.
+        result=describe(data, keys={instrument})
+        return response({'state':'AVAILABLE','instrument':instrument,
+            'version':result['version'],'availability':result['availability'],
+            'gap_policy':result['gap_policy'],'history':result['instruments'][instrument],
+            'row_limit':600,
+            'research_only':True})
     def read_zebra():
         root = folder()
         if root is None:
@@ -128,8 +146,8 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
                 'next_after': page[-1]['session'] if len(eligible) > limit else None})
         except (OSError, ValueError, TypeError, KeyError, AttributeError):
             return response({'state': 'UNAVAILABLE'}, 503)
-    def read_public_history(root, instrument):
-        raw = (root.parent/('zebra-public-'+instrument+'.json')).read_bytes()
+    def read_public_history(root, instrument, prefix='zebra-public-'):
+        raw = (root.parent/(prefix+instrument+'.json')).read_bytes()
         if len(raw) > 4_000_000:
             raise ValueError('oversized handover')
         data = json.loads(raw)
@@ -138,6 +156,31 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         if data.get('sha256') != expected or data.get('instrument') != instrument or data.get('schema') != 'zebra-public-instrument-v1':
             raise ValueError('source identity or handover hash mismatch')
         return data
+
+    @bp.get('/api/v1/backtest-lab/zebra-consensus/<instrument>')
+    def zebra_consensus(instrument):
+        if not re.fullmatch('[A-Z0-9_]{2,16}', instrument):
+            return response({'state':'INVALID_REQUEST'}, 400)
+        root = folder()
+        if root is None: return response({'state':'UNAVAILABLE'}, 503)
+        try:
+            data = json.loads((root.parent/('zebra-consensus-'+instrument+'.json')).read_text(encoding='utf-8'))
+            body = {k:v for k,v in data.items() if k != 'sha256'}
+            digest = hashlib.sha256(json.dumps(body,sort_keys=True,separators=(',', ':'),allow_nan=False).encode()).hexdigest()
+            if data.get('sha256') != digest or data.get('schema') != 'zebra-close-consensus-v1' or data.get('instrument') != instrument:
+                raise ValueError('consensus identity mismatch')
+            after = request.args.get('after', '')
+            if after and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', after): raise ValueError('invalid date')
+            rows = [row for row in data['rows'] if row['session'] > after]
+            page = rows[:100]
+            return response({'state':'AVAILABLE','instrument':instrument,'checked_at':data['checked_at'],
+                'research_only':True,'moneyweb':data.get('moneyweb',{'state':'NOT_CHECKED'}),
+                'africa_api':data.get('africa_api',{'state':'NOT_CHECKED'}),
+                'eodhd':data.get('eodhd',{'state':'NOT_CHECKED'}),
+                'field_comparison':data.get('field_comparison',{'state':'LEGACY_CLOSE_ONLY'}),
+                'rows':page,'next_after':page[-1]['session'] if len(rows)>100 else None})
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            return response({'state':'UNAVAILABLE'}, 503)
 
     @bp.get('/api/v1/backtest-lab/windowed-technical/<instrument>')
     def windowed_technical(instrument):
@@ -149,13 +192,52 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         if root is None:
             return response({'state': 'UNAVAILABLE'}, 503)
         try:
-            data = read_public_history(root, instrument)
-            benchmark = read_public_history(root, 'ETF_STX40')
             now = datetime.now(timezone.utc)
-            acquired = datetime.fromisoformat(benchmark['acquired_at'].replace('Z', '+00:00'))
-            if acquired.tzinfo is None or acquired > now or benchmark.get('live_execution') is not False:
-                raise ValueError('valid benchmark receipt required')
-            return response({'state': 'AVAILABLE', 'report': calculate(instrument, data, benchmark, now)})
+            def candidates(key):
+                from decimal import Decimal
+                values=[]
+                decisions={}; checked_at=None
+                comparison=root.parent/('zebra-consensus-'+key+'.json')
+                if comparison.exists():
+                    report=json.loads(comparison.read_text(encoding='utf-8'))
+                    body={k:v for k,v in report.items() if k!='sha256'}
+                    digest=hashlib.sha256(json.dumps(body,sort_keys=True,separators=(',', ':'),allow_nan=False).encode()).hexdigest()
+                    if (report.get('schema')!='zebra-close-consensus-v1' or report.get('instrument')!=key
+                            or report.get('sha256')!=digest):
+                        raise ValueError('consensus identity or hash mismatch')
+                    decisions={r['session']:r for r in report['rows']}; checked_at=report.get('checked_at')
+                for prefix in ('zebra-public-', 'zebra-sharedata-'):
+                    try:
+                        data=read_public_history(root,key,prefix); start=0
+                        for i,row in enumerate(data['rows']):
+                            decision=decisions.get(row['session'])
+                            if not decision: continue
+                            if decision['state'] in ('CONFLICT_AWAITING_THREE','NO_UNAMBIGUOUS_VOTES'):
+                                start=i+1
+                            elif (decision.get('accepted_close') is not None and
+                                  Decimal(str(row['close'])).quantize(Decimal('.01')) != Decimal(decision['accepted_close'])):
+                                start=i+1
+                        if start:
+                            data={**data,'rows':data['rows'][start:],
+                                  'excluded_through_conflict':data['rows'][start-1]['session']}
+                        if data['rows']:
+                            data['comparison_checked_at']=checked_at
+                            data['latest_field_checks']=decisions.get(data['rows'][-1]['session'],{}).get('fields',{})
+                            values.append(data)
+                    except (OSError, ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
+                        continue
+                return values
+            histories=candidates(instrument); benchmarks=candidates('ETF_STX40')
+            reports=[]
+            for data in histories:
+                for benchmark in benchmarks or [None]:
+                    try:
+                        reports.append(calculate(instrument,data,benchmark,now))
+                    except (ValueError,TypeError,KeyError,AttributeError,OverflowError):
+                        continue
+            if not reports: raise ValueError('no usable source history')
+            best=max(reports,key=lambda r:(r['as_of_session'],sum(v is not None for v in r['values'].values())))
+            return response({'state': 'AVAILABLE', 'report':best})
         except (OSError, ValueError, TypeError, KeyError, AttributeError, OverflowError):
             return response({'state': 'UNAVAILABLE'}, 503)
 
@@ -248,6 +330,59 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         if root is None or not root.is_dir(): return response({'state':'UNAVAILABLE'},503)
         try: return response(_read(root,run_id))
         except (OSError,ValueError,TypeError,KeyError,AttributeError): return response({'state':'NOT_FOUND'},404)
+    @bp.get('/api/v1/backtest-lab/runs/<run_id>/sector-research')
+    def sector_research(run_id):
+        root=folder()
+        if root is None or not root.is_dir(): return response({'state':'UNAVAILABLE'},503)
+        try:
+            from application.backtest_lab.sector_research import compare
+            return response(compare(_read(root,run_id)))
+        except (OSError,ValueError,TypeError,KeyError,AttributeError,ArithmeticError):
+            return response({'state':'NOT_FOUND'},404)
+    @bp.get('/api/v1/backtest-lab/runs/<run_id>/sector-windows')
+    def sector_windows(run_id):
+        root=folder()
+        if root is None or not root.is_dir(): return response({'state':'UNAVAILABLE'},503)
+        try:
+            from application.backtest_lab.sector_windows import analyse
+            return response(analyse(_read(root,run_id)))
+        except (OSError,ValueError,TypeError,KeyError,AttributeError,ArithmeticError):
+            return response({'state':'NOT_FOUND'},404)
+    @bp.get('/api/v1/backtest-lab/sector-exploration')
+    def sector_exploration():
+        root=folder()
+        if root is None: return response({'state':'UNAVAILABLE'},503)
+        sector=request.args.get('sector','')
+        if not re.fullmatch(r'[A-Za-z0-9 &-]{1,50}',sector): return response({'state':'INVALID_REQUEST'},400)
+        directory=root.parent/'sector-exploration'
+        if not directory.is_dir(): return response({'state':'UNAVAILABLE'},503)
+        for path in sorted(directory.glob('*.json'),key=lambda x:x.stat().st_mtime,reverse=True):
+            try:
+                if not re.fullmatch('[0-9a-f]{64}',path.stem): continue
+                raw=path.read_bytes()
+                if len(raw)>10_000_000 or hashlib.sha256(raw).hexdigest()!=path.stem: continue
+                result=json.loads(raw)
+                if result.get('schema')=='sector-swing-exploration-v1' and result.get('sector')==sector:
+                    return response({'state':'AVAILABLE','report':result})
+            except (OSError, ValueError, TypeError): continue
+        return response({'state':'UNAVAILABLE'},503)
+    @bp.get('/api/v1/backtest-lab/prospective-plans')
+    def prospective_plans():
+        root=folder()
+        if root is None: return response({'state':'UNAVAILABLE'},503)
+        plans=[]; directory=root.parent/'prospective'
+        for path in sorted(directory.glob('*.json')) if directory.is_dir() else []:
+            try:
+                if not re.fullmatch('[0-9a-f]{64}',path.stem): continue
+                raw=path.read_bytes()
+                if len(raw)>2_000_000 or hashlib.sha256(raw).hexdigest()!=path.stem: continue
+                item=json.loads(raw)
+                if item.get('schema')!='sector-prospective-comparison-v1': continue
+                plans.append({'plan_id':path.stem, 'registered_at':item['registered_at'], 'cases':item['cases'],
+                    'signal_window':item['signal_window'], 'limitations':item['limitations'],
+                    'state':'REGISTERED_NOT_AUTOMATICALLY_SCORED'})
+            except (OSError,ValueError,TypeError,KeyError): continue
+        return response({'state':'AVAILABLE','plans':plans,'research_only':True})
     @bp.post('/api/v1/backtest-lab/ask')
     def ask():
         data=request.get_json(silent=True)

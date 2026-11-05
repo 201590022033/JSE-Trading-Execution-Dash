@@ -14,6 +14,14 @@ def _num(value, positive=False):
         return None
 
 
+def _real_hlc(row):
+    """ATR and ranges need observed high/low/close, not an opening price."""
+    if row.get('estimated') or row.get('price_quality') == 'ESTIMATED':
+        return False
+    high, low, close = (_num(row.get(k), positive=True) for k in ('high', 'low', 'close'))
+    return all(v is not None for v in (high, low, close)) and low <= close <= high
+
+
 def calculate(instrument, data, benchmark, now):
     """Use observed bars only; a broken range resets ATR rather than bridging it."""
     rows = data['rows']
@@ -47,11 +55,12 @@ def calculate(instrument, data, benchmark, now):
     rsi = candidate_rsi_wilder(close_values)
     if rsi.available: values['rsi14_wilder'] = rsi.value
     else: reasons['rsi'] = 'NEEDS_15_CONSECUTIVE_VALID_OBSERVED_CLOSES'
-    # Do not join an ATR seed across an invalid bar or provider transition.
+    # ATR needs high, low and close; a defective open does not invalidate them.
+    # Do not join an ATR seed across an invalid HLC row or provider transition.
     tail = []
     provider = rows[-1].get('source', data.get('provider'))
     for row in reversed(rows):
-        if row.get('source', data.get('provider')) != provider or not real_ohlc(row): break
+        if row.get('source', data.get('provider')) != provider or not _real_hlc(row): break
         tail.append(row)
     tail.reverse()
     if len(tail) >= 15:
@@ -62,13 +71,13 @@ def calculate(instrument, data, benchmark, now):
         atr = sum(ranges[:14])/14
         for value in ranges[14:]: atr = (13*atr+value)/14
         values['atr14_wilder'] = atr
-    else: reasons['atr'] = 'NEEDS_15_CONSECUTIVE_VALID_SAME_SOURCE_OHLC_ROWS'
+    else: reasons['atr'] = 'NEEDS_15_CONSECUTIVE_VALID_SAME_SOURCE_HLC_ROWS'
     for n in (10, 20):
         prior = rows[-n-1:-1]
-        if len(prior) == n and all(real_ohlc(r) for r in prior):
+        if len(prior) == n and all(_real_hlc(r) for r in prior):
             values[f'prior_high{n}'] = max(float(r['high']) for r in prior)
             values[f'prior_low{n}'] = min(float(r['low']) for r in prior)
-        else: reasons[f'prior_range{n}'] = 'INVALID_OR_MISSING_OHLC_IN_REQUIRED_WINDOW'
+        else: reasons[f'prior_range{n}'] = 'INVALID_OR_MISSING_HLC_IN_REQUIRED_WINDOW'
     vols = [_num(r.get('volume')) for r in rows[-21:]]
     if len(vols) == 21 and all(v is not None for v in vols) and sum(vols[:-1]) > 0:
         values['relative_volume20'] = vols[-1] / (sum(vols[:-1])/20)
@@ -88,12 +97,21 @@ def calculate(instrument, data, benchmark, now):
         else: reasons['benchmark'] = 'ALIGNED_BENCHMARK_ENDPOINTS_UNAVAILABLE'
     else: reasons['benchmark'] = 'ALIGNED_BENCHMARK_ENDPOINTS_UNAVAILABLE'
     bad = [r['session'] for r in rows if not real_ohlc(r)]
+    bad_hlc = [r['session'] for r in rows if not _real_hlc(r)]
     return {'state': 'PARTIAL' if reasons else 'AVAILABLE', 'instrument': instrument,
             'as_of_session': rows[-1]['session'], 'acquired_at': data['acquired_at'],
             'source_policy': data.get('source_policy', 'YAHOO_ONLY'),
             'source_hash': data['source_sha256'], 'benchmark_session': benchmark['rows'][-1]['session'] if benchmark and benchmark['rows'] else None,
             'values': values, 'unavailable_reasons': reasons,
             'quality': {'invalid_ohlc_count': len(bad), 'recent_invalid_sessions': bad[-10:],
+                        'invalid_hlc_count': len(bad_hlc), 'recent_invalid_hlc_sessions': bad_hlc[-10:],
+                        'range_input_basis': 'OBSERVED_HIGH_LOW_CLOSE_OPEN_NOT_REQUIRED',
+                        'atr_source': provider, 'atr_last_session': tail[-1]['session'] if tail else None,
+                        'atr_source_acquired_at': tail[-1].get('acquired_at', data['acquired_at']) if tail else None,
+                        'atr_source_sha256': tail[-1].get('source_sha256', data['source_sha256']) if tail else None,
+                        'comparison_checked_at': data.get('comparison_checked_at'),
+                        'latest_field_checks': data.get('latest_field_checks', {}),
+                        'excluded_through_conflict': data.get('excluded_through_conflict'),
                         'atr_valid_same_source_rows': len(tail),
                         'atr_seed_session': tail[0]['session'] if tail else None,
                         'calendar': 'OBSERVED_DATES_ONLY_NOT_VERIFIED_COMPLETE'},

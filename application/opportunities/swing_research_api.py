@@ -34,6 +34,32 @@ def create_research_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get('/api/v1/swing-research/historical-readiness')
+    def historical_readiness():
+        import json
+        from .ost_data import ROOT
+        from .research_classification import classifications
+        from .swing_historical_inputs import prepare_v3_research
+        try:
+            dataset=json.loads((ROOT/'latest.json').read_bytes())
+            ready=prepare_v3_research(dataset,datetime.now(timezone.utc),ROOT)
+            keys=sorted(k for k in ready['charts'] if k!='ETF_STX40')
+            labels=classifications(keys)['instruments']; sectors={}
+            for key in keys: sectors.setdefault(labels[key]['sector'],[]).append(key)
+            sector_sessions={sector:len({r['timestamp'] for key in members for r in ready['charts'][key]['bars']}) for sector,members in sectors.items()}
+            state='HISTORICAL_RESEARCH_READY' if any(n>=130 for n in sector_sessions.values()) else 'MORE_HISTORY_REQUIRED'
+            from .swing_research import swing_cloud_provider
+            model_configured=bool(swing_cloud_provider()[1].key)
+            response=jsonify(state=state,instruments=keys,sectors=sectors,sector_sessions=sector_sessions,
+                freshness=ready['freshness'],instrument_freshness=ready.get('instrument_freshness',{}),source=ready['source'],limitations=ready['limitations'],
+                model_configured=model_configured,model_called=False,live_execution=False)
+            response.headers['Cache-Control']='no-store'
+            return response
+        except (OSError,ValueError,KeyError,TypeError,AttributeError,ArithmeticError):
+            response=jsonify(state='HISTORICAL_INPUT_UNAVAILABLE',model_called=False,live_execution=False)
+            response.headers['Cache-Control']='no-store'
+            return response,503
+
     @bp.errorhandler(Exception)
     def unavailable(exc):
         from werkzeug.exceptions import HTTPException

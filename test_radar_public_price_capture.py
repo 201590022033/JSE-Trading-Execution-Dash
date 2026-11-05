@@ -44,6 +44,23 @@ class RadarPublicPriceTests(unittest.TestCase):
             self.assertEqual(passed['results'][0]['state'],'CAPTURED')
             self.assertEqual(latest_close_history(folder,'ZZZZ')['instrument'],'ZZZZ')
 
+    def test_screen_issuer_is_downloadable_only_with_exact_equity_metadata(self):
+        radar={'source_leads':[{'instrument_ids':['ZZZZ'],'source_id':'screen'}]}
+        class Fetcher:
+            def __init__(self,exchange): self.exchange=exchange
+            def get_chart(self,symbol,period):
+                return {'symbol':symbol,'provider_symbol':symbol,'currency':'ZAR','instrument_type':'EQUITY',
+                        'exchange':self.exchange,'interval':'1d','bars':[{'timestamp':'2026-10-28','close':10}]}
+        with tempfile.TemporaryDirectory() as folder:
+            clock=lambda:datetime(2026,10,30,4,tzinfo=timezone.utc)
+            failed=capture(radar,Fetcher('OTHER'),folder,clock=clock,screen_issuers={'ZZZZ':'ZZZZ'})
+            self.assertEqual(failed['results'][0]['state'],'FAILED')
+            passed=capture(radar,Fetcher('JNB'),folder,clock=clock,screen_issuers={'ZZZZ':'ZZZZ'})
+            self.assertEqual(passed['results'][0]['state'],'CAPTURED')
+            self.assertEqual(latest_close_history(folder,'ZZZZ')['identity_basis'],'SCREEN_YAHOO_METADATA')
+            from application.opportunities.zebra_instruments import mappings
+            self.assertEqual(mappings(folder)['ZZZZ'],'ZZZZ')
+
     def test_success_and_failure_are_independent_and_keep_intraday_row(self):
         catalog = public_share_catalog()
         keys = sorted(list(catalog))[:2]

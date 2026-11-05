@@ -47,6 +47,21 @@ class WindowedResearchTests(unittest.TestCase):
         self.assertIsNone(result['values']['atr14_wilder'])
         self.assertEqual(result['quality']['atr_valid_same_source_rows'], 8)
 
+    def test_bad_open_does_not_discard_observed_high_low_close(self):
+        self.data['rows'][-5]['open'] = self.data['rows'][-5]['high'] + 1
+        result = calculate('SASOL', self.data, self.bench, self.now)
+        self.assertEqual(result['quality']['invalid_ohlc_count'], 1)
+        self.assertEqual(result['quality']['invalid_hlc_count'], 0)
+        self.assertIsNotNone(result['values']['atr14_wilder'])
+        self.assertIsNotNone(result['values']['prior_high20'])
+        self.assertEqual(result['quality']['range_input_basis'], 'OBSERVED_HIGH_LOW_CLOSE_OPEN_NOT_REQUIRED')
+
+    def test_invalid_close_still_blocks_high_low_close_window(self):
+        self.data['rows'][-5]['close'] = self.data['rows'][-5]['high'] + 1
+        result = calculate('SASOL', self.data, self.bench, self.now)
+        self.assertEqual(result['quality']['invalid_hlc_count'], 1)
+        self.assertIsNone(result['values']['prior_high20'])
+
     def test_future_receipt_is_rejected(self):
         self.data['acquired_at'] = '2026-10-03T10:00:00+00:00'
         with self.assertRaises(ValueError): calculate('SASOL', self.data, self.bench, self.now)
@@ -77,3 +92,48 @@ class WindowedResearchTests(unittest.TestCase):
             source = directory / 'zebra-public-SASOL.json'
             source.write_text(source.read_text(encoding='utf-8').replace('"close":101', '"close":102', 1), encoding='utf-8')
             self.assertEqual(client.get('/api/v1/backtest-lab/windowed-technical/SASOL').status_code, 503)
+
+    def test_endpoint_uses_complete_alternate_source_window(self):
+        from copy import deepcopy
+        from flask import Flask
+        from application.backtest_lab.blueprint import create_backtest_lab_blueprint
+        from application.opportunities.zebra_public_handover import save
+        with TemporaryDirectory() as tmp:
+            directory=Path(tmp)
+            alternative=deepcopy(self.data)
+            alternative.update(schema='zebra-public-instrument-v1',provider='SHAREDATA',
+                               source_policy='SHAREDATA_WHOLE_SOURCE_WINDOW')
+            for row in alternative['rows']: row['source']='SHAREDATA'
+            self.data['rows'][-1]['high']=1
+            self.data.update(schema='zebra-public-instrument-v1')
+            self.bench.update(schema='zebra-public-instrument-v1')
+            save(directory/'zebra-public-SASOL.json',self.data)
+            save(directory/'zebra-sharedata-SASOL.json',alternative)
+            save(directory/'zebra-public-ETF_STX40.json',self.bench)
+            app=Flask(__name__); app.register_blueprint(create_backtest_lab_blueprint(directory=directory))
+            response=app.test_client().get('/api/v1/backtest-lab/windowed-technical/SASOL')
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.json['report']['source_policy'],'SHAREDATA_WHOLE_SOURCE_WINDOW')
+            self.assertIsNotNone(response.json['report']['values']['atr14_wilder'])
+
+    def test_endpoint_exposes_field_disagreements_without_losing_other_features(self):
+        from flask import Flask
+        from application.backtest_lab.blueprint import create_backtest_lab_blueprint
+        from application.opportunities.zebra_public_handover import save
+        with TemporaryDirectory() as tmp:
+            directory=Path(tmp)
+            self.data.update(schema='zebra-public-instrument-v1')
+            self.bench.update(schema='zebra-public-instrument-v1')
+            save(directory/'zebra-public-SASOL.json',self.data)
+            save(directory/'zebra-public-ETF_STX40.json',self.bench)
+            last=self.data['rows'][-1]
+            save(directory/'zebra-consensus-SASOL.json',{'schema':'zebra-close-consensus-v1','instrument':'SASOL',
+                 'checked_at':'2026-10-01T12:00:00+00:00','rows':[{'session':last['session'],
+                 'state':'UNCONTESTED_RESEARCH','accepted_close':str(last['close']),
+                 'fields':{'volume':{'state':'CONFLICT_AWAITING_THREE','accepted_value':None}}}]})
+            app=Flask(__name__);app.register_blueprint(create_backtest_lab_blueprint(directory=directory))
+            response=app.test_client().get('/api/v1/backtest-lab/windowed-technical/SASOL')
+            self.assertEqual(response.status_code,200)
+            report=response.json['report']
+            self.assertIsNotNone(report['values']['ema50'])
+            self.assertEqual(report['quality']['latest_field_checks']['volume']['state'],'CONFLICT_AWAITING_THREE')

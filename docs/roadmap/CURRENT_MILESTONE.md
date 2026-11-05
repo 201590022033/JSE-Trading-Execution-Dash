@@ -1,3 +1,10 @@
+## Research redesign: M2 field-level flow integrated locally — 5 November 2026
+
+The v2 Zebra field reader, selectable-segment multi-share replay and technical history view are connected. Retrospective BTI/SASOL replay and its source coverage are recorded in `docs/changes/2026-11-05-zebra-field-windows.md`. Sector proxies use current research classifications; independently dated historical memberships remain unavailable and are labelled. M3 component experiments are the next implementation step. R12 remains ACTIVE/PARTIAL and P1 remains open.
+
+## Research redesign: M1 Top 5 completed locally — 5 November 2026
+
+The owner prioritized availability-first Zebra flow, a functioning Top 5 and a component-level autonomous research loop. The starting-state inventory and hash-checked local data snapshot are recorded in `docs/changes/2026-11-05-research-starting-baseline.md`. M1's Zebra-backed Top 5 slice is complete locally; M2, field-level backtest and benchmark flow, is next. R12 remains the single ACTIVE/PARTIAL umbrella and P1 remains open. See `docs/changes/2026-11-05-zebra-top5-research.md`. Existing frozen plans, model budgets, uncommitted work and paper/live trading boundaries are preserved.
 ## Multi-stock zebra and session freshness — 30 October 2026
 
 R12 remains ACTIVE/PARTIAL and P1 open. The research-only radar expands via

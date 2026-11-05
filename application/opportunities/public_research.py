@@ -64,8 +64,10 @@ def public_share_catalog(*, include_inactive=False):
 
 
 def public_share_list():
+    from .research_classification import classifications
+    labels=classifications(public_share_catalog())['instruments']
     return [{"instrument_id": key, "display_symbol": data["yahoo_symbol"].removesuffix(".JO"), "name": data["name"],
-             "sector": data.get("sector", "unspecified"), "yahoo_symbol": data["yahoo_symbol"],
+             "sector": labels[key]['sector'], "industry":labels[key]['industry'], "yahoo_symbol": data["yahoo_symbol"],
              "asset_class": "equity", "instrument_type": "cash_equity",
              "capabilities": {"public_chart": True, "automatic_technical_screen": True,
                               "legacy_full_analysis": _legacy(key),

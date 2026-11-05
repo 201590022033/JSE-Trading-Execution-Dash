@@ -1,0 +1,19 @@
+"""Masked user-operated Ollama Cloud key entry into Windows Credential Manager."""
+from pathlib import Path
+import sys
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from application.opportunities.africa_api_credentials import save_key
+
+root = tk.Tk(); root.withdraw()
+key = simpledialog.askstring('Ollama Cloud research key',
+    'Paste the API key here; it will not be displayed or saved in the repository:', show='*', parent=root)
+if key is not None:
+    try:
+        save_key(key.strip(), target='JSETrading/OllamaCloud/Research')
+        messagebox.showinfo('Ollama Cloud','Key stored in Windows Credential Manager for this Windows account.',parent=root)
+    except Exception:
+        messagebox.showerror('Ollama Cloud','The key could not be stored.',parent=root)
+root.destroy()
