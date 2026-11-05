@@ -1,3 +1,7 @@
+## Research redesign: M5 cross-sector evaluation — 5 November 2026
+
+BTI, FSR and ABSPJ now have matched swing and pullback context comparisons across the retained training and inner-validation windows. The filters produced mixed outcomes on very small samples; FSR and ABSPJ have no linked event records in these studies. M5 remains open for broader timely event evidence and later observations. See `docs/changes/2026-11-05-m5-cross-sector-evaluation.md`.
+
 ## Research redesign: M5 Sasol evidence timeline — 5 November 2026
 
 Retained issuer documents, extracted source-quoted financial values, Zebra history, resources ETF, Brent and USD/ZAR now connect to Sasol trade cases and retrospective proxy-filter replays. A user-invoked research brief exposes the selected case without a model call. Sample sizes remain very small; capture timing is explicit and M5 remains open. See `docs/changes/2026-11-05-sasol-context-research.md`.

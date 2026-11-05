@@ -279,6 +279,30 @@ def _iress_captures(intake, codes, now, diagnostics):
             diagnostics['IRESS']['invalid_captures'] += 1
 
 
+def _iress_time_series_captures(folder, codes, now, diagnostics):
+    """Use exact OHLC from archived Time Series; its rounded volume stays absent."""
+    from .iress_price_only import parse
+    root = folder / 'price-only'
+    for path in sorted(root.glob('*.json')):
+        try:
+            _, saved = _load_json(path)
+            digest = saved['source_sha256']
+            if not re.fullmatch('[0-9a-f]{64}', digest) or path.stem != digest:
+                raise ValueError('invalid raw identity')
+            if saved['origin_symbol'] != codes.get(saved['instrument'], '') + '.JSE':
+                raise ValueError('invalid instrument mapping')
+            acquired = _time(saved['acquired_at'])
+            if acquired > now: continue
+            raw = (root / 'raw' / (digest + '.csv')).read_bytes()
+            if sha256(raw).hexdigest() != digest or parse(raw, saved['origin_symbol'], acquired, now) != saved:
+                raise ValueError('raw or receipt mismatch')
+            diagnostics['IRESS']['accepted_captures'] += 1
+            yield {'instrument': saved['instrument'], 'provider': 'IRESS', 'acquired_at': saved['acquired_at'],
+                   'source_sha256': digest, 'rows': saved['bars']}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, UnicodeError):
+            diagnostics['IRESS']['invalid_captures'] += 1
+
+
 def _prospective_iress_captures(folder, codes, now, diagnostics):
     """Read retained native IRESS downloads without merging provider identity."""
     from .source_resolution import parse_iress_export
@@ -398,6 +422,7 @@ def load_zebra_screen_data(root=None, now=None, *, max_rows=None, instruments=No
         yield from _sharedata_captures(folder/'sharedata-prices',codes,now,diagnostics)
         yield from _eodhd_captures(folder,codes,now,diagnostics)
         yield from _iress_captures(intake,codes,now,diagnostics)
+        yield from _iress_time_series_captures(folder,codes,now,diagnostics)
         yield from _prospective_iress_captures(folder,codes,now,diagnostics)
         yield from _ost_captures(folder,codes,now,diagnostics)
     # Restrict merging, not identity validation: an individual research view

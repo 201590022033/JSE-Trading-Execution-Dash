@@ -1,4 +1,4 @@
-"""Import native SOL Time Series exports into the local price-only archive."""
+"""Import supported native IRESS Time Series exports into the local price-only archive."""
 import argparse
 from datetime import datetime, timezone
 import json

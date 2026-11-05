@@ -71,6 +71,25 @@ class PriceOnlyTests(unittest.TestCase):
     def test_exact_prices(self): test_rejects_rounded_prices_and_wrong_symbol()
     def test_handover_time(self): test_price_only_zebra_never_backdates()
     def test_invalid_rows(self): test_bad_ohlc_is_reported_without_discarding_good_rows()
+    def test_other_symbol_enters_zebra_without_rounded_volume(self):
+        from application.opportunities.zebra_screen_data import _iress_time_series_captures, merge_captures
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'Time Series (ABG.JSE)_capture.csv'
+            path.write_bytes(RAW)
+            acquired = datetime(2026, 10, 30, 9, tzinfo=UTC)
+            os.utime(path, (acquired.timestamp(), acquired.timestamp()))
+            now = datetime(2026, 10, 30, 10, tzinfo=UTC)
+            capture = register(path, root, now)
+            self.assertEqual(capture['instrument'], 'ABSPJ')
+            diagnostics = {'IRESS': {'accepted_captures': 0, 'invalid_captures': 0}}
+            sources = list(_iress_time_series_captures(root, {'ABSPJ':'ABG'}, now, diagnostics))
+            result = merge_captures(sources, now=now)['ABSPJ']['rows'][0]
+            self.assertEqual(result['close'], 286.04)
+            self.assertIsNone(result['volume'])
+            self.assertEqual(result['fields']['close']['source'], 'IRESS')
+            (root / 'price-only' / 'raw' / (capture['source_sha256'] + '.csv')).write_bytes(b'tampered')
+            self.assertEqual(list(_iress_time_series_captures(root, {'ABSPJ':'ABG'}, now, diagnostics)), [])
     def test_local_endpoint(self):
         from flask import Flask
         from application.opportunities.ost_data_api import create_ost_blueprint

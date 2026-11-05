@@ -6,13 +6,18 @@ from hashlib import sha256
 import io
 import json
 from pathlib import Path
+import re
 
 from .public_research import _available_at
 from .swing_data_quality import real_ohlc
 
+SYMBOLS = {'SOL.JSE':'SASOL', 'BTI.JSE':'BTI', 'FSR.JSE':'FSR', 'ABG.JSE':'ABSPJ',
+           'STX40.JSE':'ETF_STX40', 'STXFIN.JSE':'ETF_STXFIN',
+           'STXRES.JSE':'ETF_STXRES', 'STXIND.JSE':'ETF_STXIND'}
+
 
 def parse(raw, symbol, acquired_at, now):
-    if symbol != 'SOL.JSE' or not isinstance(raw, bytes) or not 0 < len(raw) <= 2500000:
+    if symbol not in SYMBOLS or not isinstance(raw, bytes) or not 0 < len(raw) <= 2500000:
         raise ValueError('explicit supported IRESS symbol and bounded bytes required')
     if acquired_at.tzinfo is None or now.tzinfo is None or acquired_at > now:
         raise ValueError('actual aware acquisition time required')
@@ -48,7 +53,7 @@ def parse(raw, symbol, acquired_at, now):
     bars.sort(key=lambda b: b['timestamp'])
     if not bars:
         raise ValueError('no completed bars')
-    return {'schema': 'iress-price-only-v1', 'instrument': 'SASOL', 'origin_symbol': symbol,
+    return {'schema': 'iress-price-only-v1', 'instrument': SYMBOLS[symbol], 'origin_symbol': symbol,
             'provider': 'IRESS_TIME_SERIES', 'acquired_at': acquired_at.isoformat(),
             'source_sha256': sha256(raw).hexdigest(), 'price_units': 'ZAR',
             'volume_basis': 'ROUNDED_SOURCE_VOLUME_NOT_IMPORTED',
@@ -59,11 +64,13 @@ def parse(raw, symbol, acquired_at, now):
 
 def register(path, folder, now):
     path, folder = Path(path), Path(folder)
-    if not path.name.startswith('Time Series (SOL.JSE)_') or path.suffix.lower() != '.csv':
-        raise ValueError('native SOL.JSE Time Series filename required')
+    match = re.fullmatch(r'Time Series \(([A-Z0-9]+\.JSE)\)_.+\.csv', path.name, re.IGNORECASE)
+    if not match or match.group(1).upper() not in SYMBOLS:
+        raise ValueError('supported native IRESS Time Series filename required')
+    symbol = match.group(1).upper()
     acquired = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
     raw = path.read_bytes()
-    result = parse(raw, 'SOL.JSE', acquired, now)
+    result = parse(raw, symbol, acquired, now)
     archive = folder / 'price-only' / 'raw'
     archive.mkdir(parents=True, exist_ok=True)
     target = archive / (result['source_sha256'] + '.csv')
@@ -74,7 +81,7 @@ def register(path, folder, now):
     receipt = folder / 'price-only' / (result['source_sha256'] + '.json')
     if receipt.exists():
         previous = json.loads(receipt.read_text(encoding='utf-8'))
-        if previous['source_sha256'] != result['source_sha256'] or parse(raw, 'SOL.JSE', datetime.fromisoformat(previous['acquired_at']), now) != previous:
+        if previous['source_sha256'] != result['source_sha256'] or parse(raw, symbol, datetime.fromisoformat(previous['acquired_at']), now) != previous:
             raise ValueError('existing receipt does not match source')
         return previous
     receipt.write_text(json.dumps(result, sort_keys=True, allow_nan=False)+'\n', encoding='utf-8')
@@ -94,7 +101,7 @@ def latest(folder, now):
             raw = (root / 'raw' / (digest + '.csv')).read_bytes()
             acquired = datetime.fromisoformat(saved['acquired_at'])
             parsed = parse(raw, saved['origin_symbol'], acquired, now)
-            if parsed == saved and path.stem == digest:
+            if parsed == saved and path.stem == digest and saved['instrument'] == 'SASOL':
                 valid.append(parsed)
         except (OSError, ValueError, TypeError, KeyError, UnicodeError):
             continue
