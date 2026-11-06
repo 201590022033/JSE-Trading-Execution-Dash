@@ -23,6 +23,15 @@ class ComponentLearningTests(unittest.TestCase):
         self.manifest=from_chart('SOL',{'bars':self.rows,'provenance':{'provider':'TEST','source_sha256':'a'*64,'acquired_at':'2026-11-05T00:00:00+00:00'}})
         self.charts={'SOL':self.rows}; self.base=Components(volume_mode='threshold',benchmark_mode='off')
     def tearDown(self): self.storage.close();self.tmp.cleanup()
+    def test_listed_gold_adapter_tracks_training_and_validation_prefixes(self):
+        from scripts.backtest_gold_reference import ObservedGoldUnits
+        from domain.backtest.products import GoldListed
+        manifest=ObservedGoldUnits(**{**vars(self.manifest),'product':'GOLD_ETF'})
+        adapter=GoldListed('ZAR','ZAR',manifest.calendar_id,manifest.sessions,(),manifest.instrument)
+        result=run_cycle(self.repo,manifest,self.charts,self.base,artifact_dir=self.path/'artifacts',adapter=adapter)
+        self.assertEqual(result['state'],'COMPLETED')
+        self.assertEqual(len(self.repo.get_experiment(result['experiment_id'],'1')['results']),2)
+        self.assertEqual(result['holdout'],'UNOPENED')
     def test_two_cycles_restart_idempotence_and_no_holdout_context(self):
         contexts=[]
         def proposer(context):

@@ -16,7 +16,7 @@ SYMBOLS = {'SOL.JSE':'SASOL', 'BTI.JSE':'BTI', 'FSR.JSE':'FSR', 'ABG.JSE':'ABSPJ
            'STXRES.JSE':'ETF_STXRES', 'STXIND.JSE':'ETF_STXIND'}
 
 
-def parse(raw, symbol, acquired_at, now):
+def parse(raw, symbol, acquired_at, now, *, after_close=False):
     if symbol not in SYMBOLS or not isinstance(raw, bytes) or not 0 < len(raw) <= 2500000:
         raise ValueError('explicit supported IRESS symbol and bounded bytes required')
     if acquired_at.tzinfo is None or now.tzinfo is None or acquired_at > now:
@@ -34,7 +34,8 @@ def parse(raw, symbol, acquired_at, now):
         seen.add(session)
         # The original receipt, not a later reprocessing time, determines what
         # was complete when captured. Never promote the intraday row later.
-        if _available_at(session) > acquired_at:
+        from .radar_price_capture import usable_close
+        if not (usable_close(session, acquired_at) if after_close else _available_at(session) <= acquired_at):
             continue
         try:
             values = {key: Decimal(row[key.title()].replace(',', '')) / 100
@@ -53,7 +54,7 @@ def parse(raw, symbol, acquired_at, now):
     bars.sort(key=lambda b: b['timestamp'])
     if not bars:
         raise ValueError('no completed bars')
-    return {'schema': 'iress-price-only-v1', 'instrument': SYMBOLS[symbol], 'origin_symbol': symbol,
+    return {'schema': 'iress-price-only-v2-after-close' if after_close else 'iress-price-only-v1', 'instrument': SYMBOLS[symbol], 'origin_symbol': symbol,
             'provider': 'IRESS_TIME_SERIES', 'acquired_at': acquired_at.isoformat(),
             'source_sha256': sha256(raw).hexdigest(), 'price_units': 'ZAR',
             'volume_basis': 'ROUNDED_SOURCE_VOLUME_NOT_IMPORTED',
@@ -62,7 +63,7 @@ def parse(raw, symbol, acquired_at, now):
             'excluded_rows': sorted(excluded, key=lambda x: x['session']), 'bars': bars}
 
 
-def register(path, folder, now):
+def register(path, folder, now, *, after_close=False):
     path, folder = Path(path), Path(folder)
     match = re.fullmatch(r'Time Series \(([A-Z0-9]+\.JSE)\)_.+\.csv', path.name, re.IGNORECASE)
     if not match or match.group(1).upper() not in SYMBOLS:
@@ -70,18 +71,19 @@ def register(path, folder, now):
     symbol = match.group(1).upper()
     acquired = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
     raw = path.read_bytes()
-    result = parse(raw, symbol, acquired, now)
-    archive = folder / 'price-only' / 'raw'
+    result = parse(raw, symbol, acquired, now, after_close=after_close)
+    base = folder / ('price-only-after-close' if after_close else 'price-only')
+    archive = base / 'raw'
     archive.mkdir(parents=True, exist_ok=True)
     target = archive / (result['source_sha256'] + '.csv')
     if target.exists() and target.read_bytes() != raw:
         raise ValueError('source hash collision')
     if not target.exists():
         target.write_bytes(raw)
-    receipt = folder / 'price-only' / (result['source_sha256'] + '.json')
+    receipt = base / (result['source_sha256'] + '.json')
     if receipt.exists():
         previous = json.loads(receipt.read_text(encoding='utf-8'))
-        if previous['source_sha256'] != result['source_sha256'] or parse(raw, symbol, datetime.fromisoformat(previous['acquired_at']), now) != previous:
+        if previous['source_sha256'] != result['source_sha256'] or parse(raw, symbol, datetime.fromisoformat(previous['acquired_at']), now, after_close=after_close) != previous:
             raise ValueError('existing receipt does not match source')
         return previous
     receipt.write_text(json.dumps(result, sort_keys=True, allow_nan=False)+'\n', encoding='utf-8')

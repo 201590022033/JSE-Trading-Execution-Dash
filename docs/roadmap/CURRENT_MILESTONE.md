@@ -1,3 +1,11 @@
+## Research redesign: M6 daily hook and M7 FX/gold examples — 5 November 2026
+
+The existing 07:30 local swing collector now invokes the forward monitor after source refresh; the next scheduled run has not yet been observed. A listed-NewGold component-learning cycle and a separate price-only USD/ZAR component study are retained, with no model calls. M6's later outcomes and M7's broader feedback and live visual verification remain open. See `docs/changes/2026-11-05-daily-forward-fx-gold.md`.
+
+## Research redesign: M6 forward monitoring started — 5 November 2026
+
+The frozen BTI/Sasol plan and its dependency hashes verify. The manual, read-only forward monitor retained the first 5 November cases, which remain partial because exact volume is unavailable, and exposes pending descriptive close outcomes. The registered engine now replays complete consecutive forward segments without compressing gaps. A separate after-close Zebra import admits the eight retained 5 November IRESS prices without changing prior receipts. M6 continuous forward evidence and M7 broader integration remain open. See `docs/changes/2026-11-05-m6-forward-monitor.md`.
+
 ## Research redesign: M5 cross-sector evaluation — 5 November 2026
 
 BTI, FSR and ABSPJ now have matched swing and pullback context comparisons across the retained training and inner-validation windows. The filters produced mixed outcomes on very small samples; FSR and ABSPJ have no linked event records in these studies. M5 remains open for broader timely event evidence and later observations. See `docs/changes/2026-11-05-m5-cross-sector-evaluation.md`.

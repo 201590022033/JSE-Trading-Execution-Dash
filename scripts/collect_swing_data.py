@@ -122,10 +122,12 @@ def main():
     # login and export remain manual. Never turn rounded volume into shares.
     if not args.retry_upload:
         from application.opportunities.iress_price_only import register
-        for source in sorted((folder / 'incoming').glob('Time Series (SOL.JSE)_*.csv')):
+        for source in sorted((folder / 'incoming').glob('Time Series (*.JSE)_*.csv')):
             try:
                 capture = register(source, folder, now)
                 print(json.dumps({'price_only_import': {'state': 'AVAILABLE', 'source_sha256': capture['source_sha256'], 'last_session': capture['bars'][-1]['timestamp']}}))
+                after_close = register(source, folder, now, after_close=True)
+                print(json.dumps({'price_only_after_close_import': {'state': 'AVAILABLE', 'source_sha256': after_close['source_sha256'], 'last_session': after_close['bars'][-1]['timestamp']}}))
             except (OSError, ValueError, TypeError, KeyError, UnicodeError):
                 print(json.dumps({'price_only_import': {'state': 'REJECTED', 'file': source.name}}))
     panel = Path(os.environ.get('ZEBRA_RESEARCH_PANEL') or ROOT.parent / 'jse-strategy-research/data/p1-zebra-2026-10-21/panel.json')
@@ -148,6 +150,17 @@ def main():
             print(json.dumps({'zebra_source_refresh': refresh_sources(include_eodhd=True)}))
         except Exception as exc:
             print(json.dumps({'sharedata_consensus': {'state': 'FAILED_PRIOR_DATA_RETAINED', 'error_type': type(exc).__name__}}))
+        # This runs in the already-installed daily collector after source
+        # refresh, including when OST is unavailable. No model or order calls.
+        try:
+            from scripts.monitor_sector_forward import run as run_forward_monitor
+            forward = run_forward_monitor(capture_current=True)
+            print(json.dumps({'forward_monitor': {'state':forward['state'],
+                'capture_attempts':forward['capture_attempts'],
+                'cases':{k:{n:v[n] for n in ('captured','partial','matured_3')} for k,v in forward['cases'].items()},
+                'live_execution':False}}))
+        except Exception as exc:
+            print(json.dumps({'forward_monitor': {'state':'FAILED_PRIOR_RECORDS_RETAINED', 'error_type':type(exc).__name__, 'live_execution':False}}))
     from application.opportunities.ost_data import read_primary, fresh_charts, SCHEMA, POLICY
     primary = read_primary(folder)
     if primary is not None:

@@ -1,7 +1,7 @@
 """Bounded, deterministic component replays; candidate settings are explicit."""
 from datetime import timedelta
 from decimal import Decimal
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from hashlib import sha256
 from pathlib import Path
 from application.backtest_lab.components import VERSION,evaluate,signal_for
@@ -31,6 +31,14 @@ def run_components(config,manifest,charts,*,adapter=None,costs=None,decision_sta
    signals.append(s);traces.append({'id':s.id,'inst':manifest.instrument,'session':day,'stop':stop,'trace':trace})
  asof=max(b.available_at for b in manifest.bars)+timedelta(days=8)
  selected_costs=costs or Costs(fee_bps=Decimal(8),minimum_fee=Decimal(60),spread_bps=Decimal(20),slippage_bps=Decimal(5))
+ # Product adapters bind exact calendars. A chronological research prefix can
+ # safely use the corresponding adapter prefix; never substitute a calendar.
+ if adapter is not None and hasattr(adapter,'sessions') and adapter.sessions != manifest.sessions:
+  if tuple(adapter.sessions[:len(manifest.sessions)]) != tuple(manifest.sessions):
+   raise ValueError('product adapter session prefix mismatch')
+  keys={s.key for s in manifest.sessions}
+  adapter=replace(adapter,sessions=manifest.sessions,
+                  conversions=tuple(c for c in adapter.conversions if c.session in keys))
  result=replay([manifest],signals,as_of=asof,initial_cash=Decimal(1000000),costs=selected_costs,
                adapters={manifest.instrument:adapter} if adapter is not None else None)
  component_dir=Path(__file__).resolve().parent

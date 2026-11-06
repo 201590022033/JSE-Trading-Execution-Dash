@@ -562,6 +562,69 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
                     'state':'REGISTERED_NOT_AUTOMATICALLY_SCORED'})
             except (OSError,ValueError,TypeError,KeyError): continue
         return response({'state':'AVAILABLE','plans':plans,'research_only':True})
+    @bp.get('/api/v1/backtest-lab/fx-component-studies')
+    def fx_component_studies():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        reports=[];directory=root.parent/'fx-component-studies'
+        for path in sorted(directory.glob('*.json')) if directory.exists() else []:
+            try:
+                raw=path.read_bytes()
+                if len(raw)>16_000_000 or hashlib.sha256(raw).hexdigest()!=path.stem: continue
+                data=json.loads(raw)
+                if data.get('schema')!='fx-component-study-v1' or data.get('live_execution') is not False:continue
+                reports.append({'report_id':path.stem,'instrument':data['instrument'],'windows':data['windows'],
+                    'limitations':data['limitations'],'trials':[{'id':x['id'],'horizon':x['horizon_observed_sessions'],
+                        'results':{k:{n:v[n] for n in ('checked','unavailable_windows','signal_count','mean_gross_return_pct')}
+                                   for k,v in x['results'].items()}} for x in data['trials']]})
+            except (OSError,ValueError,KeyError,TypeError): continue
+        return response({'state':'AVAILABLE','reports':reports,'research_only':True})
+
+    @bp.get('/api/v1/backtest-lab/fx-component-studies/<report_id>')
+    def fx_component_study(report_id):
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        if not re.fullmatch(r'[0-9a-f]{64}',report_id):return response({'state':'NOT_FOUND'},404)
+        try:
+            raw=(root.parent/'fx-component-studies'/(report_id+'.json')).read_bytes()
+            if len(raw)>16_000_000 or hashlib.sha256(raw).hexdigest()!=report_id:raise ValueError('integrity')
+            data=json.loads(raw)
+            if data.get('schema')!='fx-component-study-v1' or data.get('live_execution') is not False:raise ValueError('schema')
+            return response({'state':'AVAILABLE','report':data,'research_only':True})
+        except (OSError,ValueError,TypeError):return response({'state':'NOT_FOUND'},404)
+
+    @bp.get('/api/v1/backtest-lab/hypothesis-coverage')
+    def hypothesis_coverage():
+        root=folder()
+        if root is None: return response({'state':'UNAVAILABLE'},503)
+        from application.backtest_lab.hypothesis_coverage import coverage
+        return response(coverage(root.parent))
+
+    @bp.get('/api/v1/backtest-lab/forward-monitor/<plan_id>')
+    def forward_monitor(plan_id):
+        root=folder()
+        if root is None: return response({'state':'UNAVAILABLE'},503)
+        try:
+            from application.backtest_lab.forward_monitor import read_plan, status
+            repo=Path(__file__).resolve().parents[2]
+            directory=root.parent/'prospective'
+            plan=read_plan(directory,plan_id,repo)
+            return response(status(plan_id,plan,directory/'observations'))
+        except (OSError,ValueError,TypeError,KeyError,json.JSONDecodeError):
+            return response({'state':'UNAVAILABLE'},503)
+
+    @bp.get('/api/v1/backtest-lab/forward-replay/<plan_id>')
+    def forward_replay(plan_id):
+        root=folder()
+        if root is None: return response({'state':'UNAVAILABLE'},503)
+        try:
+            from application.backtest_lab.forward_monitor import read_plan
+            from application.backtest_lab.forward_replay import compare_forward
+            repo=Path(__file__).resolve().parents[2]; directory=root.parent/'prospective'
+            return response(compare_forward(plan_id,read_plan(directory,plan_id,repo),directory/'observations'))
+        except (OSError,ValueError,TypeError,KeyError,ArithmeticError):
+            return response({'state':'UNAVAILABLE'},503)
+
     @bp.post('/api/v1/backtest-lab/ask')
     def ask():
         data=request.get_json(silent=True)

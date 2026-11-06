@@ -31,6 +31,18 @@ def _time(value):
     return dt.astimezone(timezone.utc)
 
 
+def _research_expected_session(now):
+    """Show a completed post-close research session without changing legacy clocks."""
+    from datetime import timedelta
+    from .radar_price_capture import usable_close
+    from .session_freshness import HOLIDAYS_2026
+    local = _time(now).astimezone(timezone(timedelta(hours=2)))
+    session = local.date().isoformat()
+    if local.year == 2026 and local.weekday() < 5 and session not in HOLIDAYS_2026 and usable_close(session, local):
+        return session
+    return latest_expected_session(now)
+
+
 def _value(value, field):
     if value is None or isinstance(value, bool): return None
     try:
@@ -282,8 +294,8 @@ def _iress_captures(intake, codes, now, diagnostics):
 def _iress_time_series_captures(folder, codes, now, diagnostics):
     """Use exact OHLC from archived Time Series; its rounded volume stays absent."""
     from .iress_price_only import parse
-    root = folder / 'price-only'
-    for path in sorted(root.glob('*.json')):
+    roots = (folder / 'price-only', folder / 'price-only-after-close')
+    for path in sorted(p for root in roots for p in root.glob('*.json')):
         try:
             _, saved = _load_json(path)
             digest = saved['source_sha256']
@@ -293,8 +305,9 @@ def _iress_time_series_captures(folder, codes, now, diagnostics):
                 raise ValueError('invalid instrument mapping')
             acquired = _time(saved['acquired_at'])
             if acquired > now: continue
-            raw = (root / 'raw' / (digest + '.csv')).read_bytes()
-            if sha256(raw).hexdigest() != digest or parse(raw, saved['origin_symbol'], acquired, now) != saved:
+            raw = (path.parent / 'raw' / (digest + '.csv')).read_bytes()
+            after_close = path.parent.name == 'price-only-after-close'
+            if sha256(raw).hexdigest() != digest or parse(raw, saved['origin_symbol'], acquired, now, after_close=after_close) != saved:
                 raise ValueError('raw or receipt mismatch')
             diagnostics['IRESS']['accepted_captures'] += 1
             yield {'instrument': saved['instrument'], 'provider': 'IRESS', 'acquired_at': saved['acquired_at'],
@@ -446,7 +459,7 @@ def load_zebra_screen_data(root=None, now=None, *, max_rows=None, instruments=No
         item['source_summary']=sorted({source for row in item['rows'] for v in row['fields'].values()
                                        for source in [v['source'], *(a['source'] for a in v['alternatives'])] if source})
     return {'state':'AVAILABLE' if data else 'UNAVAILABLE','as_of':now.isoformat(),
-            'expected_session':latest_expected_session(now),'instruments':data,'source_diagnostics':diagnostics,
+            'expected_session':_research_expected_session(now),'instruments':data,'source_diagnostics':diagnostics,
             'asset_class_counts':dict(sorted(Counter(v['asset_class'] for v in data.values()).items())),
             'availability':'ACTUAL_CAPTURE_CLOCKS_HISTORICAL_BAR_AVAILABILITY_RECONSTRUCTED',
             'research_only':True,'live_execution':False}

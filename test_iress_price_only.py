@@ -71,6 +71,12 @@ class PriceOnlyTests(unittest.TestCase):
     def test_exact_prices(self): test_rejects_rounded_prices_and_wrong_symbol()
     def test_handover_time(self): test_price_only_zebra_never_backdates()
     def test_invalid_rows(self): test_bad_ohlc_is_reported_without_discarding_good_rows()
+    def test_after_close_is_opt_in_and_never_admits_intraday(self):
+        early=datetime(2026,10,30,15,0,tzinfo=UTC)
+        later=datetime(2026,10,30,16,0,tzinfo=UTC)
+        self.assertEqual(len(parse(RAW,'SOL.JSE',early,later,after_close=True)['bars']),1)
+        self.assertEqual(len(parse(RAW,'SOL.JSE',later,later,after_close=True)['bars']),2)
+        self.assertEqual(len(parse(RAW,'SOL.JSE',later,later)['bars']),1)
     def test_other_symbol_enters_zebra_without_rounded_volume(self):
         from application.opportunities.zebra_screen_data import _iress_time_series_captures, merge_captures
         with tempfile.TemporaryDirectory() as directory:
