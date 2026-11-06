@@ -66,6 +66,7 @@ class ForwardMonitorTests(unittest.TestCase):
             del source['fields']['low']
             item=capture('a'*64,PLAN,'SASOL',[source],[],'2026-11-05T18:00:00+00:00',d,evaluator)
             self.assertEqual([x['state'] for x in item['decisions']],['PARTIAL','PARTIAL'])
+            self.assertEqual(status('a'*64,PLAN,d)['cases']['SASOL']['latest_missing_inputs'],{'low':1})
 
     def test_research_expected_close_respects_market_time_and_holiday(self):
         from application.opportunities.zebra_screen_data import _research_expected_session
@@ -141,3 +142,20 @@ class ForwardMonitorTests(unittest.TestCase):
             self.assertEqual(one['cases']['SASOL']['captured'],1)
             self.assertEqual(two['cases']['SASOL']['captured'],1)
             self.assertEqual(two['cases']['SASOL']['revisions'],0)
+
+    def test_bad_receipt_does_not_hide_other_instrument(self):
+        from application.backtest_lab.forward_monitor import status_independent
+        from application.backtest_lab.forward_replay import compare_forward_independent
+        plan={**PLAN,'cases':{'SASOL':PLAN['cases']['SASOL'],'BTI':PLAN['cases']['SASOL']}}
+        with tempfile.TemporaryDirectory() as d:
+            ident='f'*64;at='2026-11-05T18:00:00+00:00';source=row('2026-11-05',at)
+            for instrument in plan['cases']:capture(ident,plan,instrument,[source],[],at,d,evaluator)
+            bad=Path(d)/ident/'BTI'/'2026-11-05.json';bad.write_text('{}')
+            summary=status_independent(ident,plan,d)
+            self.assertEqual(summary['state'],'PARTIAL')
+            self.assertEqual(summary['cases']['BTI']['state'],'UNAVAILABLE')
+            self.assertIsNone(summary['cases']['BTI']['captured'])
+            self.assertEqual(summary['cases']['SASOL']['captured'],1)
+            replay=compare_forward_independent(ident,plan,d)
+            self.assertEqual(replay['cases']['BTI']['continuous_comparison'],'UNAVAILABLE')
+            self.assertEqual(len(replay['cases']['SASOL']['segments']),1)

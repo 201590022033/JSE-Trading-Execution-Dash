@@ -17,6 +17,8 @@ from persistence.sqlite_repository import SQLiteRepository
 def main():
     p=argparse.ArgumentParser();p.add_argument('--root',default='runtime/local-backtest/component-learning')
     p.add_argument('--instrument',default='SASOL');p.add_argument('--cycles',type=int,default=2)
+    p.add_argument('--family',choices=('swing','box','pull','vcp'),default='swing',
+                   help='Choose the existing strategy family; the instrument trial budget stays shared')
     p.add_argument('--cloud',action='store_true',help='Explicitly use the existing single daily swing AI budget')
     p.add_argument('--override-id',help='One separately recorded owner-authorized cloud attempt')
     p.add_argument('--factorial',action='store_true',help='Register four volume/horizon interaction cells')
@@ -74,17 +76,25 @@ def main():
             for d in DurableExperimentRepository(store,account_id='component-research',namespace=ns).list_experiments()
             if d.instrument_scope==(a.instrument,) and d.created_by=='component-learning-v1')
         current_budget=8-prior_trials
-        if current_budget<1:raise ValueError('historical component trial budget exhausted')
+        if current_budget<1 and not a.status_only:raise ValueError('historical component trial budget exhausted')
         training_volume=all(row.get('volume') is not None for row in seg[:len(seg)*60//100])
-        base=Components(benchmark_mode='outperform' if proxy else 'off',
-                        volume_mode='threshold' if training_volume else 'off')
+        if a.family=='swing':
+            base=Components(benchmark_mode='outperform' if proxy else 'off',
+                            volume_mode='threshold' if training_volume else 'off')
+        else:
+            profiles={'box':('box_breakout_daily_research',1.2),
+                      'pull':('pullback_daily_research',1.1),'vcp':('vcp_daily_research',1.3)}
+            profile,threshold=profiles[a.family]
+            base=Components(family=a.family,profile_id=profile,profile_version='1.0.0',
+                entry='family_default',momentum=False,benchmark_mode='off',stop_mode='family',
+                volume_mode='threshold' if training_volume else 'off',volume_min=threshold)
         # Immutable per-field source observations, including the benchmark,
         # remain linked to this run even if the Zebra selection later changes.
         inputs=_artifact(root/'inputs',{'instrument':a.instrument,'rows':seg,
             'benchmark':sector if proxy is data['instruments'].get(sector) else 'ETF_STX40' if proxy else None,
             'benchmark_rows':proxy.get('rows',[]) if proxy else []})
         previous_status={}
-        status_path=root/(a.instrument+'.json')
+        status_path=root/(a.instrument+('' if a.family=='swing' else '_'+a.family.upper())+'.json')
         if a.status_only and status_path.is_file():previous_status=json.loads(status_path.read_text(encoding='utf-8'))
         outcomes=previous_status.get('outcomes',[]);jobs=previous_status.get('jobs',[])
         from scripts.local_runtime import process_lock
@@ -130,7 +140,7 @@ def main():
             finally:journal.close()
         details=[]
         for d in repo.list_experiments():
-            if d.instrument_scope != (a.instrument,):continue
+            if d.instrument_scope != (a.instrument,) or d.strategy_family != a.family:continue
             bundle=repo.get_experiment(d.experiment_id,d.experiment_version)
             details.append({'experiment_id':d.experiment_id,
                 'component':d.changed_components[0] if len(d.changed_components)==1 else 'INTERACTION',
@@ -140,7 +150,7 @@ def main():
                     'diagnostics':dict(r.regime_breakdown),'cost_sensitivity':dict(r.cost_sensitivity),'uncertainty':dict(r.uncertainty),
                     'artifacts':[x.sha256 for x in r.artifacts]} for r in bundle['results']],
                 'decisions':[x.decision.value for x in bundle['decisions']]})
-        status={'schema':'component-learning-status-v1','instrument':a.instrument,'classification':classification,
+        status={'schema':'component-learning-status-v1','instrument':a.instrument,'family':a.family,'classification':classification,
             'sector_proxy':sector if proxy is data['instruments'].get(sector) else 'ETF_STX40' if proxy else None,
             'window':[seg[0]['session'],seg[-1]['session']],'outcomes':outcomes,'experiments':details,
             'jobs':jobs,'source_lineage_sha256':inputs.sha256,
@@ -148,7 +158,7 @@ def main():
             'holdout':holdout,'model_calls':previous_status.get('model_calls',0) if a.status_only else proposer.model_calls if proposer else 0,
             'historical_component_trials':prior_trials+sum(trial_weight(d) for d in repo.list_experiments() if d.instrument_scope==(a.instrument,)),
             'total_trial_budget':8,'live_execution':False}
-        target=root/(a.instrument+'.json');tmp=root/(a.instrument+'.tmp')
+        target=status_path;tmp=target.with_suffix('.tmp')
         tmp.write_text(json.dumps(status,sort_keys=True,indent=2),encoding='utf-8');tmp.replace(target)
         print(json.dumps(status,sort_keys=True))
     finally:

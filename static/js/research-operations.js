@@ -10,9 +10,16 @@ async function refreshDataRequests() {
   try {
     const data = await api('/api/market-intelligence/research-data-requests');
     const routine = data.daily_reminder;
-    button.classList.toggle('is-due', routine.due);
-    button.textContent = routine.due ? 'Daily login & import needed' : 'View daily import prompt';
-    output.textContent = `${routine.due ? 'Import required' : routine.all_required_current_today ? 'Current separate sources imported today' : 'Awaiting the next weekday window'} · weekdays 08:00 SAST · ${data.tracked_candidates} candidate(s) retained · broker login required`;
+    let research = null;
+    try { research = await api('/api/v1/opportunities'); } catch (_) { /* Legacy receipts still available. */ }
+    const candidates = research?.opportunities || [];
+    const expected = research?.refresh?.expected_session;
+    const current = expected ? candidates.filter(x => x.latest_session === expected).length : 0;
+    const available = research?.refresh?.state === 'AVAILABLE' && current > 0;
+    button.classList.toggle('is-due', !available && routine.due);
+    button.classList.toggle('is-ready', available);
+    button.textContent = available ? 'Daily research data available · review imports' : 'Review daily source imports';
+    output.textContent = `${available ? `${current}/${candidates.length} research shares through ${expected}` : 'Current research-screen data not confirmed'} · ${routine.all_required_current_today ? 'legacy source imports current' : 'some legacy source imports still outstanding'} · broker login status is not visible to this dashboard`;
     document.getElementById('data-import-prompt').value = data.copyable_prompt;
     document.getElementById('data-request-summary').innerHTML = `<h3>Canonical data requests</h3><p>${esc(data.membership.state.replaceAll('_',' ').toLowerCase())} · current published members: ${esc(data.current_members.join(', ') || 'none available')}.</p><p class="muted">${esc(data.configured_scope_note)} Coverage below describes the latest registered dataset; other local files may exist. New candidates need complete source onboarding before their learning can run.</p>`;
     document.getElementById('data-request-queue').innerHTML = `<div class="data-table-scroll"><table><thead><tr><th>Candidate</th><th>Latest OST / IRESS</th><th>History target</th><th>Daily import</th></tr></thead><tbody>${data.coverage.map(c => `<tr><td>${esc(c.instrument_id)}</td><td>${esc(c.ost.latest_session || 'missing')} / ${esc(c.iress.latest_session || 'missing')}</td><td>${c.ost.bars} / ${c.iress.bars} of ${c.history_target_sessions} sessions</td><td>${c.daily_ready ? 'Current' : 'Refresh / check required'}</td></tr>`).join('')}</tbody></table></div><details><summary>${data.requests.length} saved source and evidence requests</summary>${data.requests.map(r => `<p><b>${esc(r.instrument_id)}</b> · ${esc(r.requirement.replaceAll('_',' ').toLowerCase())}<br><span class="muted">${esc(r.priority.replaceAll('_',' ').toLowerCase())} · ${esc(r.readiness.replaceAll('_',' ').toLowerCase())}</span></p>`).join('') || '<p>The local calendar clock will register requests on its next check.</p>'}</details>`;

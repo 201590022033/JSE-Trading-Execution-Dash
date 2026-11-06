@@ -12,7 +12,13 @@ from .public_research import public_share_catalog
 
 # Research discovery only: adding this identity must not change the canonical
 # trading universe. JSE BVT and Yahoo BVT.JO identify The Bidvest Group Limited.
-RESEARCH_ISSUERS = {'BVT': {'name': 'The Bidvest Group Limited', 'sector': 'Industrials', 'yahoo_symbol': 'BVT.JO'}}
+RESEARCH_ISSUERS = {
+    'BVT': {'name': 'The Bidvest Group Limited', 'sector': 'Industrials', 'yahoo_symbol': 'BVT.JO'},
+    'EXX': {'name':'Exxaro Resources Limited','sector':'Energy','yahoo_symbol':'EXX.JO',
+            'identity_basis':'SENS_CODE_YAHOO_METADATA'},
+    'TGA': {'name':'Thungela Resources Limited','sector':'Energy','yahoo_symbol':'TGA.JO',
+            'identity_basis':'SENS_CODE_YAHOO_METADATA'},
+}
 
 
 def research_catalog():

@@ -23,6 +23,34 @@ class ComponentLearningTests(unittest.TestCase):
         self.manifest=from_chart('SOL',{'bars':self.rows,'provenance':{'provider':'TEST','source_sha256':'a'*64,'acquired_at':'2026-11-05T00:00:00+00:00'}})
         self.charts={'SOL':self.rows}; self.base=Components(volume_mode='threshold',benchmark_mode='off')
     def tearDown(self): self.storage.close();self.tmp.cleanup()
+    def test_fallback_explores_fresh_components_without_model_or_missing_sources(self):
+        from application.backtest_lab.learning_loop import fallback_proposal
+        prior=[];chosen=[]
+        for _ in range(8):
+            proposal=fallback_proposal(self.base,prior,volume_available=True,benchmark_available=True)
+            self.assertIsNotNone(proposal)
+            validate_proposal(proposal,self.base)
+            chosen.append(proposal['component'])
+            prior.append({'component':proposal['component'],'metrics':{'delta_net':0}})
+        self.assertEqual(len(set(chosen)),8)
+        self.assertEqual(chosen[:3],['volume_mode','benchmark_mode','entry'])
+        self.assertTrue({'stop_mode','target_r','risk_budget','trail','exit_mode'}.issubset(chosen))
+        from dataclasses import replace
+        price_only=replace(self.base,volume_mode='off',benchmark_mode='off')
+        first=fallback_proposal(price_only,[],volume_available=False,benchmark_available=False)
+        self.assertEqual(first['component'],'entry')
+        positive=[{'component':'volume_mode','metrics':{'delta_net':1}}]
+        self.assertEqual(fallback_proposal(self.base,positive,volume_available=True,benchmark_available=True)['component'],'horizon')
+    def test_family_prior_is_separate_but_instrument_budget_is_shared(self):
+        swing=run_cycle(self.repo,self.manifest,self.charts,self.base,artifact_dir=self.path/'artifacts')
+        self.assertEqual(self.repo.get_experiment(swing['experiment_id'],'1')['definition'].changed_components,('volume_mode',))
+        box=Components(family='box',profile_id='box_breakout_daily_research',profile_version='1.0.0',
+            entry='family_default',momentum=False,benchmark_mode='off',stop_mode='family',volume_min=1.2)
+        result=run_cycle(self.repo,self.manifest,self.charts,box,artifact_dir=self.path/'artifacts',cycle=2,budget=2)
+        self.assertEqual(self.repo.get_experiment(result['experiment_id'],'1')['definition'].changed_components,('volume_mode',))
+        self.assertEqual(len(self.repo.list_experiments()),2)
+        exhausted=run_cycle(self.repo,self.manifest,self.charts,box,artifact_dir=self.path/'artifacts',cycle=3,budget=2)
+        self.assertEqual(exhausted['state'],'BUDGET_EXHAUSTED')
     def test_listed_gold_adapter_tracks_training_and_validation_prefixes(self):
         from scripts.backtest_gold_reference import ObservedGoldUnits
         from domain.backtest.products import GoldListed
@@ -80,6 +108,8 @@ class ComponentLearningTests(unittest.TestCase):
             return {'component':'volume_mode','value':'off','rationale':'test'}
         benchmark=[{'timestamp':r['timestamp'],'close':r['close']} for r in rows]
         run_cycle(self.repo,manifest,{'SOL':rows,'ETF_STX40':benchmark},self.base,artifact_dir=self.path/'artifacts',proposer=proposer)
+        self.assertEqual(context_seen[0]['momentum_target_context']['basis'], 'TRAINING_ONLY_MARKET_STATE_NOT_STRATEGY_PERFORMANCE')
+        self.assertEqual(context_seen[0]['momentum_target_context']['as_of'],context_seen[0]['training_end'])
         self.assertNotIn(str(sentinel),str(context_seen))
         self.assertNotIn(rows[-1]['timestamp'],str(context_seen))
     def test_missing_validation_volume_keeps_training_result(self):

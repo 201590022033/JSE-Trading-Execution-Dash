@@ -13,20 +13,23 @@ GROUPS=(('H1','Selected share',('SASOL','BTI','FSR','ABSPJ')),
 def coverage(root):
     root=Path(root); studies={}; gold_runs=[]; fx_reports=[]
     for instrument in ('SASOL','BTI','FSR','ABSPJ','NEWGOLD'):
-        try:
-            data=json.loads((root/'component-learning'/(instrument+'.json')).read_text(encoding='utf-8'))
-            if data.get('instrument') != instrument or data.get('live_execution') is not False: continue
-            artifacts=[]
-            for experiment in data.get('experiments',[]):
-                for result in experiment.get('results',[]):
-                    for digest in result.get('artifacts',[]):
-                        if not isinstance(digest,str) or len(digest)!=64 or any(c not in '0123456789abcdef' for c in digest): continue
-                        try:
-                            raw=(root/'component-learning'/'artifacts'/(digest+'.json')).read_bytes()
-                            if sha256(raw).hexdigest()==digest: artifacts.append(digest)
-                        except OSError: continue
-            if artifacts: studies[instrument]=len(set(artifacts))
-        except (OSError,ValueError,KeyError,TypeError,UnicodeError): continue
+        artifacts=set();families=set()
+        for suffix in ('','_BOX','_PULL','_VCP'):
+            try:
+                data=json.loads((root/'component-learning'/(instrument+suffix+'.json')).read_text(encoding='utf-8'))
+                if data.get('instrument') != instrument or data.get('live_execution') is not False: continue
+                found=False
+                for experiment in data.get('experiments',[]):
+                    for result in experiment.get('results',[]):
+                        for digest in result.get('artifacts',[]):
+                            if not isinstance(digest,str) or len(digest)!=64 or any(c not in '0123456789abcdef' for c in digest): continue
+                            try:
+                                raw=(root/'component-learning'/'artifacts'/(digest+'.json')).read_bytes()
+                                if sha256(raw).hexdigest()==digest: artifacts.add(digest);found=True
+                            except OSError: continue
+                if found:families.add(data.get('family','swing'))
+            except (OSError,ValueError,KeyError,TypeError,UnicodeError): continue
+        if artifacts: studies[instrument]={'count':len(artifacts),'families':sorted(families)}
     references={}
     for symbol in ('ZAR_X','GC_F','GLD_JO'):
         directory=root.parent/'local-swing-data'/'cross-asset-research'
@@ -59,7 +62,7 @@ def coverage(root):
         except (OSError,ValueError,TypeError): continue
     rows=[]
     for code,name,members in GROUPS:
-        seen=[{'instrument':k,'verified_artifact_count':studies[k]} for k in members if k in studies]
+        seen=[{'instrument':k,'verified_artifact_count':studies[k]['count'],'families':studies[k]['families']} for k in members if k in studies]
         reference=references['ZAR_X'] if code=='H5' else references['GC_F']+references['GLD_JO'] if code=='H6' else 0
         listed=gold_runs if code=='H6' else []
         fx_studies=fx_reports if code=='H5' else []

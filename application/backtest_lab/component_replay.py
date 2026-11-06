@@ -8,13 +8,16 @@ from application.backtest_lab.components import VERSION,evaluate,signal_for
 from domain.backtest.component_engine import Costs,replay
 
 
-def run_components(config,manifest,charts,*,adapter=None,costs=None,decision_start=None):
+def run_components(config,manifest,charts,*,adapter=None,costs=None,decision_start=None,reference_sessions=None):
  rows=charts[manifest.instrument]
  if len(rows)!=len(manifest.bars):raise ValueError('exact chart/manifest alignment required')
  from application.backtest_lab.zebra_field_windows import valid_segments
  required=('open','high','low','close') if config.volume_mode=='off' else ('open','high','low','close','volume')
  observed=[{**r,'session':r['timestamp'][:10]} for r in rows]
- segments=valid_segments(observed,required)
+ if reference_sessions is None:segments=valid_segments(observed,required)
+ else:
+  from application.backtest_lab.zebra_field_windows import reference_segments
+  segments=reference_segments(observed,reference_sessions,required)
  if len(segments)!=1 or len(segments[0])!=len(rows):
   raise ValueError('component replay requires one complete contiguous observed segment')
  if any(row['timestamp'][:10]!=bar.session for row,bar in zip(rows,manifest.bars)):
@@ -22,7 +25,8 @@ def run_components(config,manifest,charts,*,adapter=None,costs=None,decision_sta
  signals=[];traces=[];observations=[]
  for i in range(len(rows)):
   if decision_start is not None and rows[i]['timestamp'][:10]<decision_start:continue
-  trace,stop=evaluate(config,manifest.instrument,i,charts)
+  trace,stop=(evaluate(config,manifest.instrument,i,charts) if reference_sessions is None else
+              evaluate(config,manifest.instrument,i,charts,reference_sessions=reference_sessions))
   state='UNKNOWN' if any(x['state']=='UNKNOWN' for x in trace) else 'SIGNAL' if trace and all(x['ok'] for x in trace) else 'NO_SIGNAL'
   day=rows[i]['timestamp'][:10]
   observations.append({'instrument':manifest.instrument,'session':day,'state':state,'trace':trace})

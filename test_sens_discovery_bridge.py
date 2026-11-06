@@ -31,6 +31,12 @@ class SensBridgeTests(unittest.TestCase):
         self.addCleanup(self.repo.close)
         self.now=datetime.now(timezone.utc)
 
+    def scheduled_time(self):
+        # Keep the fixture inside a completed prior-day capture slot even when
+        # the suite runs before 08:00 SAST; the source receipt stays in the past.
+        local=self.now.astimezone(radar.SAST)-timedelta(days=1)
+        return local.replace(hour=10,minute=0,second=0,microsecond=0).astimezone(timezone.utc)
+
     def test_real_source_receipt_is_distinct_from_dashboard_time_and_idempotent(self):
         m=manifest(self.now)
         first=bridge.deliver_verified(self.repo,m,self.now)
@@ -63,7 +69,7 @@ class SensBridgeTests(unittest.TestCase):
                 bridge.deliver_verified(self.repo,m,self.now)
 
     def test_scheduled_run_verifies_before_import_and_spends_one_slot(self):
-        calls=[];m=manifest(self.now)
+        self.now=self.scheduled_time();calls=[];m=manifest(self.now)
         def invoke(args):
             calls.append(args)
             return m if 'verify' in args else {}
@@ -77,7 +83,7 @@ class SensBridgeTests(unittest.TestCase):
         self.assertEqual(len(calls),2)
 
     def test_failure_does_not_import_unverified_data_or_retry(self):
-        calls=[]
+        self.now=self.scheduled_time();calls=[]
         def invoke(args):
             calls.append(args)
             if 'verify' in args:raise ValueError('archive mismatch')
@@ -86,6 +92,13 @@ class SensBridgeTests(unittest.TestCase):
         self.assertEqual(result['state'],'DISCOVERY_FAILED_NO_AUTOMATIC_RETRY')
         self.assertEqual(len(radar.sources(self.repo,datetime.now(timezone.utc))),0)
         self.assertEqual(bridge.scheduled(self.repo,self.now,invoke=invoke)['state'],'DISCOVERY_SLOT_ALREADY_SPENT')
+
+    def test_before_capture_window_does_not_invoke_source(self):
+        local=self.now.astimezone(radar.SAST).replace(hour=7,minute=0,second=0,microsecond=0)
+        calls=[]
+        result=bridge.scheduled(self.repo,local.astimezone(timezone.utc),invoke=lambda args:calls.append(args))
+        self.assertEqual(result['state'],'BEFORE_CAPTURE_WINDOW')
+        self.assertEqual(calls,[])
 
     def test_over_one_hundred_leads_are_not_silently_discarded(self):
         m=manifest(self.now);m['leads']=[dict(deepcopy(m['leads'][0]),

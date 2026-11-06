@@ -13,6 +13,32 @@ SECTOR_PROXY={'Financials':'ETF_STXFIN','Financial':'ETF_STXFIN','Financial Serv
               'Industrials':'ETF_STXIND','Industrial':'ETF_STXIND'}
 
 
+def reference_segments(rows, reference_rows, required=('open','high','low','close')):
+    """Historical research windows using observed reference sessions.
+
+    A reference session missing from the stock ends the window. Gaps absent
+    from both sources remain calendar-uncertain and are not manufactured.
+    This is an observed-session research calendar, not a verified exchange one.
+    """
+    if not set(required).issubset(FIELDS):raise ValueError('unknown field')
+    reference=sorted({r['session'] for r in reference_rows if r.get('close') is not None})
+    from bisect import bisect_right, bisect_left
+    result=[];current=[];previous=None
+    for row in sorted(rows,key=lambda r:r['session']):
+        day=row['session'];date.fromisoformat(day)
+        if previous and bisect_right(reference,previous)<bisect_left(reference,day):
+            if current:result.append(current);current=[]
+        usable=all(row.get(f) is not None for f in required)
+        if set(required)==set(FIELDS):usable=usable and capabilities(row)['ohlcv']
+        elif set(required)=={'open','high','low','close'}:
+            usable=usable and row['low']<=min(row['open'],row['close'])<=max(row['open'],row['close'])<=row['high']
+        if usable:current.append(row)
+        elif current:result.append(current);current=[]
+        previous=day
+    if current:result.append(current)
+    return result
+
+
 def valid_segments(rows, required=('close',)):
     """Return all usable windows, splitting at missing fields or known JSE sessions."""
     if not set(required).issubset(FIELDS): raise ValueError('unknown field')
@@ -115,7 +141,7 @@ def describe(data, keys=None):
             'availability':data.get('availability'),'instruments':result,'live_execution':False}
 
 
-def evaluate_mixed(strategy,instrument,index,charts):
+def evaluate_mixed(strategy,instrument,index,charts,*,reference_sessions=None):
     """Versioned research evaluation using v1 rules without its source veto.
 
     Caller supplies a complete contiguous OHLCV window. Original rows and v1
@@ -123,7 +149,8 @@ def evaluate_mixed(strategy,instrument,index,charts):
     """
     from application.backtest_lab.strategies import evaluate
     rows=charts[instrument][:index+1]
-    segments=valid_segments([{**r,'session':r['timestamp'][:10]} for r in rows],FIELDS)
+    observed=[{**r,'session':r['timestamp'][:10]} for r in rows]
+    segments=valid_segments(observed,FIELDS) if reference_sessions is None else reference_segments(observed,reference_sessions,FIELDS)
     rows=segments[-1] if segments and segments[-1][-1]['session']==rows[-1]['timestamp'][:10] else []
     if len(rows)<51:return [],None
     if any(not capabilities(r)['ohlcv'] for r in rows): return [],None

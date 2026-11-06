@@ -14,3 +14,16 @@
 #canonical-opportunities .canonical-card .kv { grid-template-columns:minmax(0,1fr) minmax(0,auto); }
 #canonical-opportunities .canonical-card .kv > * { min-width:0; overflow-wrap:anywhere; }
 #canonical-opportunities .canonical-card pre { max-width:100%; overflow:auto; }
+:root nav button[data-data-state="available"]{background:#174b35;border-color:#39d98a}
+:root nav button[data-data-state="unavailable"]{background:#652b35;border-color:#ff647c}
+:root nav button[data-data-state="attention"]{background:#5a461e;border-color:#ffc857}
+:root nav button[data-data-state="checking"]{background:#263646;border-color:#91a3b7}
+:root nav button.active[data-data-state]{outline:2px solid #fff;outline-offset:2px}
+.tab-data-status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;color:var(--muted)}
+.tab-data-status span{flex:1 1 240px;overflow-wrap:anywhere}
+.research-operations button.is-ready{background:#174b35;border-color:#39d98a;color:#e5edf5}
+main button[data-refresh-state="available"]{background:#174b35;border-color:#39d98a}
+main button[data-refresh-state="unavailable"]{background:#652b35;border-color:#ff647c}
+main button[data-refresh-state="checking"]{background:#5a461e;border-color:#ffc857}
+main button[data-refresh-state="attention"]{background:#5a461e;border-color:#ffc857}
+main button[data-refresh-state="unknown"]{border-color:#91a3b7}

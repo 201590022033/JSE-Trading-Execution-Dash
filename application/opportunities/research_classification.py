@@ -5,6 +5,8 @@ VERSION = 'research-sector-taxonomy-2026-11-04-v1'
 _DETAILS = {
     'BTI': ('Consumer','Tobacco','https://dn.sharenet.co.za/v3/quickshare.php?scode=BTI'),
     'SASOL': ('Energy','Diversified chemicals','https://dn.sharenet.co.za/v3/quickshare.php?scode=SOL'),
+    'EXX': ('Energy','Coal and energy resources','https://investor.exxaro.com/integrated-reports2025/downloads.php'),
+    'TGA': ('Energy','Thermal coal','https://www.thungela.com/investors/'),
     'CSB': ('Retail','Home improvement retailers','https://www.sharenet.co.za/v3/quickshare.php?scode=CSB'),
     'DTC': ('Technology','Computer services','https://www9.sharenet.co.za/v3/quickshare.php?scode=DTC'),
     'GPL': ('Consumer','Casinos and gambling','https://www2.sharenet.co.za/v3/quickshare.php?scode=GPL'),

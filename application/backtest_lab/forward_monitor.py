@@ -58,6 +58,16 @@ def _visible_rows(rows, decision_at):
     return sorted(result, key=lambda row:row['timestamp'])
 
 
+def _verify_record(root, record, plan_id, instrument, session):
+    body={k:v for k,v in record.items() if k!='receipt_sha256'}
+    if (sha256(json.dumps(body,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()!=record.get('receipt_sha256')
+            or record.get('plan_id')!=plan_id or record.get('instrument')!=instrument or record.get('session')!=session):
+        raise ValueError('observation receipt integrity mismatch')
+    digest=record['input_sha256']
+    if not re.fullmatch('[0-9a-f]{64}',digest) or sha256((root/(digest+'.input.json')).read_bytes()).hexdigest()!=digest:
+        raise ValueError('observation input integrity mismatch')
+
+
 def capture(plan_id, plan, instrument, rows, benchmark_rows, observed_at, folder, evaluator=None):
     """Freeze one currently observed decision; historical rows are warm-up only."""
     now = _clock(observed_at); registered = _clock(plan['registered_at'])
@@ -79,6 +89,7 @@ def capture(plan_id, plan, instrument, rows, benchmark_rows, observed_at, folder
     target = root / (session+'.json')
     if target.exists():
         saved = json.loads(target.read_text(encoding='utf-8'))
+        _verify_record(root,saved,plan_id,instrument,session)
         changed = {k:{'value':last[k],**cell} for k,cell in last['_field_receipts'].items()
                    if k not in saved['fields'] or saved['fields'][k]['value'] != last[k]}
         if changed:
@@ -146,13 +157,12 @@ def status(plan_id, plan, folder):
     cases = {}
     for instrument, spec in plan['cases'].items():
         root = Path(folder) / plan_id / instrument
-        records = [json.loads(p.read_text(encoding='utf-8')) for p in sorted(root.glob('????-??-??.json'))] if root.exists() else []
-        for record in records:
-            body={k:v for k,v in record.items() if k!='receipt_sha256'}
-            if sha256(json.dumps(body,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()!=record.get('receipt_sha256'):
-                raise ValueError('observation receipt integrity mismatch')
-            if sha256((root/(record['input_sha256']+'.input.json')).read_bytes()).hexdigest()!=record['input_sha256']:
-                raise ValueError('observation input integrity mismatch')
+        paths = sorted(root.glob('????-??-??.json')) if root.exists() else []
+        records=[]
+        for path in paths:
+            record=json.loads(path.read_text(encoding='utf-8'))
+            _verify_record(root,record,plan_id,instrument,path.stem)
+            records.append(record)
         outcomes = []
         for i, item in enumerate(records):
             horizons = {}
@@ -163,12 +173,41 @@ def status(plan_id, plan, folder):
                     'return_pct':100*(later['close']/item['close']-1) if later else None}
             outcomes.append({'session':item['session'],'decisions':item['decisions'],'horizons':horizons})
         states = [d['state'] for r in records for d in r['decisions']]
+        latest_missing={}
+        if records and any(d['state']=='PARTIAL' for d in records[-1]['decisions']):
+            snapshot=json.loads((root/(records[-1]['input_sha256']+'.input.json')).read_text(encoding='utf-8'))
+            recent=snapshot['instrument'][-51:]
+            latest_missing={field:sum(field not in r or r[field] is None for r in recent)
+                            for field in ('open','high','low','close','volume')}
+            latest_missing={k:v for k,v in latest_missing.items() if v}
         revisions = len(list((root/'revisions').glob('*.json'))) if (root/'revisions').exists() else 0
         cases[instrument] = {'captured':len(records),'frozen':len(states),'revisions':revisions,
             'partial':states.count('PARTIAL'),'signals':states.count('SIGNAL'),'no_signal':states.count('NO_SIGNAL'),
+            'latest_missing_inputs':latest_missing,
             'matured_3':sum(x['horizons']['3']['state']=='OBSERVED' for x in outcomes),
             'strategies':spec['strategies'],'observations':outcomes}
     return {'state':'MONITORING','plan_id':plan_id,'cases':cases,'cadence':'EXISTING_DAILY_COLLECTOR_AND_MANUAL',
         'outcomes_basis':'OBSERVED_CLOSE_RETURNS_NOT_ENGINE_TRADE_SCORING',
         'limitations':['OBSERVED_SESSIONS_NOT_GUARANTEED_CONSECUTIVE','NO_AUTOMATIC_PROMOTION'],
         'research_only':True,'live_execution':False}
+
+
+def status_independent(plan_id, plan, folder):
+    """Keep unaffected instruments visible if another receipt is damaged."""
+    cases={};failures=0; template=None
+    for instrument,spec in plan['cases'].items():
+        try:
+            sub={**plan,'cases':{instrument:spec}}
+            result=status(plan_id,sub,folder);template=result;cases[instrument]=result['cases'][instrument]
+            cases[instrument]['state']='AVAILABLE'
+        except (OSError,ValueError,KeyError,TypeError,AttributeError,UnicodeError):
+            failures+=1
+            cases[instrument]={'state':'UNAVAILABLE','reason':'RECEIPT_INTEGRITY_OR_READ_ERROR',
+                'captured':None,'frozen':None,'partial':None,'signals':None,'no_signal':None,
+                'matured_3':None,'revisions':None,'strategies':spec['strategies'],'observations':[]}
+    if template is None:
+        template={'state':'MONITORING','plan_id':plan_id,'cadence':'EXISTING_DAILY_COLLECTOR_AND_MANUAL',
+            'outcomes_basis':'OBSERVED_CLOSE_RETURNS_NOT_ENGINE_TRADE_SCORING',
+            'limitations':['OBSERVED_SESSIONS_NOT_GUARANTEED_CONSECUTIVE','NO_AUTOMATIC_PROMOTION'],
+            'research_only':True,'live_execution':False}
+    return {**template,'state':'PARTIAL' if failures else 'MONITORING','cases':cases}

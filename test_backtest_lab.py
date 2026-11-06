@@ -89,6 +89,31 @@ class BacktestLabTests(unittest.TestCase):
             with self.assertRaises(TimeoutError):local_advice('x')
             self.assertEqual(call.call_args.kwargs['timeout'],120)
 
+    def test_desk_uses_cloud_and_does_not_retry_a_failed_call(self):
+        from application.backtest_lab.blueprint import desk_advice
+        from types import SimpleNamespace
+        provider=SimpleNamespace(key='private', model='test-model')
+        router=unittest.mock.Mock()
+        router._request.return_value='  Desk report  '
+        with patch('application.opportunities.swing_research.swing_cloud_provider',return_value=(router,provider)), \
+             patch('application.backtest_lab.blueprint.local_advice') as local:
+            self.assertEqual(desk_advice('risk prompt'),('Desk report','Ollama Cloud / test-model'))
+            router._request.assert_called_once_with(provider,'risk prompt',timeout=(5,110))
+            local.assert_not_called()
+            router._request.side_effect=TimeoutError('private error')
+            with self.assertRaises(TimeoutError):desk_advice('risk prompt')
+            local.assert_not_called()
+
+    def test_desk_falls_back_to_idle_local_only_without_cloud_key(self):
+        from application.backtest_lab.blueprint import desk_advice
+        from types import SimpleNamespace
+        router=unittest.mock.Mock()
+        with patch('application.opportunities.swing_research.swing_cloud_provider',return_value=(router,SimpleNamespace(key=''))), \
+             patch('application.backtest_lab.blueprint.local_advice',return_value=('local report','local model')) as local:
+            self.assertEqual(desk_advice('manager prompt'),('local report','local model'))
+            local.assert_called_once_with('manager prompt')
+            router._request.assert_not_called()
+
     def test_non_synthetic_prompt_keeps_grade_and_limitations(self):
         from copy import deepcopy
         from application.backtest_lab.blueprint import prompt_for

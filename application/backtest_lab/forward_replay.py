@@ -129,3 +129,22 @@ def compare_forward(plan_id, plan, folder):
     return {'state':'AVAILABLE','plan_id':plan_id,'cases':cases,'research_only':True,'live_execution':False,
         'limitations':['SEGMENTS_HAVE_INDEPENDENT_CASH_LEDGERS','FROZEN_PARTIAL_STATES_ARE_NOT_SIGNALS',
                        'FULL_FILL_AND_COST_ASSUMPTIONS','NOT_VALIDATED_PERFORMANCE']}
+
+
+def compare_forward_independent(plan_id, plan, folder):
+    """A broken instrument does not hide other independent replays."""
+    cases={};failures=0;template=None
+    for instrument,spec in plan['cases'].items():
+        try:
+            result=compare_forward(plan_id,{**plan,'cases':{instrument:spec}},folder)
+            template=result;cases[instrument]=result['cases'][instrument]
+        except (OSError,ValueError,KeyError,TypeError,AttributeError,ArithmeticError,UnicodeError):
+            failures+=1
+            cases[instrument]={'state':'UNAVAILABLE','reason':'REPLAY_INPUT_OR_RECEIPT_ERROR',
+                'observations':None,'gaps':[],'segments':[],'partial_decisions':None,
+                'continuous_comparison':'UNAVAILABLE'}
+    if template is None:
+        template={'state':'AVAILABLE','plan_id':plan_id,'research_only':True,'live_execution':False,
+            'limitations':['SEGMENTS_HAVE_INDEPENDENT_CASH_LEDGERS','FROZEN_PARTIAL_STATES_ARE_NOT_SIGNALS',
+                           'FULL_FILL_AND_COST_ASSUMPTIONS','NOT_VALIDATED_PERFORMANCE']}
+    return {**template,'state':'PARTIAL' if failures else 'AVAILABLE','cases':cases}

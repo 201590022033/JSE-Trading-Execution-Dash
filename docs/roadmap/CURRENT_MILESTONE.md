@@ -1,3 +1,7 @@
+## Research redesign: pre-ingestion M6/M7 cleanup — 6 November 2026
+
+The daily forward step now has durable status, per-instrument error isolation and input-specific partial explanations. Family-specific box and pullback component cycles were added under the shared instrument budget; BTI and Sasol exploratory examples are recorded. The 07:30 task and later outcomes have not yet occurred. See `docs/changes/2026-11-06-m6-m7-pre-ingestion.md`.
+
 ## Research redesign: M6 daily hook and M7 FX/gold examples — 5 November 2026
 
 The existing 07:30 local swing collector now invokes the forward monitor after source refresh; the next scheduled run has not yet been observed. A listed-NewGold component-learning cycle and a separate price-only USD/ZAR component study are retained, with no model calls. M6's later outcomes and M7's broader feedback and live visual verification remain open. See `docs/changes/2026-11-05-daily-forward-fx-gold.md`.

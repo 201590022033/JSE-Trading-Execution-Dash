@@ -153,12 +153,8 @@ def main():
         # This runs in the already-installed daily collector after source
         # refresh, including when OST is unavailable. No model or order calls.
         try:
-            from scripts.monitor_sector_forward import run as run_forward_monitor
-            forward = run_forward_monitor(capture_current=True)
-            print(json.dumps({'forward_monitor': {'state':forward['state'],
-                'capture_attempts':forward['capture_attempts'],
-                'cases':{k:{n:v[n] for n in ('captured','partial','matured_3')} for k,v in forward['cases'].items()},
-                'live_execution':False}}))
+            from application.backtest_lab.daily_forward_status import run_daily
+            print(json.dumps({'forward_monitor':run_daily(ROOT)}))
         except Exception as exc:
             print(json.dumps({'forward_monitor': {'state':'FAILED_PRIOR_RECORDS_RETAINED', 'error_type':type(exc).__name__, 'live_execution':False}}))
     from application.opportunities.ost_data import read_primary, fresh_charts, SCHEMA, POLICY

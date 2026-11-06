@@ -1,0 +1,36 @@
+(() => {
+  const tab = document.getElementById('backtest-lab');
+  if (!tab) return;
+  const section = document.createElement('section'); section.className = 'panel';
+  section.innerHTML = '<h2>Target and exit design</h2><p>Research comparisons on retained history. Costs are hypothetical; past results do not establish a forecast or trading edge.</p><button type="button">Load comparisons</button> <label>Study <select aria-label="Target design study"></select></label><p role="status"></p><div></div>';
+  tab.append(section);
+  const button = section.querySelector('button'), select = section.querySelector('select');
+  const status = section.querySelector('[role=status]'), results = section.querySelector('div');
+  async function read(url) { const r = await fetch(url, {cache:'no-store'}); if (!r.ok) throw Error('HTTP '+r.status); return r.json(); }
+  function cell(row, value) { const td = document.createElement('td'); td.textContent = String(value ?? '—'); row.append(td); }
+  async function show() {
+    if (!select.value) return;
+    status.textContent = 'Loading study…';
+    try {
+      const {report:r} = await read('/api/v1/backtest-lab/target-design/'+encodeURIComponent(select.value));
+      results.replaceChildren();
+      status.textContent = `${r.instrument} · ${r.family} · ${r.horizon} observed sessions · ${r.window.join(' to ')} · ${r.cost_basis}. Same-industry comparisons fall back to fixed 2R when no matching cases exist. Peer groups use present-day classifications.`;
+      const table = document.createElement('table');
+      const head = document.createElement('tr'); ['Variant','Signals','Trades','Closed-trade net','Target hits','Max drawdown'].forEach(v=>{const th=document.createElement('th');th.textContent=v;head.append(th)}); table.append(head);
+      for (const [name,v] of Object.entries(r.variants)) {
+        const row=document.createElement('tr'); [name.replaceAll('_',' '),v.signals,v.trades,v.net,v.target_hits,v.max_drawdown_pct+'%'].forEach(x=>cell(row,x));table.append(row);
+        const detail=document.createElement('details');const summary=document.createElement('summary');summary.textContent=name.replaceAll('_',' ')+' · economics and period / regime';detail.append(summary);
+        const economics=v.decisions.filter(d=>d.state==='TARGET_ECONOMICS'||d.state==='TARGET_ECONOMICS_REJECTED').map(d=>({...d,estimated_target_costs_after_entry_fill:((Number(d.target)-Number(d.entry))*Number(d.quantity)-Number(d.estimated_net_target_pnl)).toFixed(2)}));
+        const pre=document.createElement('pre');pre.style.whiteSpace='pre-wrap';pre.textContent='Filters: '+JSON.stringify(v.filtered)+'\nPeriod and regime: '+JSON.stringify(v.groups)+'\nPer-signal entry, stop, target, gross and net reward/risk: '+JSON.stringify(economics,null,2);detail.append(pre);results.append(detail);
+      }
+      results.prepend(table);
+      const peers=document.createElement('p'); peers.textContent='Peer setup counts: '+JSON.stringify(r.peer_counts)+'. Limitations: '+r.limitations.join(', ')+'.'; results.prepend(peers);
+      const evidence=document.createElement('details'); const evidenceTitle=document.createElement('summary');
+      evidenceTitle.textContent='Matched setup samples and source news context'; evidence.append(evidenceTitle);
+      const source=document.createElement('a'); source.href='/api/v1/backtest-lab/momentum-targets/'+encodeURIComponent(r.source_report_id); source.target='_blank';source.rel='noopener';source.textContent='Open frozen source report with timed SENS and news context';evidence.append(source);
+      const estimates=document.createElement('pre');estimates.style.whiteSpace='pre-wrap';estimates.textContent=JSON.stringify(r.estimates,null,2);evidence.append(estimates);results.prepend(evidence);
+    } catch(e) { status.textContent='Study unavailable: '+e.message; }
+  }
+  select.addEventListener('change',show);
+  button.addEventListener('click',async()=>{status.textContent='Checking saved studies…';try{const d=await read('/api/v1/backtest-lab/target-design');select.replaceChildren();for(const r of d.reports){const o=document.createElement('option');o.value=r.report_id;o.textContent=`${r.instrument} · ${r.family} · ${r.horizon} sessions · ${r.report_id.slice(0,10)}`;select.append(o)}if(d.reports.length)await show();else status.textContent='No target-design studies saved yet.'}catch(e){status.textContent='Studies unavailable: '+e.message}});
+})();

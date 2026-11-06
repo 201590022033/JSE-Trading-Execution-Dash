@@ -7,7 +7,7 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from application.backtest_lab.forward_monitor import capture,read_plan,status
+from application.backtest_lab.forward_monitor import capture,read_plan,status_independent
 from application.opportunities.zebra_screen_data import load_zebra_screen_data
 
 PLAN='e39b498c38944c793cf0ba5afeab919c36fec8fc9a03e8681b9151baaba38a45'
@@ -30,11 +30,11 @@ def run(*, capture_current=False, plan_id=PLAN, root=ROOT, now=None, data_loader
                     raise ValueError('latest completed session not available')
                 row=capture(plan_id,plan,instrument,rows,data.get('ETF_STX40',{}).get('rows',[]),now.isoformat(),output)
                 results[instrument]={'state':'RECORDED_OR_ALREADY_PRESENT','session':row['session']}
-            except (KeyError,ValueError,TypeError) as exc:
+            except (KeyError,ValueError,TypeError,OSError,ArithmeticError) as exc:
                 results[instrument]={'state':'NOT_CAPTURED','reason':str(exc)}
-    result=status(plan_id,plan,output);result['capture_attempts']=results
-    from application.backtest_lab.forward_replay import compare_forward
-    result['engine_replay']=compare_forward(plan_id,plan,output)
+    result=status_independent(plan_id,plan,output);result['capture_attempts']=results
+    from application.backtest_lab.forward_replay import compare_forward_independent
+    result['engine_replay']=compare_forward_independent(plan_id,plan,output)
     return result
 
 def main():

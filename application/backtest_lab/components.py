@@ -96,7 +96,7 @@ def _family_without_volume(family, rows):
  return rules,stop
 
 
-def evaluate(config,instrument,index,charts):
+def evaluate(config,instrument,index,charts,*,reference_sessions=None):
  """Call the actual swing snapshot; missing optional filters remain optional."""
  rows=charts[instrument][:index+1]
  if not rows:return [],None
@@ -115,7 +115,7 @@ def evaluate(config,instrument,index,charts):
   try:
    if config.volume_mode=='off' and any(r.get('volume') is None for r in rows):
     original,family_stop=_family_without_volume(config.family,rows)
-   else:original,family_stop=evaluate_mixed(config.family,instrument,index,charts)
+   else:original,family_stop=evaluate_mixed(config.family,instrument,index,charts,reference_sessions=reference_sessions)
   except (TypeError,ValueError,KeyError,ZeroDivisionError):original=[];family_stop=None
   if not original:return [_rule('Family inputs',None,None,'Complete family history unavailable')],None
   rules=[]

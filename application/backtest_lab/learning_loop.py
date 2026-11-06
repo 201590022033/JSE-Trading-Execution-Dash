@@ -35,6 +35,46 @@ def validate_proposal(raw, baseline):
     candidate = replace(baseline, **{key: value})
     return candidate
 
+
+def fallback_proposal(baseline, prior, *, volume_available, benchmark_available):
+    """Choose a fresh single-component question, without a model call.
+
+    The order is deterministic and bounded by the existing experiment budget.
+    Earlier trials are never rewritten, and absence of an optional source only
+    removes the specific question that needs it.
+    """
+    tried={item.get('component') for item in prior}
+    volume_evidence=next((x for x in reversed(prior) if x.get('component')=='volume_mode'),None)
+    options=[]
+    if baseline.volume_mode=='threshold' or volume_available:
+        options.append(('volume_mode','off' if baseline.volume_mode=='threshold' else 'threshold',
+                        'Compare the volume filter against the matched control'))
+    if volume_evidence and (volume_evidence.get('metrics',{}).get('delta_net') or 0)>0:
+        options.append(('horizon',4 if baseline.horizon!=4 else 3,'Test holding length after the volume comparison'))
+    if baseline.benchmark_mode=='outperform' or benchmark_available:
+        options.append(('benchmark_mode','off' if baseline.benchmark_mode=='outperform' else 'outperform',
+                        'Compare the sector or benchmark filter'))
+    entries=('breakout','reclaim','trend_only') if baseline.family=='swing' else ('trigger_only','trend_only','family_default')
+    options.extend([
+        ('entry',next((v for v in entries if v!=baseline.entry),baseline.entry),'Compare a different entry condition'),
+        ('stop_mode','atr' if baseline.stop_mode!='atr' else 'structure','Compare initial stop geometry'),
+        ('target_r',1.5 if baseline.target_r!=1.5 else 2.0,'Compare the profit target'),
+        ('risk_budget',6000 if baseline.risk_budget!=6000 else 12000,'Compare risk per position'),
+        ('trail','ATR' if baseline.trail!='ATR' else 'STRUCTURE','Compare trailing protection'),
+        ('exit_mode','EMA21_CLOSE' if baseline.exit_mode!='EMA21_CLOSE' else 'HORIZON_OR_TARGET','Compare exit rules'),
+        ('horizon',4 if baseline.horizon!=4 else 3,'Compare the holding period'),
+        ('trend',not baseline.trend,'Compare the trend filter'),
+        ('momentum',not baseline.momentum,'Compare the momentum filter'),
+        ('max_notional',210000 if baseline.max_notional!=210000 else 420000,'Compare position notional limits'),
+    ])
+    for component,value,reason in options:
+        if component in tried:continue
+        proposal={'component':component,'value':value,'rationale':reason}
+        try: validate_proposal(proposal,baseline)
+        except (TypeError,ValueError):continue
+        return proposal
+    return None
+
 def factorial_plan(baseline, first, second):
     """Explicit 2x2 interaction plan, without starting runs or a model."""
     from domain.evaluation.experiment import Factor, FactorialDesign
@@ -233,7 +273,8 @@ def run_cycle(repo, manifest, charts, baseline, *, artifact_dir, budget=8, propo
     code_hashes={name:sha256((root/name).read_bytes()).hexdigest() for name in
         ('application/backtest_lab/learning_loop.py','application/backtest_lab/components.py',
          'application/backtest_lab/component_replay.py','application/backtest_lab/cloud_component_proposer.py',
-         'application/backtest_lab/learning_journal.py','application/backtest_lab/research_context.py','domain/backtest/component_engine.py')}
+         'application/backtest_lab/learning_journal.py','application/backtest_lab/research_context.py',
+         'application/backtest_lab/momentum_targets.py','domain/backtest/component_engine.py')}
     chart_identity=configuration_hash(charts)
     identity = configuration_hash({'version': VERSION, 'data': manifest.sha256, 'baseline': baseline.config_hash,
                                    'charts':chart_identity,'code':code_hashes,'cycle': cycle, 'split': split,
@@ -250,7 +291,8 @@ def run_cycle(repo, manifest, charts, baseline, *, artifact_dir, budget=8, propo
     baseline_train = run_components(baseline, training_manifest, training_charts, adapter=adapter)
     prior = []
     for definition in repo.list_experiments():
-        if definition.created_by != VERSION or definition.instrument_scope != (manifest.instrument,): continue
+        if (definition.created_by != VERSION or definition.instrument_scope != (manifest.instrument,)
+                or definition.baseline_id != baseline.config_hash): continue
         item = repo.get_experiment(definition.experiment_id, definition.experiment_version)
         eligible_runs = {r.run_id for r in item['runs'] if r.causal_cutoff <= training_manifest.bars[-1].available_at}
         prior.extend({'experiment_id': definition.experiment_id,
@@ -260,10 +302,18 @@ def run_cycle(repo, manifest, charts, baseline, *, artifact_dir, budget=8, propo
                       'diagnostics':dict(result.regime_breakdown),'cost_sensitivity':dict(result.cost_sensitivity),
                       'uncertainty':dict(result.uncertainty)} for result in item['results']
                      if result.run_id in eligible_runs and result.evidence_stage in (ExperimentStage.IN_SAMPLE, ExperimentStage.VALIDATION))
+    from application.backtest_lab.momentum_targets import projection
+    training_rows=training_charts[manifest.instrument]
+    momentum_context={name:projection(training_rows,len(training_rows)-1,baseline.horizon,name,
+                                      training_charts.get('ETF_STX40'))
+                      for name in ('momentum','momentum_volume','momentum_sector')}
     context = {'instrument': manifest.instrument, 'training_end': sessions[split['train'][1]].key,
                'baseline_config': asdict(baseline), 'volume_available':volume_available,
                'training': _summary(baseline_train,training_charts[manifest.instrument],training_charts.get('ETF_STX40')), 'prior_training_results': prior,
-               'optional_context':usable_context,'optional_context_count':len(usable_context)}
+               'optional_context':usable_context,'optional_context_count':len(usable_context),
+               'momentum_target_context':{'as_of':sessions[split['train'][1]].key,
+                                          'basis':'TRAINING_ONLY_MARKET_STATE_NOT_STRATEGY_PERFORMANCE',
+                                          'variants':momentum_context}}
     # Only records of this loop's training/validation stages are included. Holdout is never read.
     if existing is not None:
         frozen = json.loads(existing['definition'].treatment_description)
@@ -280,21 +330,10 @@ def run_cycle(repo, manifest, charts, baseline, *, artifact_dir, budget=8, propo
                 # Do not persist provider exception text: it may contain credentials.
                 proposal = None; source = 'PROPOSER_FAILED_FALLBACK'
     if proposal is None:
-        tried={item['component'] for item in prior}
-        volume_evidence=next((x for x in reversed(prior) if x['component']=='volume_mode'),None)
-        if 'volume_mode' not in tried and (baseline.volume_mode=='threshold' or volume_available):
-            component,value='volume_mode',('off' if baseline.volume_mode=='threshold' else 'threshold')
-            reason='Test whether the volume filter changes signal coverage and outcomes'
-        elif volume_evidence and (volume_evidence['metrics'].get('delta_net') or 0)>0 and 'horizon' not in tried:
-            component,value='horizon',(4 if baseline.horizon!=4 else 3)
-            reason='Prior volume ablation improved training net; investigate the holding period separately'
-        elif 'benchmark_mode' not in tried:
-            component,value='benchmark_mode',('off' if baseline.benchmark_mode=='outperform' else 'outperform')
-            reason='Investigate the benchmark filter after the retained volume comparison'
-        else:
-            component,value='horizon',(4 if baseline.horizon!=4 else 3)
-            reason='Compare the holding period against the fixed control'
-        proposal = {'component':component,'value':value,'rationale':reason}
+        proposal=fallback_proposal(baseline,prior,volume_available=volume_available,
+                                   benchmark_available=bool(training_charts.get('ETF_STX40')))
+        if proposal is None:
+            return {'state':'NO_NEW_COMPONENTS','trials':used,'budget':budget,'live_execution':False}
     candidate = validate_proposal(proposal, baseline)
     component = proposal['component']
     # Preserve the provider receipt but avoid spending another replay on the

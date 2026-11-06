@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, request
 from domain.strategy import DEFAULT_STRATEGY_REGISTRY
 
 LOCK = Lock()
+MOMENTUM_REPORT_MAX_BYTES = 128_000_000
 ROLES = {
  'manager': '''You are a research director with a fiduciary mindset. Survey the research book: know what is present, broken, fragile and missing; reject overfitting, hype and reckless leverage. Classify each strategy as Production candidate (robust across instruments and regimes, drawdown controlled and ready for forward testing), Candidate (strong but unvalidated), Incubate (promising but unproven), Watchlist (interesting but weak), or Reject (fragile, overfit or dependent on one instrument or trade). Identify gaps including overconcentration in trend following and missing risk or walk-forward checks. Choose one specialist and one focused next job with exact strategy, goal, constraints and definition of done. Report book status, strongest and weakest evidence, coverage gap, priority, yellow flags and red flags. Never promote without forward testing; do not mistake leverage for skill.''',
  'over': '''You are an overfitting detector. Default to professional suspicion and stress-test rather than invent strategies. Review walk-forward in-sample versus out-of-sample retention, small parameter changes, breadth across instruments, neighbouring timeframes, random-entry or shuffle controls and equity consistency across regimes. A collapse out of sample or performance on only one or two instruments is suspicious. Where evidence exists, score each dimension 0–2: walk-forward retention, parameter stability, cross-instrument breadth, cross-timeframe stability, random-control differential and equity consistency. Do not assign scores or infer robustness for missing tests. Report baseline, each available test, missing evidence, overall verdict and one practical next test. Too few trades makes meaningful walk-forward analysis unavailable.''',
@@ -70,7 +71,48 @@ def local_advice(prompt):
     return data['text'],data['model']
 
 
-def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
+def desk_advice(prompt):
+    """An explicit desk request uses the configured cloud provider, or idle local runner.
+
+    Never retry a failed cloud generation with another model: one click is one
+    generation attempt and the separately budgeted swing proposer is untouched.
+    """
+    from application.opportunities.swing_research import swing_cloud_provider
+    router, provider = swing_cloud_provider()
+    if not provider.key:
+        return local_advice(prompt)
+    text = router._request(provider, prompt, timeout=(5, 110))
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError('empty advisory response')
+    return text.strip(), 'Ollama Cloud / ' + provider.model
+
+
+def momentum_desk_context(root, run):
+    """Attach compact retained comparisons for instruments present in the run."""
+    directory=root.parent/'momentum-targets'; items=[]
+    if not directory.is_dir():return items
+    symbols=set(run.get('bars',{}));symbols |= ({'SASOL'} if 'SOL' in symbols else set())
+    seen=set()
+    for path in sorted(directory.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:100]:
+        try:
+            raw=path.read_bytes()
+            if len(raw)>MOMENTUM_REPORT_MAX_BYTES or hashlib.sha256(raw).hexdigest()!=path.stem:continue
+            body=json.loads(raw);key=(body['instrument'],body['family'],body.get('config',{}).get('horizon'))
+            if body.get('schema')!='momentum-target-comparison-v1' or body.get('live_execution') is not False or key[0] not in symbols or key in seen:continue
+            seen.add(key)
+            items.append({'instrument':key[0],'family':key[1],'horizon':key[2],'window':body['window'],'report_id':path.stem,
+                'peer_taxonomy':body.get('peer_taxonomy',{}),'context_source_status':body.get('context_source_status'),
+                'known_context_signals':sum(bool(v.get('known_recent')) for v in body.get('timed_context',{}).values()),
+                'comparable_counts':{name:{'minimum':min(nums),'maximum':max(nums)} for name,values in body.get('calculations',{}).items()
+                    if (nums:=[x['sample_count'] for x in values.values() if x.get('sample_count') is not None])},
+                'variants':{name:{k:value[k] for k in ('signals','trades','target_hits','net','max_drawdown_pct','projected_signals')}
+                            for name,value in body['variants'].items()}})
+            if len(items)>=4:break
+        except (OSError,ValueError,TypeError,KeyError):continue
+    return items
+
+
+def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
     bp=Blueprint('backtest_lab',__name__)
     def folder():
         root=directory() if callable(directory) else directory if directory is not None else os.environ.get('LOCAL_BACKTEST_REPORT_DIR','')
@@ -234,6 +276,71 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
                 return response({'state':'AVAILABLE','artifact':json.loads(raw)})
             except (OSError,ValueError,UnicodeDecodeError):continue
         return response({'state':'NOT_FOUND'},404)
+
+    @bp.get('/api/v1/backtest-lab/momentum-targets')
+    def momentum_targets():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        reports=[];directory=root.parent/'momentum-targets'
+        if directory.is_dir():
+            for path in sorted(directory.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:100]:
+                try:
+                    raw=path.read_bytes()
+                    if len(raw)>MOMENTUM_REPORT_MAX_BYTES or hashlib.sha256(raw).hexdigest()!=path.stem:continue
+                    data=json.loads(raw)
+                    if data.get('schema')!='momentum-target-comparison-v1' or data.get('live_execution') is not False:continue
+                    reports.append({'report_id':path.stem,'instrument':data['instrument'],'family':data['family'],
+                                    'sector':data.get('sector'),'window':data['window'],'horizon':data.get('config',{}).get('horizon'),
+                                    'variants':{name:{k:v for k,v in value.items() if k not in ('decisions','closed_trades')}
+                                                for name,value in data['variants'].items()}})
+                except (OSError,ValueError,KeyError,TypeError):continue
+        return response({'state':'AVAILABLE','reports':reports})
+
+    @bp.get('/api/v1/backtest-lab/momentum-targets/<report_id>')
+    def momentum_target_detail(report_id):
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        if not re.fullmatch(r'[0-9a-f]{64}',report_id):return response({'state':'NOT_FOUND'},404)
+        try:
+            raw=(root.parent/'momentum-targets'/(report_id+'.json')).read_bytes()
+            if len(raw)>MOMENTUM_REPORT_MAX_BYTES or hashlib.sha256(raw).hexdigest()!=report_id:raise ValueError('invalid report')
+            data=json.loads(raw)
+            if data.get('schema')!='momentum-target-comparison-v1' or data.get('live_execution') is not False:raise ValueError('invalid report')
+            if request.args.get('include_sources')!='1':
+                data={**data,'input_sources_omitted':bool(data.get('input_sources'))}
+                data.pop('input_sources',None)
+            return response({'state':'AVAILABLE','report':data})
+        except (OSError,ValueError,TypeError):return response({'state':'NOT_FOUND'},404)
+
+    @bp.get('/api/v1/backtest-lab/target-design')
+    def target_design():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        reports=[];directory=root.parent/'target-design'
+        if directory.is_dir():
+            for path in sorted(directory.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:100]:
+                try:
+                    raw=path.read_bytes()
+                    if len(raw)>MOMENTUM_REPORT_MAX_BYTES or hashlib.sha256(raw).hexdigest()!=path.stem:continue
+                    data=json.loads(raw)
+                    if data.get('schema')!='target-design-study-v1' or data.get('live_execution') is not False:continue
+                    reports.append({'report_id':path.stem,'instrument':data['instrument'],'family':data['family'],
+                                    'window':data['window'],'horizon':data['horizon']})
+                except (OSError,ValueError,KeyError,TypeError):continue
+        return response({'state':'AVAILABLE','reports':reports})
+
+    @bp.get('/api/v1/backtest-lab/target-design/<report_id>')
+    def target_design_detail(report_id):
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        if not re.fullmatch(r'[0-9a-f]{64}',report_id):return response({'state':'NOT_FOUND'},404)
+        try:
+            raw=(root.parent/'target-design'/(report_id+'.json')).read_bytes()
+            if len(raw)>MOMENTUM_REPORT_MAX_BYTES or hashlib.sha256(raw).hexdigest()!=report_id:raise ValueError('invalid report')
+            data=json.loads(raw)
+            if data.get('schema')!='target-design-study-v1' or data.get('live_execution') is not False:raise ValueError('invalid report')
+            return response({'state':'AVAILABLE','report':data})
+        except (OSError,ValueError,TypeError):return response({'state':'NOT_FOUND'},404)
 
     @bp.get('/api/v1/backtest-lab/component-studies')
     def component_studies():
@@ -574,10 +681,12 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
                 data=json.loads(raw)
                 if data.get('schema')!='fx-component-study-v1' or data.get('live_execution') is not False:continue
                 reports.append({'report_id':path.stem,'instrument':data['instrument'],'windows':data['windows'],
+                    'source_acquired_at':data['source_acquired_at'],
                     'limitations':data['limitations'],'trials':[{'id':x['id'],'horizon':x['horizon_observed_sessions'],
                         'results':{k:{n:v[n] for n in ('checked','unavailable_windows','signal_count','mean_gross_return_pct')}
                                    for k,v in x['results'].items()}} for x in data['trials']]})
             except (OSError,ValueError,KeyError,TypeError): continue
+        reports.sort(key=lambda x:(x['source_acquired_at'],x['report_id']))
         return response({'state':'AVAILABLE','reports':reports,'research_only':True})
 
     @bp.get('/api/v1/backtest-lab/fx-component-studies/<report_id>')
@@ -600,16 +709,25 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         from application.backtest_lab.hypothesis_coverage import coverage
         return response(coverage(root.parent))
 
+    @bp.get('/api/v1/backtest-lab/daily-forward-status')
+    def daily_forward_status():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        try:
+            from application.backtest_lab.daily_forward_status import read_daily
+            return response(read_daily(root.parent/'prospective'))
+        except (OSError,ValueError,TypeError):return response({'state':'UNAVAILABLE'},503)
+
     @bp.get('/api/v1/backtest-lab/forward-monitor/<plan_id>')
     def forward_monitor(plan_id):
         root=folder()
         if root is None: return response({'state':'UNAVAILABLE'},503)
         try:
-            from application.backtest_lab.forward_monitor import read_plan, status
+            from application.backtest_lab.forward_monitor import read_plan, status_independent
             repo=Path(__file__).resolve().parents[2]
             directory=root.parent/'prospective'
             plan=read_plan(directory,plan_id,repo)
-            return response(status(plan_id,plan,directory/'observations'))
+            return response(status_independent(plan_id,plan,directory/'observations'))
         except (OSError,ValueError,TypeError,KeyError,json.JSONDecodeError):
             return response({'state':'UNAVAILABLE'},503)
 
@@ -619,9 +737,9 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         if root is None: return response({'state':'UNAVAILABLE'},503)
         try:
             from application.backtest_lab.forward_monitor import read_plan
-            from application.backtest_lab.forward_replay import compare_forward
+            from application.backtest_lab.forward_replay import compare_forward_independent
             repo=Path(__file__).resolve().parents[2]; directory=root.parent/'prospective'
-            return response(compare_forward(plan_id,read_plan(directory,plan_id,repo),directory/'observations'))
+            return response(compare_forward_independent(plan_id,read_plan(directory,plan_id,repo),directory/'observations'))
         except (OSError,ValueError,TypeError,KeyError,ArithmeticError):
             return response({'state':'UNAVAILABLE'},503)
 
@@ -634,6 +752,10 @@ def create_backtest_lab_blueprint(directory=None, advisor=local_advice):
         if root is None or not root.is_dir(): return response({'state':'UNAVAILABLE'},503)
         try:
             run=_read(root,data.get('run_id',''));prompt=prompt_for(run,data['role'],data['question'])
+            context=momentum_desk_context(root,run)
+            if context:
+                addition='\n\nRetrospective momentum target comparisons (do not treat as prospective validation or automatically select a winner):\n'+json.dumps(context,separators=(',',':'))
+                if len(prompt)+len(addition)<=50000:prompt+=addition
         except (OSError,ValueError,TypeError,KeyError,AttributeError): return response({'state':'INVALID_RUN'},400)
         if data.get('prompt_only') is True:
             return response({'state':'PROMPT_READY','prompt':prompt,'role':data['role'],'prompt_chars':len(prompt)})
