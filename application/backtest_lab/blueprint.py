@@ -312,6 +312,40 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
             return response({'state':'AVAILABLE','report':data})
         except (OSError,ValueError,TypeError):return response({'state':'NOT_FOUND'},404)
 
+    @bp.get('/api/v1/backtest-lab/cfd-cost-estimate')
+    def cfd_cost_estimate():
+        from application.backtest_lab.cfd_cost_estimate import estimate_cfd
+        try:
+            return response({'state':'AVAILABLE','estimate':estimate_cfd(request.args.get('quantity'),
+                request.args.get('entry'),request.args.get('exit'),request.args.get('side','long'),
+                request.args.get('financing','0'),request.args.get('extra_cost','0'),request.args.get('fee_per_leg','57.50'))})
+        except (ValueError,TypeError,ArithmeticError):return response({'state':'INVALID_INPUT'},400)
+
+    @bp.get('/api/v1/backtest-lab/share-cost-estimate')
+    def share_cost_estimate():
+        from application.backtest_lab.share_cost_estimate import estimate
+        try:
+            return response({'state':'AVAILABLE','estimate':estimate(request.args.get('quantity'),
+                request.args.get('entry'),request.args.get('exit'),request.args.get('brokerage_rate','0.005'),
+                request.args.get('spread_bps','0'))})
+        except (ValueError,TypeError,ArithmeticError):return response({'state':'INVALID_INPUT'},400)
+
+    @bp.get('/api/v1/backtest-lab/trade-tape')
+    def trade_tape():
+        root=folder()
+        if root is None:return response({'state':'UNAVAILABLE'},503)
+        records=[];directory=root.parent/'trade-tape'
+        for path in sorted(directory.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:200] if directory.is_dir() else []:
+            if not re.fullmatch(r'[0-9a-f]{64}',path.stem):continue
+            try:
+                raw=path.read_bytes()
+                if len(raw)>2_000_000 or hashlib.sha256(raw).hexdigest()!=path.stem:continue
+                item=json.loads(raw)
+                if item.get('schema')!='trade-tape-snapshot-v1' or item.get('live_execution') is not False:continue
+                records.append({'snapshot_id':path.stem,**item})
+            except (OSError,ValueError,TypeError):continue
+        return response({'state':'AVAILABLE','snapshots':records})
+
     @bp.get('/api/v1/backtest-lab/target-design')
     def target_design():
         root=folder()
@@ -339,6 +373,11 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
             if len(raw)>MOMENTUM_REPORT_MAX_BYTES or hashlib.sha256(raw).hexdigest()!=report_id:raise ValueError('invalid report')
             data=json.loads(raw)
             if data.get('schema')!='target-design-study-v1' or data.get('live_execution') is not False:raise ValueError('invalid report')
+            from application.backtest_lab.share_cost_estimate import closed_trade_sensitivity
+            if data.get('instrument') in {'BTI','SASOL'}:
+                for value in data.get('variants',{}).values():
+                    value['share_cost_sensitivity']={rate:closed_trade_sensitivity(value['closed_trades'],rate)
+                                                    for rate in ('0.005','0.0025')}
             return response({'state':'AVAILABLE','report':data})
         except (OSError,ValueError,TypeError):return response({'state':'NOT_FOUND'},404)
 
@@ -598,6 +637,14 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
             return response(latest_close_history(root.parent.parent / 'local-swing-data' / 'radar-public-prices', instrument))
         except (OSError, ValueError, TypeError, KeyError, AttributeError):
             return response({'state': 'UNAVAILABLE'}, 503)
+    @bp.get('/api/v1/backtest-lab/status')
+    def lab_status():
+        root=folder()
+        if root is None or not root.is_dir():return response({'state':'UNAVAILABLE'},503)
+        count=sum(1 for p in root.glob('*.json') if re.fullmatch(r'[0-9a-f]{64}',p.stem))
+        return response({'state':'AVAILABLE','saved_file_count':count,
+                         'note':'Filename presence only; full runs are verified when loaded.'})
+
     @bp.get('/api/v1/backtest-lab/runs')
     def runs():
         root=folder()

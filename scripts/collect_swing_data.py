@@ -104,6 +104,15 @@ def refresh_lab_replay(dataset_path):
     return json.loads(completed.stdout)
 
 
+def refresh_zebra_lab_replay():
+    """Continue bounded local research if the separate OST export is stale."""
+    import subprocess
+    completed = subprocess.run([sys.executable, str(ROOT/'scripts/backtest_lab_zebra_v2.py'),
+        '--instrument','SASOL','--instrument','BTI','--output-dir',str(ROOT/'runtime/local-backtest')],
+        cwd=ROOT,capture_output=True,text=True,encoding='utf-8',timeout=180,check=True)
+    return json.loads(completed.stdout)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--upload", action="store_true")
@@ -168,7 +177,13 @@ def main():
                     print(json.dumps({'historical_replay': refresh_lab_replay(latest)}))
                 except Exception as exc:
                     print(json.dumps({'historical_replay': {'state': 'FAILED_PRIOR_RUNS_RETAINED', 'error_type': type(exc).__name__}}))
-            print(json.dumps({'state': 'OST_EXPORTS_EXPIRED', 'charts': 0, 'yahoo_fallback': False}))
+            if not args.retry_upload:
+                try:
+                    print(json.dumps({'zebra_historical_replay': {'state':'AVAILABLE', **refresh_zebra_lab_replay()}}))
+                except Exception as exc:
+                    print(json.dumps({'zebra_historical_replay': {'state':'FAILED_PRIOR_RUNS_RETAINED','error_type':type(exc).__name__}}))
+            print(json.dumps({'state': 'OST_EXPORTS_EXPIRED', 'charts': 0, 'yahoo_fallback': False,
+                              'note':'Independent Zebra refresh and research continue; stale OST is not uploaded.'}))
             return 2
         from application.opportunities.source_resolution import attach_iress_research
         dataset = validate_dataset(attach_iress_research(dataset, now, folder), now)

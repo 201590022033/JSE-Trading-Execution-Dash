@@ -5,7 +5,7 @@
     'canonical-opportunities': ['/api/v1/opportunities', 'refresh-canonical'],
     'market-ai': ['/api/feed/news', 'refresh-news'],
     'technical-view': ['/api/v1/opportunities', 'bl-windowed-load'],
-    'backtest-lab': ['/api/v1/backtest-lab/runs', 'backtest-lab:refresh'],
+    'backtest-lab': ['/api/v1/backtest-lab/status', 'backtest-lab:refresh'],
     'system': ['/api/system/status', 'refresh-learning-status'],
     'portfolio': ['/api/paper/status', 'refresh-paper']
   };
@@ -35,7 +35,7 @@
       if (!Number.isFinite(age) || age < -300000 || age > 86400000) return ['attention', `News available; last successful refresh ${body.last_success}.`];
       return ['available', `News feed available; last successful refresh ${body.last_success}. Individual publication times vary.`];
     }
-    if (id === 'backtest-lab') return body.runs?.length ? ['available', `${body.runs.length} frozen backtest runs available; historical results.`] : ['unavailable', 'No frozen backtest runs available.'];
+    if (id === 'backtest-lab') return body.saved_file_count ? ['available', `${body.saved_file_count} saved backtest files found; individual runs are verified when loaded. Historical results.`] : ['unavailable', 'No saved backtest files found.'];
     if (id === 'system') return body.service === 'operational' ? ['available', 'Dashboard service responding; this does not verify every provider.'] : ['unavailable', 'Dashboard service reports a problem.'];
     if (id === 'portfolio') return body.account ? ['available', 'Paper account data available; this is not a broker login check.'] : ['unavailable', 'Paper account data unavailable.'];
     return ['attention', 'Status not known.'];

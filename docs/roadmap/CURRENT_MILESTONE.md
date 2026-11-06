@@ -1,3 +1,9 @@
+## Research redesign: M6/M7 continuation — 6 November 2026
+
+The 07:30 collector did run: public sources refreshed, while the legacy OST export stage reported expired data. After fresh IRESS captures, the forward monitor retained the 5 November BTI and SASOL observations; both frozen cases remain partial and have zero matured three-session outcomes. A separate Zebra-backed BTI/SASOL Lab replay completed even without a current OST export; the new fallback has not yet been verified in a later scheduled run. See `docs/changes/2026-11-06-0730-ingestion.md` and `docs/changes/2026-11-06-trade-tape-and-zebra-continuity.md`.
+
+M7's retained target/exit comparison is visible in the restarted dashboard, and the source clocked context and descriptive peer work remain available. Share-cost scenarios and the trade-tape snapshot reader have been added locally; they require the dashboard to reload their new routes. Cash-share fee sensitivity is a fixed-fill calculation, not a full portfolio replay, and does not apply to CFDs or other products. M6 remains open for later forward outcomes and the next scheduled fallback; M7 remains open for broader product-aware iteration and feedback. The 6 November targeted tests should be used instead of assuming the earlier pre-ingestion status below is current.
+
 ## Research redesign: pre-ingestion M6/M7 cleanup — 6 November 2026
 
 The daily forward step now has durable status, per-instrument error isolation and input-specific partial explanations. Family-specific box and pullback component cycles were added under the shared instrument budget; BTI and Sasol exploratory examples are recorded. The 07:30 task and later outcomes have not yet occurred. See `docs/changes/2026-11-06-m6-m7-pre-ingestion.md`.

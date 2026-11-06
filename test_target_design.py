@@ -75,5 +75,16 @@ class TargetDesignTests(unittest.TestCase):
             self.assertFalse(client.get('/api/v1/backtest-lab/target-design/'+key).json['live_execution'])
             self.assertEqual(client.get('/api/v1/backtest-lab/target-design/'+('0'*64)).status_code,404)
 
+    def test_fast_status_counts_filenames_and_does_not_claim_validation(self):
+        with TemporaryDirectory() as tmp:
+            root=Path(tmp);lab=root/'lab';lab.mkdir()
+            (lab/(('a'*64)+'.json')).write_text('not a valid run')
+            app=Flask(__name__);app.register_blueprint(create_backtest_lab_blueprint(root))
+            response=app.test_client().get('/api/v1/backtest-lab/status')
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.json['saved_file_count'],1)
+            self.assertIn('verified when loaded',response.json['note'])
+            self.assertEqual(response.headers['Cache-Control'],'no-store')
+
 
 if __name__ == '__main__': unittest.main()
