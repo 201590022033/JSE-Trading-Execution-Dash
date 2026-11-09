@@ -1,0 +1,9 @@
+# ADR 0096: Durable Strategy Radar watches and daily preparation
+
+Status: accepted locally, 6 November 2026.
+
+A successful local canonical Zebra screen reconciles up to five ranked research instruments into a separate SQLite watch store. Pins and active watches persist independently; departures retain a configurable grace period (default two reviewed JSE sessions). Unknown calendar years retain watches rather than assuming holidays. Events are append-only. The screen's generation time, local observation time and snapshot hash are retained separately; stale or conflicting screen receipts are rejected. Failed screens never empty the watch set. Existing research membership queues remain unchanged.
+
+New watches and explicitly selected pins use the existing `jse_swing_3_5d` 1.0.1 daily research profile as a disclosed default, not a signal. Sector benchmark identifiers reuse the existing current-sector proxy map with an STX40 fallback. Neither implies historical sector membership or strategy validation. A local same-origin API serves watches, per-field retained history and pin controls; it has no broker or model operation.
+
+Local historical prewarm uses the existing field-level Zebra loader and stores separate per-watch cache files, including source identity, actual acquisition clocks, alternatives and missing fields. A durable bounded queue attempts Yahoo and ShareData through existing capture paths at most five watches per batch. Independent provider results and acquisition receipts are retained; no EODHD, OST or IRESS request is initiated. OST/IRESS automation remains unverified. Startup reconciles the last successful saved screen and resumes pending jobs when the existing local Zebra research screen is enabled; dashboard reads do not initiate provider calls. Failed or interrupted attempts do not discard historical data. Grace expiry is evaluated on successful ranking reconciliation; dates outside the reviewed 2026 calendar are not guessed.

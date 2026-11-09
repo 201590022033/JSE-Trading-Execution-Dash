@@ -65,13 +65,33 @@ if paper_config:
 else:
     canonical_opportunity_refresh = OpportunityRefresh(canonical_opportunity_service,
                                                       runner=canonical_refresh_runner)
+from threading import Lock
+_strategy_radar_service = None
+_strategy_radar_lock = Lock()
+def strategy_radar_service():
+    global _strategy_radar_service
+    with _strategy_radar_lock:
+        if _strategy_radar_service is None:
+            from application.strategy_radar.service import RadarService
+            _strategy_radar_service = RadarService(grace_sessions=int(os.environ.get("STRATEGY_RADAR_GRACE_SESSIONS", "2")))
+        return _strategy_radar_service
+
+def strategy_radar_screen_success(snapshot):
+    from application.opportunities.zebra_screen_queue import record_research_screen
+    try:
+        record_research_screen(snapshot)
+    finally:
+        strategy_radar_service().reconcile(snapshot)
+
+from application.strategy_radar.api import create_radar_blueprint
+app.register_blueprint(create_radar_blueprint(strategy_radar_service))
 zebra_research_screen = None
 zebra_screen_enabled = os.environ.get('ZEBRA_RESEARCH_SCREEN_ENABLED', '1' if paper_config else '0') == '1'
 if zebra_screen_enabled and not os.environ.get('RAILWAY_ENVIRONMENT_ID'):
     from application.opportunities.zebra_research_screen import ZebraResearchScreen
     from application.opportunities.zebra_screen_queue import record_research_screen
     report_root = Path(os.environ.get('LOCAL_BACKTEST_REPORT_DIR') or Path(__file__).resolve().parent/'runtime/local-backtest')
-    zebra_research_screen = ZebraResearchScreen(report_root/'zebra-screen', on_success=record_research_screen)
+    zebra_research_screen = ZebraResearchScreen(report_root/'zebra-screen', on_success=strategy_radar_screen_success)
 app.register_blueprint(create_blueprint(canonical_opportunity_service, canonical_opportunity_refresh, zebra_research_screen))
 from application.strategy_profiles import create_strategy_blueprint
 app.register_blueprint(create_strategy_blueprint())
@@ -352,6 +372,14 @@ def respond(operation):
     except KeyError as exc: return jsonify(error=str(exc)),404
     except ValueError as exc: return jsonify(error=str(exc)),400
 if __name__ == "__main__":
+    if zebra_research_screen is not None:
+        radar = strategy_radar_service()
+        if zebra_research_screen.snapshot:
+            try:
+                radar.reconcile(zebra_research_screen.snapshot, start_worker=False)
+            except (ValueError, KeyError, TypeError, OSError) as exc:
+                app.logger.warning('Strategy Radar startup reconciliation unavailable: %s', type(exc).__name__)
+        radar.start()
     socketio.run(
         app,
         host=os.environ.get("HOST", "0.0.0.0"),

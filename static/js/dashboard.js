@@ -331,6 +331,15 @@ function showNews(result) {
     return `<article class="headline"><span class="tag ${item.score>0?'buy':item.score<0?'sell':''}">${esc(item.sentiment)} · ${esc(num(item.score))}</span><span class="tag">${item.llm_used ? 'AI analysed' : 'Keyword fallback'}</span><h4>${title}</h4><p>${esc(item.summary)}</p><small>${esc(item.source)} · ${esc(item.timestamp_kind || 'published')}: ${esc(when(item.timestamp))}</small><div>${item.assets.map(a=>`<span class="tag">${esc(a.name)} ${a.direction>0?'↑':a.direction<0?'↓':'↔'}</span>`).join('')}</div></article>`;
   }).join('') : `<p class="muted">${result.state === 'LOADING' ? 'Fetching public headlines. AI analysis runs in the background.' : 'No headlines available for this filter. Source status is shown above.'}</p>`;
 }
+// Read only the already-loaded headline snapshot for an exact mapped issuer.
+window.radarNewsSnapshot = instrumentId => {
+  const share=instruments.find(item=>item.instrument_id===instrumentId);
+  const symbol=share?.research_symbol;
+  if (!symbol || !newsSnapshot?.data?.items) return {state:'UNAVAILABLE',items:[]};
+  return {state:newsSnapshot.state, last_success:newsSnapshot.last_success,
+    items:newsSnapshot.data.items.filter(item=>Array.isArray(item.assets) && item.assets.some(asset=>asset.name===symbol))
+      .map(item=>({headline:item.headline,source:item.source,timestamp:item.timestamp,timestamp_kind:item.timestamp_kind,url:item.url}))};
+};
 async function refreshCharts() {
   clearTimeout(chartPoll);
   const symbol = $('#chart-instrument')?.value || $('#instrument').value, period = $('#chart-period').value, version = selectionVersion;
@@ -708,7 +717,11 @@ currentRefresh.textContent='Refresh current technical evidence';
 currentRefresh.onclick=async()=>{canonicalRecords=[]; await loadAutomaticTechnicalScreen($('#instrument').value);};
 controls.appendChild(currentRefresh);
 
-document.querySelector('nav button[data-tab="trading-strategies"]').classList.add('active');
+document.querySelector('nav button[data-tab="market-overview"]').classList.add('active');
+document.querySelector('nav button[data-tab="market-overview"]').setAttribute('aria-current','page');
+document.querySelectorAll('[data-open-tab]').forEach(button=>button.addEventListener('click',()=>{
+  document.querySelector(`nav button[data-tab="${button.dataset.openTab}"]`)?.click();
+}));
 action('#refresh-account-status',refreshAccountStatus);
 action('#import-portfolio',async()=>{ const result=await post('/api/portfolio/csv',{csv:$('#portfolio-csv').value}); $('#portfolio-status').textContent=`Imported ${result.count} position(s) · CSV snapshot only`; renderPortfolio(result.rows); });
 $('#instrument').onchange=selectedChanged;

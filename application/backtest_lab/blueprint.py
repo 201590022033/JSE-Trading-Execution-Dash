@@ -359,7 +359,8 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
                     data=json.loads(raw)
                     if data.get('schema')!='target-design-study-v1' or data.get('live_execution') is not False:continue
                     reports.append({'report_id':path.stem,'instrument':data['instrument'],'family':data['family'],
-                                    'window':data['window'],'horizon':data['horizon']})
+                                    'window':data['window'],'horizon':data['horizon'],'cost_basis':data.get('cost_basis'),
+                                    'source_report_id':data.get('source_report_id'),'code_sha256':data.get('code_sha256')})
                 except (OSError,ValueError,KeyError,TypeError):continue
         return response({'state':'AVAILABLE','reports':reports})
 

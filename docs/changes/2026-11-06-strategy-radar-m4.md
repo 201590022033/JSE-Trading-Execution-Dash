@@ -1,0 +1,7 @@
+# Strategy Radar M4 — 6 November 2026
+
+Separate 5m and 30m versioned shadow profiles, point-in-time traces, optional benchmark and volume handling, daily-close gate, descriptive geometry, source-preserving 5m-to-30m aggregation, and retained next-bar baseline comparisons are available through local research endpoints and dashboard controls. Current stale, unavailable, conflicting and provisional fields cannot establish a mandatory entry. Historical replay is explicitly labelled and causal. No provider, model or order call was made.
+
+An actual local replay of ABSPJ used the two retained ViewPoint 30m observations and a disclosed 10 bps hypothetical cost. The 30m profile has two unknown-clock records and zero candidate/baseline samples. The 5m profile has two other-interval records and zero samples. These are data limitations, not negative strategy outcomes. Reports are saved as content-addressed local artifacts under `runtime/local-swing-data/strategy-radar/shadow-replays/`; representative hashes: 30m `9da9ac8f81a3554563a168017cf5e3e985353e640f819e299086049040419f45`, 5m `2c6a60820c88fc417704e1897ce28d0087b32f462aa0d55efbf6f5b05b2260c4`.
+
+The isolated browser used synthetic fixture data and stubbed other dashboard APIs. Existing EODHD/IG/OST/IRESS paths, daily collectors, user changes and the currently running dashboard process were preserved. The new Python endpoints require a normal later restart. M5 remains planned pending user instruction.

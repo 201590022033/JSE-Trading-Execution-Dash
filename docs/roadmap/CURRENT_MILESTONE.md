@@ -1,3 +1,43 @@
+## Strategy Radar M7/M8 — locally implemented, live verification pending, 9 November 2026
+
+Explicit local-only background monitor, durable trace-linked alerts and dashboard controls added. Fixture replay and isolated worker lifecycle passed. No qualified unattended intraday feed exists; Windows notification was submitted but visible receipt is unverified. Running dashboard requires restart; M6 post-fix verification remains open, and monitor does not auto-start at Windows logon. See [M7](../strategy-radar/milestones/M7.md), [M8](../strategy-radar/milestones/M8.md), and [operator guide](../strategy-radar/OPERATOR_GUIDE.md).
+
+## Strategy Radar M6 — post-restart performance fix pending reload, 7 November 2026
+
+IRESS was observed online and the new radar was served, but concurrent evidence scans caused timeouts. The local fix avoids scans for unsupported profiles and loads evidence only on selection; 6 focused tests passed. The dashboard process needs a normal restart to load the backend fix. M6 remains active until verified. See [M6 checkpoint](../strategy-radar/milestones/M6.md).
+
+## Strategy Radar M6 — implementation ready, verification pending, 7 November 2026
+
+Exact-context desk, retained evidence matching, share-aware handoffs and fixture browser checks are in place. 1957 offline tests passed. Actual dashboard integration and real touch checks await the user's chosen restart; no model or broker call was made. M6 remains active pending that verification, and M7 is not started. See [M6 checkpoint](../strategy-radar/milestones/M6.md).
+
+## Strategy Radar M6 — active / partial, 7 November 2026
+
+Interactive radar and typed research handoffs are implemented locally; all 1954 offline tests passed. Exact context propagation into all legacy views, evidence-backed best/least-loss labels and full accessibility/shortcut checks remain. The running dashboard was not restarted. Existing dirty work remains uncommitted; M7 is not started. See [M6 checkpoint](../strategy-radar/milestones/M6.md).
+
+## Strategy Radar M5 — completed locally, 7 November 2026
+
+Manual cash-share and CFD scenarios reuse existing estimators and display costs, risk and assumptions; other products expose missing terms. OST field mapping is unverified and copying disabled. 1954 offline and 9 focused tests passed. Dashboard restart is needed. Prior dirty work remains uncommitted; M6 awaits explicit go. See [M5 checkpoint](../strategy-radar/milestones/M5.md).
+
+## Strategy Radar M4 — completed locally, 6 November 2026
+
+Five- and thirty-minute shadow profiles, source-aware traces, causal derived bars and a disclosed hypothetical next-bar baseline comparison are implemented. 1945 offline and 35 focused tests passed. Actual retained ViewPoint rows have unverified interval clocks and yield zero replay samples; full stop/target/exit simulation and source qualification remain separate. The running dashboard needs its normal restart for M4 endpoints. User changes remain uncommitted; M5 awaits explicit go. R12, P1 and earlier research statuses remain unchanged. See [M4 checkpoint](../strategy-radar/milestones/M4.md).
+
+## Strategy Radar M3 — completed locally, 6 November 2026
+
+Quote and intraday contracts, protected bounded cache, manual source input and explicit budget-gated API adapter are implemented. 1930 offline tests and 55 focused checks passed; two ViewPoint rows were retained as manual evidence with timestamp semantics unverified. No unattended provider feed is claimed. Existing collectors and running dashboard remain in place; the user will restart later. M4 awaits explicit go. R12, P1 and older research statuses remain unchanged. See [M3 checkpoint](../strategy-radar/milestones/M3.md).
+
+## Strategy Radar M2 — completed locally, 6 November 2026
+
+Top 5/pinned durable watches, field-level Zebra prewarm, bounded public refresh and local UI/API are complete. 1913 offline and 41 focused tests passed; actual Yahoo/ShareData captures succeeded for five current watches. OST/IRESS automation remains unverified; the existing dashboard process needs its normal restart to load the changes. Existing user work is preserved and uncommitted. M3 awaits explicit go; R12, P1 and earlier research statuses remain unchanged. See [M2 checkpoint](../strategy-radar/milestones/M2.md).
+
+## Strategy Radar M1 — completed locally, 6 November 2026
+
+Separate Strategy Radar series: inactive responsive shell, collapsible import panel, provenance-aware contracts and baseline/ADR are complete; 1905 offline tests, 24 focused tests and desktop/mobile browser checks passed. Existing uncommitted work preserved, no commit. M2 awaits explicit go. This does not change R12, P1 or prior research milestone statuses. See [M1 checkpoint](../strategy-radar/milestones/M1.md).
+
+## Strategy Radar roadmap — prepared 6 November 2026
+
+The user-approved radar, product-aware manual trade plan, data lifecycle and alerts are planned in [Strategy Radar roadmap](../strategy-radar/README.md), with [hierarchy](../strategy-radar/HIERARCHY.md) and [M1 start brief](../strategy-radar/milestones/M1.md). These are a new named M-series; earlier research M5–M7, R12 and P1 remain as recorded below. No Strategy Radar implementation milestone is active until the user says “go M1”. Preserve existing uncommitted work and prior evidence.
+
 ## Research redesign: M6/M7 continuation — 6 November 2026
 
 The 07:30 collector did run: public sources refreshed, while the legacy OST export stage reported expired data. After fresh IRESS captures, the forward monitor retained the 5 November BTI and SASOL observations; both frozen cases remain partial and have zero matured three-session outcomes. A separate Zebra-backed BTI/SASOL Lab replay completed even without a current OST export; the new fallback has not yet been verified in a later scheduled run. See `docs/changes/2026-11-06-0730-ingestion.md` and `docs/changes/2026-11-06-trade-tape-and-zebra-continuity.md`.
@@ -667,3 +707,6 @@ New results: 23 fresh numerically valid Yahoo SOL daily bars and 368 actual 30-m
 Final verification: 906/906 safe tests passed in 86.994s, all seven disposable mutations killed, 54/54 protected artifacts passed. New diagnostics have six independent tests. Frozen offline report reproduced byte-identically. No default strategy, scheduled collector, external broker account, hosted configuration or production wiring changed. No push/deploy.
 
 Required to unblock: verified exchange/session/action evidence; explicit reconstructed availability contract; complete intraday closing coverage and units; dated costs/quotes/capacity; own executable FX/gold contract/conversion/carry/margin evidence. Then admit the bounded window and independently reconcile actual-price hypothetical trades/cash/equity. See [full B5 attempt and evidence](../research/LOCAL_BACKTEST_REAL_DATA_ACCEPTANCE.md).
+
+
+Optional Windows sign-in startup was subsequently added as an explicit opt-in. The control registers a named logon task when checked and requests removal on pause; mocked tests cover success and failure. It is not enabled by default and was not actually installed or verified through a Windows sign-out/sign-in in this check. Earlier statements in this document that no startup option exists describe the preceding state.

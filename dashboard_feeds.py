@@ -76,7 +76,7 @@ class DashboardFeeds:
 
         result = self._snapshot((yahoo_symbol, period), 60 if period == "1d" else 300, load)
         result.update(source="Yahoo Finance", symbol=symbol, provider_symbol=yahoo_symbol,
-                      data_state="DELAYED_PUBLIC", note="Public bars may be delayed. The 1d view uses completed 30-minute bars; longer ranges use daily session bars. No ticks are simulated.")
+                      data_state="DELAYED_PUBLIC", note="Public bars may be delayed. The 1d view uses 30-minute bars; their timestamp convention and latest-bar completeness are unverified. Longer ranges use daily session bars. No ticks are simulated.")
         if result["data"]:
             stamp = datetime.fromisoformat(result["data"]["source_timestamp"])
             if stamp.tzinfo is None:

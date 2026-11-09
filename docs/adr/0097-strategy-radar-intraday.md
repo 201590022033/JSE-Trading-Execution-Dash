@@ -1,0 +1,11 @@
+# ADR 0097: Intraday evidence and quote boundaries
+
+Status: accepted locally, 6 November 2026.
+
+M3 adds independent quote observations and a separate intraday cache. Quotes preserve bid/ask/last, provider, units, source/receipt clocks, delay and classification; historical closes are not promoted to quotes. Manual OST inputs have unknown source clocks unless actually established and never become live. Current manual source time cannot be inferred from record-save time. User-entered exact symbol must match existing identity mapping.
+
+Intraday records retain original payloads, revisions and per-field alternatives. A source timestamp is canonical only with documented interval clock semantics; unknown clocks stay separately accessible. Six complete, aligned five-minute observations from the same source are required for a derived 30-minute bar, retaining source receipt references and unknown fields. Invalid high/low is isolated from independently usable close. JSE 2026 session/holiday checks are conservative and unreviewed years do not trigger deletion.
+
+A SQLite cache persists raw and canonical records; default ten reviewed sessions are retained for active/grace watches, with explicit pin/evidence protection. Pruning is performed on successful watch reconciliation; unknown calendars block expiry. Raw response bytes and associated rows share SQLite transactions; raw bytes are removed only when their associated temporary records are pruned and no retained row references them. Poll reservations are disabled by default and enforce a five-minute minimum per provider/instrument when explicitly enabled. The EODHD parser and explicit transport adapter require exact mapping, documented unit evidence, verified plan entitlement, five credits and a provider-wide daily reservation; they do not run on dashboard reads or startup. EODHD describes its intraday bars as delayed historical observations, not current quotes.
+
+Manual ViewPoint imports require the existing mapped instrument and explicit unit. The observed chart labels do not establish source timestamp timezone or bar-start/end semantics; labels are retained as raw evidence with unknown canonical interval. OST/IRESS login remains separate from app authentication, and no broker write or automatic feed is added. Existing daily collectors are not changed by this milestone.

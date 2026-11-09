@@ -86,5 +86,23 @@ class TargetDesignTests(unittest.TestCase):
             self.assertIn('verified when loaded',response.json['note'])
             self.assertEqual(response.headers['Cache-Control'],'no-store')
 
+    def test_ost_costs_change_replay_sizing_and_deduct_both_sides(self):
+        from domain.backtest.costs import OSTCashShareCosts
+        rows=[];day='2026-01-02'
+        for i in range(20):
+            rows.append({'timestamp':day,'open':100,'high':102,'low':99,'close':100,'volume':10000})
+            day=next_session(day)
+        m=from_chart('SOL',{'bars':rows,'provenance':{'provider':'TEST',
+            'source_sha256':'a'*64,'acquired_at':'2026-11-05T00:00:00+00:00'}})
+        signal=Signal(id='SOL-'+rows[5]['timestamp'],instrument='SOL',session=rows[5]['timestamp'],
+            decision_at=m.bars[5].available_at+timedelta(seconds=1),stop=Decimal('95'),
+            max_notional=Decimal('10000'),risk_budget=Decimal('10000'),horizon=3)
+        def run(costs):return replay([m],[signal],as_of=m.bars[-1].available_at+timedelta(days=2),
+                                     initial_cash=Decimal('10000'),costs=costs)
+        zero=run(Costs());ost=run(OSTCashShareCosts())
+        self.assertLess(Decimal(ost['trades'][0]['quantity']),Decimal(zero['trades'][0]['quantity']))
+        self.assertGreater(Decimal(ost['trades'][0]['fees']),Decimal('250'))
+        self.assertLess(Decimal(ost['equity'][-1]['equity']),Decimal(zero['equity'][-1]['equity']))
+
 
 if __name__ == '__main__': unittest.main()

@@ -17,6 +17,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('source', type=Path, help='Content-addressed frozen momentum report')
     parser.add_argument('--output', type=Path, default=ROOT/'runtime/local-backtest/target-design')
+    parser.add_argument('--cost-basis',choices=('generic','ost'),default='generic')
     args = parser.parse_args()
     raw = args.source.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
@@ -41,9 +42,15 @@ def main():
                        for w in windows if len(w) >= 52]
     parent['target_industry'] = classifications({instrument})['instruments'][instrument]['industry']
     code = [ROOT/'application/backtest_lab/target_design.py', ROOT/'domain/backtest/target_design_engine.py',
-            ROOT/'application/backtest_lab/components.py', Path(__file__)]
+            ROOT/'application/backtest_lab/components.py', ROOT/'domain/backtest/costs.py',
+            ROOT/'domain/backtest/acceptance.py', Path(__file__)]
     hashes = {str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in code}
-    result = study(parent, manifest, charts, peers, source_id=digest)
+    costs=None
+    if args.cost_basis=='ost':
+        from decimal import Decimal
+        from domain.backtest.costs import OSTCashShareCosts
+        costs=OSTCashShareCosts(spread_bps=Decimal(20),slippage_bps=Decimal(5))
+    result = study(parent, manifest, charts, peers, source_id=digest,costs=costs)
     if any(hashlib.sha256(p.read_bytes()).hexdigest() != hashes[str(p.relative_to(ROOT))] for p in code):
         raise ValueError('Implementation changed during study')
     result['code_sha256'] = hashes

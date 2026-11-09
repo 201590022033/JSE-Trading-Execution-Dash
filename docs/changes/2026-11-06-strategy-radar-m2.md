@@ -1,0 +1,7 @@
+# Strategy Radar M2 — 6 November 2026
+
+The existing canonical Top 5 publication callback now reconciles durable local research watches, retains decisions and pins, prewarms field-level historical Zebra and queues bounded independent public refreshes. A local API and dashboard watch list show coverage, profile/benchmark proxy and source/receipt states. No live quote, alert, model or broker execution was added. The existing running dashboard process must restart to load the new Python routes and callback; its current process was preserved.
+
+One authorized real batch used the already saved Top 5: NPN, MTN, PRX, FSR, BTI. Yahoo and ShareData returned captures for all five. The batch receipt `runtime/local-swing-data/strategy-radar-refresh-receipts/ef4e7e6f19f588892bff1b29cea3c5d622815163a98111671adb6cd30e54b840.json` records 17:05:51–17:06:00 UTC and individual acquisition clocks; all histories end 6 November and have 1789–2522 merged sessions. Historical capture is not a live quote. OST and IRESS automatic access was not tested or assumed. The active screen generation time is 16:27:19 UTC and its later local reconciliation receipt is retained separately.
+
+The existing dashboard page's normal refresh calls were exercised in an isolated fixture server with external sockets disabled; the fixture watch values were synthetic and are not the real batch above. No paid/model/order calls were made. User changes remain uncommitted; no reset or deployment occurred.

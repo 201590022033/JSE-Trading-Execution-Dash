@@ -1,3 +1,7 @@
+## Strategy Radar planning handoff — 6 November 2026
+
+For the new radar/dashboard/ingestion/manual-alert work, read `docs/strategy-radar/README.md` and `docs/strategy-radar/HIERARCHY.md`, then the active Strategy Radar milestone brief. This is a separate named M-series from the existing research redesign. Strategy Radar M1 is planned, not active until the user says go; prior research and R12/P1 statuses remain below. Preserve existing uncommitted changes.
+
 ## Source-reviewed outcomes and price context — 28 October 2026
 
 The Israeli vote ended before the original watch; its individual item now has

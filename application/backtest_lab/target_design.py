@@ -66,7 +66,7 @@ def summarize_groups(trades,signal_regimes):
              'wins':sum(float(t['net_pnl'])>0 for t in group)} for (kind,name),group in sorted(buckets.items())]
 
 
-def study(parent,manifest,charts,peer_charts,*,source_id):
+def study(parent,manifest,charts,peer_charts,*,source_id,costs=None):
     """Freeze one bounded research family; no model, training or execution."""
     cfg=Components(**parent['config']);rows=charts[manifest.instrument];lookup={r['timestamp'][:10]:i for i,r in enumerate(rows)}
     sig_ids=parent['calculations']['fixed_2r'];signals=[];index_by_id={};regimes={};estimates={}
@@ -94,7 +94,7 @@ def study(parent,manifest,charts,peer_charts,*,source_id):
       'matched_reject_below_net_1r':{'scope':'same_share','policy':'REJECT'},
       'fixed_2r_atr_trail':{'trail':'ATR'},'fixed_2r_ema21_exit':{'exit_mode':'EMA21_CLOSE'},
       'fixed_2r_volume_filter':{'filter':'volume'},'fixed_2r_benchmark_filter':{'filter':'benchmark'}}
-    costs=Costs(fee_bps=Decimal(8),minimum_fee=Decimal(60),spread_bps=Decimal(20),slippage_bps=Decimal(5))
+    costs=costs or Costs(fee_bps=Decimal(8),minimum_fee=Decimal(60),spread_bps=Decimal(20),slippage_bps=Decimal(5))
     bench={r['timestamp'][:10]:r['close'] for r in charts.get('ETF_STX40',[])};variants={}
     for name,spec in definitions.items():
         selected=[];skips=Counter()
@@ -119,13 +119,15 @@ def study(parent,manifest,charts,peer_charts,*,source_id):
             peak=max(peak,v)
             if peak:draw=min(draw,v/peak-1)
         variants[name]={'signals':len(selected),'trades':len(trades),'net':round(sum(float(t['net_pnl']) for t in trades),2),
+            'ending_equity':round(eq[-1],2) if eq else None,'open_positions':len(res.get('open_positions',[])),
             'wins':sum(float(t['net_pnl'])>0 for t in trades),'max_drawdown_pct':round(draw*100,2),
             'target_hits':sum(t['reason'] in ('TARGET','GAP_TARGET_LIMIT') for t in trades),
             'filtered':dict(skips),'exit_reasons':dict(Counter(t['reason'] for t in trades)),
             'groups':summarize_groups(trades,regimes),'decisions':res['decisions'],'closed_trades':trades}
     return {'schema':'target-design-study-v1','source_report_id':source_id,'instrument':manifest.instrument,
       'family':cfg.family,'horizon':cfg.horizon,'window':parent['window'],'config':asdict(cfg),'peer_counts':peer_counts,
-      'estimates':estimates,'variants':variants,'cost_basis':costs.basis,'live_execution':False,
-      'limitations':['RESEARCH_NOT_PROMOTION','HYPOTHETICAL_COSTS','RECONSTRUCTED_HISTORICAL_AVAILABILITY',
+      'estimates':estimates,'variants':variants,'cost_basis':costs.basis,
+      'cost_assumptions':{k:str(v) for k,v in asdict(costs).items()},'live_execution':False,
+      'limitations':['RESEARCH_NOT_PROMOTION','COSTS_NOT_ACCOUNT_INVOICE_VERIFIED','RECONSTRUCTED_HISTORICAL_AVAILABILITY',
         'UNKNOWN_HISTORICAL_CORPORATE_ACTIONS','CURRENT_PEER_CLASSIFICATION','OBSERVED_SESSION_CALENDAR',
         'STRATEGY_MATCHED_MFE_NOT_PROFIT','EXPLORATORY_NOT_OUT_OF_SAMPLE']}

@@ -209,7 +209,7 @@ class YahooFinanceFetcher(PriceFetcher):
                 "exchange": metadata.get('exchangeName'),
                 "interval": interval, "period": period, "bars": bars,
                 "price": bars[-1]["close"], "source_timestamp": bars[-1]["timestamp"],
-                "timestamp_kind": "bar_start" if interval == "5m" else "session_date",
+                "timestamp_kind": "session_date" if interval == "1d" else "interval_clock_unverified",
                 "change_pct": (bars[-1]["close"] / bars[0]["close"] - 1) * 100,
                 "change_basis": "selected chart period"}
     
