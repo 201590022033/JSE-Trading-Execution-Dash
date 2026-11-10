@@ -650,6 +650,11 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
     def runs():
         root=folder()
         if root is None or not root.is_dir(): return response({'state':'UNAVAILABLE'},503)
+        if request.args.get('index') == 'filenames':
+            paths=sorted(root.glob('*.json'),key=lambda path:path.stat().st_mtime,reverse=True)[:1000]
+            return response({'runs':[{'run_id':p.stem,'grade':'UNVERIFIED FILE','created_at':'date not yet verified'}
+                                     for p in paths if re.fullmatch(r'[0-9a-f]{64}',p.stem)],
+                             'note':'Filenames only; each run is verified when opened.'})
         found=[]
         for p in sorted(root.glob('*.json'),key=lambda path:path.stat().st_mtime,reverse=True)[:1000]:
             try:

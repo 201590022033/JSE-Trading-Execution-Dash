@@ -2,6 +2,7 @@
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import json
+import math
 from .intraday_evaluation import _trace
 from application.opportunities.session_freshness import latest_expected_session, next_session
 from application.opportunities.swing_technical import snapshot
@@ -45,15 +46,153 @@ def _chart(folder, instrument, now):
         return None
 
 
+def _research_chart(folder, instrument, now):
+    """Use the latest contiguous Zebra close suffix, with explicit quality.
+
+    Retained priority selections in a conflict are research candidates, never
+    consensus; absent fields remain absent. Future receipts are never used.
+    """
+    if not instrument or not instrument.replace('_', '').isalnum():
+        return None, None
+    expected = latest_expected_session(now)
+    cutoff=expected or (now.astimezone(timezone.utc).date()-timedelta(days=1)).isoformat()
+    try:
+        daily=json.loads((Path(folder)/'daily-cache'/(instrument+'.json')).read_text(encoding='utf-8'))['daily']
+        rows=daily['history']['rows']
+        by_day={}; ambiguous=set()
+        for row in rows:
+            try:
+                day=row['session']; datetime.strptime(day,'%Y-%m-%d')
+            except (KeyError,TypeError,ValueError):
+                continue
+            if day in ambiguous: continue
+            if day in by_day:
+                # Do not silently select a revision. Treat only this date as a gap.
+                by_day.pop(day); ambiguous.add(day); continue
+            if day <= cutoff: by_day[day]=row
+        accepted=[]
+        for day in sorted(by_day):
+            row=by_day[day]; bar={'timestamp':day+'T00:00:00+00:00'}; provenance=[]
+            fields=row.get('fields')
+            if not isinstance(fields,dict): continue
+            for field in _FIELDS:
+                detail=fields.get(field,{})
+                if not isinstance(detail,dict): continue
+                state=detail.get('state'); stamp_text=detail.get('acquired_at')
+                if state not in _STATES and state!='CONFLICT_NO_CONSENSUS': continue
+                if not stamp_text or not detail.get('source'): continue
+                try: stamp=datetime.fromisoformat(stamp_text.replace('Z','+00:00'))
+                except (ValueError,TypeError,AttributeError): continue
+                if stamp.tzinfo is None or stamp.utcoffset() is None or not datetime.fromisoformat(day).replace(tzinfo=timezone.utc)+timedelta(hours=15) <= stamp <= now: continue
+                try: value=float(detail['value'])
+                except (ValueError,TypeError,KeyError,OverflowError): continue
+                if not math.isfinite(value) or (value<0 if field=='volume' else value<=0): continue
+                bar[field]=value
+                alternatives=[]; omitted=0
+                if state=='CONFLICT_NO_CONSENSUS':
+                    candidates=detail.get('alternatives',[])
+                    if not isinstance(candidates,list): candidates=[]; omitted+=1
+                    for candidate in candidates:
+                        try:
+                            if not isinstance(candidate,dict) or not isinstance(candidate.get('source'),str) or not candidate['source'].strip(): raise ValueError('source required')
+                            received=datetime.fromisoformat(candidate['acquired_at'].replace('Z','+00:00'))
+                            candidate_value=float(candidate['value'])
+                            if received.tzinfo is None or received.utcoffset() is None or not datetime.fromisoformat(day).replace(tzinfo=timezone.utc)+timedelta(hours=15) <= received <= now: raise ValueError('receipt outside evaluation window')
+                            if not math.isfinite(candidate_value) or (candidate_value<0 if field=='volume' else candidate_value<=0): raise ValueError('invalid value')
+                            alternatives.append({'source':candidate['source'],'value':candidate_value,
+                                'acquired_at':received.isoformat(),'source_sha256':candidate.get('source_sha256'),
+                                'field_source_sha256':candidate.get('field_source_sha256')})
+                        except (KeyError,ValueError,TypeError,AttributeError,OverflowError):
+                            omitted+=1
+                provenance.append({'field':field,'session':day,'source':detail['source'],
+                    'value':value,'source_sha256':detail.get('source_sha256'),
+                    'field_source_sha256':detail.get('field_source_sha256'),
+                    'upstream_independence':detail.get('upstream_independence'),
+                    'received_at':stamp.isoformat(),'state':state,
+                    'alternatives':alternatives,'omitted_alternatives':omitted})
+            if 'close' in bar: accepted.append((day,bar,provenance))
+        if not accepted: return None, None
+        suffix=[accepted[-1]]
+        if expected:
+            for item in reversed(accepted[:-1]):
+                if next_session(item[0])!=suffix[0][0]: break
+                suffix.insert(0,item)
+                if len(suffix)>=100: break
+        bars=[item[1] for item in suffix]
+        provenance=[entry for _,_,entries in suffix for entry in entries]
+        stale=(suffix[-1][0]!=expected) if expected else None
+        conflicts=[p for p in provenance if p['state']=='CONFLICT_NO_CONSENSUS']
+        metadata_session=daily.get('latest_session')
+        metadata_mismatch=bool(metadata_session and metadata_session!=suffix[-1][0])
+        partial=bool(ambiguous or metadata_mismatch) or any(any(field not in bar for field in _FIELDS) for bar in bars)
+        quality={'state':'CALENDAR_UNVERIFIED' if not expected else 'STALE_RESEARCH' if stale else 'PROVISIONAL_RESEARCH' if conflicts else 'PARTIAL_RESEARCH' if partial else 'CURRENT_RESEARCH',
+                 'expected_session':expected,'session':suffix[-1][0], 'stale':stale,
+                 'calendar_unverified':not bool(expected), 'provisional':bool(conflicts), 'partial':partial, 'conflict_count':len(conflicts), 'fields':provenance,
+                 'metadata_latest_session':metadata_session, 'metadata_session_mismatch':metadata_mismatch,
+                 'ambiguous_sessions':sorted(ambiguous), 'omitted_alternatives':sum(p['omitted_alternatives'] for p in provenance),
+                 'limitation':'Historical calculations use currently retained receipts; not a point-in-time availability claim.'}
+        return {'symbol':instrument,'interval':'1d','currency':'ZAR','bars':bars}, quality
+    except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError):
+        return None, None
+
+
+def _apply_component_windows(data, chart):
+    """Evaluate the existing breakout/reclaim rules on their own real fields.
+
+    The shared snapshot gates all OHLC-dependent values on the entire chart.
+    This research-only adapter keeps the same rule thresholds while limiting
+    the required highs to the explicit 20/10-session windows. It does not
+    construct missing OHLC bars or treat provisional inputs as consensus.
+    """
+    if not chart or not data.get('conditions') or not data.get('values'):
+        return []
+    bars=chart['bars']; values=data['values']; conditions=data['conditions']; used=[]
+    def valid_highs(items):
+        try:
+            return all(math.isfinite(float(b['high'])) and float(b['high'])>0 and
+                       float(b['high'])>=float(b['close']) for b in items)
+        except (KeyError,ValueError,TypeError,OverflowError):
+            return False
+    if conditions.get('breakout20') is None and len(bars)>=21 and valid_highs(bars[-21:-1]):
+        high=max(float(b['high']) for b in bars[-21:-1])
+        values['prior_high20']=high
+        conditions['breakout20']=float(bars[-1]['close'])>high
+        used.append('breakout20')
+    if conditions.get('ema20_reclaim') is None and len(bars)>=50 and valid_highs(bars[-11:-1]) and conditions.get('ema_uptrend') is not None:
+        from domain.features.technical import _ema
+        closes=[float(b['close']) for b in bars]
+        values['prior_high10']=max(float(b['high']) for b in bars[-11:-1])
+        conditions['ema20_reclaim']=bool(conditions['ema_uptrend'] and closes[-2] <= _ema(closes[:-1],20) and closes[-1] > values['ema20'])
+        used.append('ema20_reclaim')
+    return used
+
+
 def evaluate_watches(service, *, now=None):
     now = now or datetime.now(timezone.utc)
     watches = service.store.list_watches()
-    charts = {key: _chart(service.folder, key, now) for key in
-              {w['instrument'] for w in watches} | {w.get('benchmark') for w in watches}}
+    from .benchmark_refresh import resolve_benchmark_chart
+    charts = {}
+    chart_quality = {}
+    for key in {w['instrument'] for w in watches}:
+        # The research path may show Zebra priority selections, with conflicts
+        # and older sessions distinctly labelled; never fill absent OHLC fields.
+        charts[key], chart_quality[key] = _research_chart(service.folder, key, now)
+    benchmark_results = {}
     results = {}
     for watch in watches:
         key = watch['instrument']
-        data = snapshot(charts.get(key), evaluated_at=now, benchmark_chart=charts.get(watch.get('benchmark')))
+        chart=charts.get(key); quality=chart_quality.get(key)
+        benchmark_key=watch.get('benchmark')
+        target=quality.get('session') if quality else None
+        cache_key=(benchmark_key,target)
+        if benchmark_key and cache_key not in benchmark_results:
+            benchmark_results[cache_key]=resolve_benchmark_chart(service, benchmark_key, now=now, target_session=target)
+        benchmark_chart, benchmark_state=benchmark_results.get(cache_key,(None,'UNAVAILABLE'))
+        calc_clock=now
+        if chart and quality and (quality['stale'] or quality['calendar_unverified']):
+            calc_clock=datetime.fromisoformat(quality['session']).replace(tzinfo=timezone.utc)+timedelta(days=1,seconds=1)
+        data = snapshot(chart, evaluated_at=calc_clock, benchmark_chart=benchmark_chart)
+        component_windows = _apply_component_windows(data, chart)
         conditions = data.get('conditions', {})
         rules = []
         values = data.get('values', {})
@@ -77,5 +216,9 @@ def evaluate_watches(service, *, now=None):
                         'passed': passed, 'unknown': unknown, 'applicable': len(rules),
                         'session': data.get('session'), 'missing': data.get('missing', []),
                         'source_bars': data.get('source_bars', 0), 'source_sha256': data.get('source_sha256'), 'values': data.get('values', {}), 'benchmark_instrument': watch.get('benchmark'),
+                        'benchmark_cache_status': benchmark_state,
+                        'benchmark_quality': benchmark_chart.get('data_quality') if benchmark_chart else None,
+                        'data_quality': quality, 'calculation_clock': calc_clock.isoformat(),
+                        'component_evaluation_version':'zebra-component-windows-v1', 'component_window_rules':component_windows,
                         'research_only': True, 'live_signal': False}
     return results

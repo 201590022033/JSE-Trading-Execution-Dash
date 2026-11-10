@@ -29,6 +29,18 @@ class DashboardFeeds:
         self._pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="public-feed")
         self._entries = {}
 
+    def peek_cached_chart(self, provider_symbol, period):
+        """Read an existing chart cache entry without scheduling a refresh.
+
+        This exposes a snapshot, not a current market quote. A miss stays a
+        miss; the caller must not treat it as permission to poll a provider.
+        """
+        with self._lock:
+            entry = deepcopy(self._entries.get((provider_symbol, period)))
+        if not entry:
+            return None
+        return {key: entry.get(key) for key in ('data', 'last_success', 'last_attempt', 'error', 'refreshing')}
+
     def _snapshot(self, key, ttl, loader):
         with self._lock:
             entry = self._entries.setdefault(key, {"data": None, "last_success": None,

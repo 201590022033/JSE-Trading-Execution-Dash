@@ -671,7 +671,58 @@ function renderAccountStatus(data) {
   $('#account-status').innerHTML=`<div class="kv"><span>Environment</span><span>${esc(data.environment)} · ${esc(data.freshness)}</span></div><div class="kv"><span>Account</span><span>${esc(a.account_name || a.account_id)}</span></div><div class="kv"><span>Available funds</span><span>${esc(a.available_funds ?? '—')} ${esc(a.account_currency || '')}</span></div><div class="kv"><span>Balance</span><span>${esc(a.balance ?? '—')} ${esc(a.account_currency || '')}</span></div><h3>Open positions (${esc(data.position_count)})</h3>${rows?`<table><tr><th>Instrument</th><th>Direction</th><th>Size</th><th>Current</th><th>Unrealised P&amp;L</th></tr>${rows}</table>`:'<p class="muted">No open positions returned.</p>'}<p class="muted">Retrieved ${esc(data.retrieved_at)} · read-only · live execution disabled</p>`;
 }
 async function refreshAccountStatus() { try { renderAccountStatus(await api('/api/account/status')); } catch(e) { $('#account-status').textContent=`Account status unavailable: ${e.message}`; } }
-document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{
+// A shared, explicitly described research selection; it never starts work.
+// Session storage is only a convenience for the same browser tab. The radar
+// validates the restored instrument against current watches before using it.
+(() => {
+  const key = 'uim-research-selection-v1';
+  let current = null;
+  function valid(value) {
+    return value && typeof value.instrument === 'string' && /^[A-Z0-9_]+$/.test(value.instrument)
+      && typeof value.product === 'string' && /^[A-Z_]+$/.test(value.product)
+      && (value.strategy_id === null || typeof value.strategy_id === 'string')
+      && (value.strategy_version === null || typeof value.strategy_version === 'string')
+      && (value.timeframe_minutes === null || Number.isInteger(value.timeframe_minutes) && value.timeframe_minutes > 0)
+      && typeof value.selected_at === 'string' && !Number.isNaN(Date.parse(value.selected_at));
+  }
+  function set(value, persist=true) {
+    if (!valid(value)) return false;
+    current = Object.freeze({instrument:value.instrument, product:value.product,
+      strategy_id:value.strategy_id, strategy_version:value.strategy_version,
+      timeframe_minutes:value.timeframe_minutes, timeframe:value.timeframe || (value.timeframe_minutes === null ? 'daily' : value.timeframe_minutes+'m'),
+      source:value.source || 'retained research data', source_as_of:value.source_as_of || null,
+      selected_at:value.selected_at});
+    if (persist) { try { sessionStorage.setItem(key, JSON.stringify(current)); } catch (_) {} }
+    window.dispatchEvent(new CustomEvent('uim-selection-change', {detail:current}));
+    return true;
+  }
+  function clear() {
+    current = null; try { sessionStorage.removeItem(key); } catch (_) {}
+    window.dispatchEvent(new CustomEvent('uim-selection-change', {detail:null}));
+  }
+  window.uimSelection = Object.freeze({get:()=>current, set, clear});
+  try { const saved=JSON.parse(sessionStorage.getItem(key) || 'null'); if (valid(saved)) set(saved, false); } catch (_) {}
+})();
+
+function showSharedContext() {
+  const selected=window.uimSelection.get();
+  document.querySelectorAll('main > .tab').forEach(tab=>{
+    if (tab.id === 'market-overview') return;
+    let notice=tab.querySelector(':scope > .uim-shared-context');
+    if (!notice) {
+      notice=document.createElement('p'); notice.className='notice uim-shared-context';
+      notice.setAttribute('role','status'); tab.prepend(notice);
+    }
+    notice.textContent=selected
+      ? `Radar selection: ${selected.instrument} · ${selected.product} · ${selected.strategy_id || 'profile unavailable'}${selected.strategy_version ? ' v'+selected.strategy_version : ''} · ${selected.timeframe} · ${selected.source}, as of ${selected.source_as_of || 'unavailable'} · selected ${selected.selected_at}. Context is shown here; use the destination controls to verify any instrument and profile before running.`
+      : 'No radar selection. Select a watched share on Dashboard to carry research context between views.';
+  });
+}
+window.addEventListener('uim-selection-change',showSharedContext);
+showSharedContext();
+
+let restoringView = false;
+document.querySelectorAll('nav button[data-tab]').forEach(button=>button.onclick=()=>{
   document.querySelectorAll('.tab').forEach(tab=>tab.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(item=>{
     item.classList.toggle('active',item === button);
@@ -680,8 +731,22 @@ document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{
   const tab=$('#'+button.dataset.tab);
   tab.classList.add('active');
   document.body.classList.toggle('portfolio-view',button.dataset.tab==='portfolio');
-  tab.scrollIntoView({behavior:'smooth',block:'start'});
+  if (!restoringView) {
+    const hash = '#view=' + encodeURIComponent(button.dataset.tab);
+    if (location.hash !== hash) history.pushState({uimView:button.dataset.tab}, '', hash);
+    tab.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',block:'start'});
+  }
 });
+function restoreView() {
+  const match=location.hash.match(/^#view=([a-z0-9-]+)$/);
+  const id=match ? match[1] : (!location.hash ? 'market-overview' : null);
+  const button=id && document.querySelector(`nav button[data-tab="${id}"]`);
+  if (!button) return;
+  restoringView=true; try { button.click(); } finally { restoringView=false; }
+}
+window.addEventListener('popstate',restoreView);
+// Defer until the other scripts have installed their existing click listeners.
+document.addEventListener('DOMContentLoaded',restoreView, {once:true});
 action('#run',async()=>render(await post(`/api/analysis/${$('#instrument').value}`,{horizon:$('#horizon').value,provider:$('#provider').value,allow_network:true})));
 action('#technical',async()=>$('#technical-result').innerHTML=component(await post(`/api/analysis/${$('#instrument').value}/technical`)));
 action('#news',async()=>{await refreshNews(); $('#news-result').innerHTML=component(await post(`/api/analysis/${$('#instrument').value}/news`,{allow_network:true}));});

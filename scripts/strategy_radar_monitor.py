@@ -18,13 +18,20 @@ def windows_notification(instrument,state):
     script=r'''$ErrorActionPreference='Stop'
 [Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime] > $null
 [Windows.Data.Xml.Dom.XmlDocument,Windows.Data.Xml.Dom.XmlDocument,ContentType=WindowsRuntime] > $null
+$registered = @(Get-StartApps | Where-Object { $_.AppID -eq 'Strategy Radar' })
+if ($registered.Count -eq 0) { [Console]::Out.Write('WINDOWS_SENDER_NOT_REGISTERED'); exit 0 }
+$notifier=[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Strategy Radar')
+if ($notifier.Setting.ToString() -ne 'Enabled') { [Console]::Out.Write('WINDOWS_NOTIFICATION_DISABLED'); exit 0 }
 $xml=[Windows.Data.Xml.Dom.XmlDocument]::new()
 $xml.LoadXml('<toast><visual><binding template="ToastGeneric"><text>Strategy Radar</text><text></text></binding></visual></toast>')
 $xml.GetElementsByTagName('text').Item(1).AppendChild($xml.CreateTextNode([Console]::In.ReadToEnd())) > $null
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Strategy Radar').Show([Windows.UI.Notifications.ToastNotification]::new($xml))'''
+$notifier.Show([Windows.UI.Notifications.ToastNotification]::new($xml))
+[Console]::Out.Write('SUBMITTED_TO_WINDOWS')'''
     try:
         result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',script],input=f'{instrument}: {state} (research only)',text=True,encoding='utf-8',capture_output=True,timeout=20,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-        return 'SUBMITTED_TO_WINDOWS' if result.returncode==0 else 'WINDOWS_NOTIFICATION_FAILED'
+        status=result.stdout.strip()
+        allowed={'SUBMITTED_TO_WINDOWS','WINDOWS_SENDER_NOT_REGISTERED','WINDOWS_NOTIFICATION_DISABLED'}
+        return status if result.returncode==0 and status in allowed else 'WINDOWS_NOTIFICATION_FAILED'
     except (OSError,subprocess.TimeoutExpired): return 'WINDOWS_NOTIFICATION_FAILED'
 
 

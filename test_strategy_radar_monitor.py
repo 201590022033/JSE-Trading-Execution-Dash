@@ -113,3 +113,14 @@ class MonitorTests(unittest.TestCase):
    return {**self.evaluation('DEVELOPING'),'strategy_id':'intraday_5m_research_v1'}
   self.assertEqual(check_once(self.store,self.service,OPEN,evaluator=evaluation),'CONFIG_CHANGED')
   self.assertEqual(self.store.events(),[])
+
+ def test_pause_after_record_suppresses_desktop_notification(self):
+  self.store.configure(True,300,True)
+  record=self.store.record
+  def pause_after_record(*args):
+   event=record(*args)
+   self.store.configure(False,300,True)
+   return event
+  with patch.object(self.store,'record',side_effect=pause_after_record):
+   self.assertEqual(check_once(self.store,self.service,OPEN,evaluator=lambda _:self.evaluation('DEVELOPING'),notifier=lambda *_:self.fail('notification after pause')),'PAUSED')
+  self.assertEqual(self.store.events()[0]['desktop_status'],'SUPPRESSED_CONFIG_CHANGED')

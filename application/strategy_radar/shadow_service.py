@@ -68,6 +68,7 @@ def retained_comparisons(service,instrument,profile_id,version,*,limit=20):
             if sha256(raw).hexdigest()!=path.stem: continue
             report=json.loads(raw)
             if (report.get('instrument'),report.get('strategy_id'),report.get('strategy_version')) != (instrument,profile_id,version): continue
+            if profile_id not in PROFILES or report.get('timeframe_minutes') != PROFILES[profile_id]['timeframe_minutes']: continue
             candidate=report['candidate']; baseline=report['baseline']
             n=candidate['sample_count']; b=baseline['sample_count']
             if type(n) is not int or type(b) is not int or n<0 or b<0: continue
@@ -95,6 +96,14 @@ def retained_fill_backtests(instrument,profile_id,version,*,root=None,limit=5):
     import os
     try: DEFAULT_STRATEGY_REGISTRY.resolve(profile_id,version)
     except (KeyError,ValueError,TypeError): return []
+    # Older lab files do not record an exact timeframe. Do not promote them to
+    # matched evidence merely because their strategy identifiers happen to match.
+    if profile_id == 'jse_swing_3_5d':
+        timeframe = None
+    elif profile_id in PROFILES:
+        timeframe = PROFILES[profile_id]['timeframe_minutes']
+    else:
+        return []
     configured = root if root is not None else os.environ.get('LOCAL_BACKTEST_REPORT_DIR','')
     if not configured: return []
     folder=Path(configured)/'lab'
@@ -104,21 +113,32 @@ def retained_fill_backtests(instrument,profile_id,version,*,root=None,limit=5):
         try:
             run=_read(folder,path.stem)
             if run['meta']['grade']=='SYNTHETIC': continue
+            if not run['meta'].get('cost_basis') or not run['meta'].get('limitations'): continue
             receipts=[receipt for receipt in run['meta'].get('source_receipts',[]) if receipt.get('instrument')==instrument]
             if not receipts or any(receipt.get('product')!='cash_equity' for receipt in receipts): continue
             candidates=[]
             for strategy in run['strategies']:
                 if (strategy['strategy_profile_id'],strategy['strategy_profile_version'])!=(profile_id,version): continue
+                # A missing field is not evidence of daily frequency. Daily runs
+                # must explicitly declare it, and intraday runs their interval.
+                if timeframe is None:
+                    if strategy.get('timeframe') != '1d': continue
+                elif strategy.get('timeframe_minutes') != timeframe: continue
                 trades=[t for t in strategy['run']['trades'] if t['instrument']==instrument]
                 if not trades: continue
+                from datetime import date
+                dates = [(date.fromisoformat(t['entry_session']), date.fromisoformat(t['exit_session'])) for t in trades]
+                if any(end < start for start,end in dates): continue
                 pnl=sum((Decimal(str(t['net_pnl'])) for t in trades),Decimal(0))
                 if not pnl.is_finite(): continue
-                candidates.append({'id':strategy['id'],'name':strategy['name'],'sample_count':len(trades),'net_pnl':str(pnl)})
+                candidates.append({'id':strategy['id'],'name':strategy['name'],'sample_count':len(trades),'net_pnl':str(pnl),
+                                   'first_entry_session':min(start for start,_ in dates).isoformat(),
+                                   'last_exit_session':max(end for _,end in dates).isoformat()})
             if not candidates: continue
             winner=max(candidates,key=lambda item:Decimal(item['net_pnl']))
             value=Decimal(winner['net_pnl'])
             label='BEST_POSITIVE' if value>0 else 'LEAST_LOSS' if value<0 else 'BEST_FLAT'
-            results.append({'run_id':path.stem,'created_at':run['meta'].get('created_at'),
+            results.append({'run_id':path.stem,'created_at':run['meta'].get('created_at'), 'timeframe_minutes':timeframe,
                             'grade':run['meta']['grade'],'product':'CASH_SHARE','cost_basis':run['meta']['cost_basis'],
                             'limitations':run['meta']['limitations'],'contender':winner,'label':label,
                             'candidate_count':len(candidates), 'candidates':candidates,

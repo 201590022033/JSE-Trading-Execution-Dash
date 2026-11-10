@@ -96,10 +96,17 @@ def check_once(store,service,now,*,evaluator=None,notifier=None):
                 store.status(now,'CONFIG_CHANGED'); return 'CONFIG_CHANGED'
             if evaluation['state']=='UNKNOWN': unknown+=1
             event_id=store.record(watch['instrument'],evaluation,now)
-            if event_id and store.config()['desktop']:
-                try: result='UNAVAILABLE' if notifier is None else notifier(watch['instrument'],evaluation['state'])
-                except Exception: result='WINDOWS_NOTIFICATION_FAILED'
-                store.mark_desktop(event_id,result)
+            if event_id:
+                current=store.config()
+                if not current['enabled'] or current['profile']!=profile:
+                    store.mark_desktop(event_id,'SUPPRESSED_CONFIG_CHANGED')
+                    state='PAUSED' if not current['enabled'] else 'CONFIG_CHANGED'
+                    store.status(now,state)
+                    return state
+                elif current['desktop']:
+                    try: result='UNAVAILABLE' if notifier is None else notifier(watch['instrument'],evaluation['state'])
+                    except Exception: result='WINDOWS_NOTIFICATION_FAILED'
+                    store.mark_desktop(event_id,result)
         state='ERROR' if errors==len(watches) else 'SOURCE_UNAVAILABLE' if unknown==len(watches) else 'PARTIAL_SOURCE' if unknown or errors else 'CHECKED'
         store.status(now,state,'WATCH_EVALUATION_FAILED' if errors else None); return state
     except Exception as exc:

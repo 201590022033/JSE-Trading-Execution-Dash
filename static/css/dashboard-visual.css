@@ -45,6 +45,16 @@ td,th{border-color:#284451}.kv{border-color:#27424d}
 .radar-empty-copy{position:relative;max-width:260px;text-align:center;padding:18px;background:#0b202de8;border-radius:10px}.radar-empty-copy p,.radar-detail p{color:#a5bac5}
 .radar-detail{min-width:0;border:1px solid #284958;border-radius:12px;padding:20px}.radar-actions{display:flex;flex-wrap:wrap;gap:8px}
 @media(max-width:760px){.radar-layout{grid-template-columns:minmax(0,1fr)}.radar-empty{min-height:240px}.strategy-radar-shell > details > summary::after{margin-left:0}.radar-detail{padding:16px}}
+
+/* UIM1: keep the active engine prominent and keep long labels usable. */
+header,nav,main,footer{max-width:1672px}
+.radar-system-link{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;color:var(--muted);font-size:12px}
+.radar-system-link button{padding:5px 9px}
+.radar-monitor form{display:flex;align-items:end;flex-wrap:wrap;gap:12px}
+.radar-monitor form label{max-width:100%}
+.radar-watches{min-width:0}
+nav button:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid #74f6e0;outline-offset:2px}
+@media(max-width:760px){header{padding:16px 12px 8px}nav{padding-left:12px;padding-right:12px}main{padding:12px}.radar-monitor form{align-items:stretch;flex-direction:column}.radar-monitor form button{width:100%}}
 .radar-watch{border-top:1px solid #284958;padding:12px 0}.radar-watch p{font-size:12px;overflow-wrap:anywhere;margin:6px 0}.radar-detail form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}.radar-detail select{max-width:100%}
 
 .manual-plan-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem}.manual-plan-form label{display:flex;flex-direction:column;min-width:0}.manual-plan-form label[hidden]{display:none}.manual-plan-form input,.manual-plan-form select{max-width:100%;min-width:0}.manual-plan-form button{align-self:end}
@@ -53,3 +63,51 @@ td,th{border-color:#284451}.kv{border-color:#27424d}
 .radar-visual{min-width:0}.radar-scope{position:relative;display:grid;place-items:center;width:min(100%,520px);aspect-ratio:1;margin:auto;border:1px solid #28525b;border-radius:50%;background:radial-gradient(circle,#10433e,#071d28 73%);overflow:hidden}.radar-scope .radar-rings{width:94%;opacity:.7}.radar-crosshair{position:absolute;inset:3%;background:linear-gradient(transparent 49.8%,#287b78 50%,transparent 50.2%),linear-gradient(90deg,transparent 49.8%,#287b78 50%,transparent 50.2%);border-radius:50%}#radar-points{position:absolute;inset:0}#radar-points button{position:absolute;transform:translate(-50%,-50%);font-size:12px;padding:5px 7px;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:2px solid #ff7183;background:#321c2a;color:white;z-index:1}#radar-points button.radar-unknown{border-color:#a5bac5;background:#26333a}#radar-points button[aria-pressed=true]{box-shadow:0 0 0 3px #64f4e2}#radar-empty-message{position:relative;text-align:center;padding:1rem;background:#0b202de8;border-radius:8px}.radar-legend{font-size:12px;line-height:1.6}.radar-trace-row{font-size:12px;overflow-wrap:anywhere}.radar-handoff-context{border-left:3px solid #31d5cf;padding:10px;margin:10px 0;overflow-wrap:anywhere}.radar-detail form.manual-plan-form{display:grid;align-items:stretch}@media(max-width:760px){.radar-scope{width:min(100%,390px)}#radar-points button{font-size:11px;padding:4px}}
 
 #radar-points button.radar-backtested{border-color:#50e7a1;background:#154233}
+
+/* UIM2 reference workspace. All values remain sourced or explicitly unavailable. */
+@media(min-width:1100px){
+ body{display:grid;grid-template-columns:340px minmax(0,1fr);grid-template-rows:auto 1fr auto;align-content:start}
+ body>header{grid-column:1;grid-row:1;width:100%;height:56px;padding:5px 12px 5px 24px}
+ body>header h1{font-size:21px;white-space:nowrap}.eyebrow{font-size:10px}body>header .eyebrow{display:none}
+ body>header .pill{display:none}body>nav{grid-column:2;grid-row:1;width:100%;max-width:none;align-self:start;min-width:0;height:56px;padding:6px 12px;gap:6px}
+ body>main{grid-column:1 / -1;grid-row:2;width:100%;max-width:1672px;padding:0 11px 20px}body>footer{grid-column:1 / -1;grid-row:3;width:100%}
+}
+.uim-market-strip{min-height:44px;display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:8px 16px;margin-bottom:12px;border:1px solid #1d4050;border-radius:8px;background:#0a1c29;color:#b6c7d2;font-size:12px}.uim-market-strip strong{color:#e6eff5}.uim-market-strip span{white-space:nowrap}
+.strategy-radar-shell.panel{position:relative;padding:0;margin:0;border:0;border-radius:0;background:none;box-shadow:none}
+.strategy-radar-shell>details>summary{position:absolute;top:18px;left:22px;z-index:3;max-width:46%;gap:10px;align-items:center}
+.strategy-radar-shell>details>summary strong{font-size:30px;line-height:1.1}.strategy-radar-shell>details>summary:after{content:'−';font-size:16px}.strategy-radar-shell>details:not([open])>summary{position:relative;left:0;top:0;padding:18px;max-width:100%;background:#0b202d}.strategy-radar-shell>details:not([open])>summary:after{content:'+'}
+.radar-heading-icon{font-size:36px;line-height:1;color:#27f6db}.radar-state{color:#a5bac5;font-size:12px}.radar-layout{grid-template-columns:minmax(0,1fr) minmax(0,1.03fr);gap:14px;margin:0;align-items:stretch}
+.radar-visual,.radar-detail{min-width:0;border:1px solid #284958;border-radius:13px;background:linear-gradient(150deg,#0b202d,#071825);padding:18px}.radar-visual{padding-top:68px;position:relative}.radar-detail{padding:20px;overflow-wrap:anywhere}
+.radar-toolbar{display:flex;align-items:end;gap:16px;justify-content:space-between;flex-wrap:wrap}.radar-toolbar label{display:flex;align-items:center;gap:8px}.radar-toolbar select{max-width:220px;padding:6px}.radar-toolbar #radar-counts{font-size:12px;color:#adbdc9}.radar-instruction{margin:6px 0 2px;color:#a5bac5;font-size:11px}
+.radar-scope{width:min(100%,555px);border:2px solid #16f3df;background:radial-gradient(circle at center,#063530,#042a2b 65%,#05352f 94%,#00837b);box-shadow:inset 0 0 42px #00bca553,0 0 22px #00d9c62b}.radar-scope .radar-rings{inset:0;width:100%;height:100%;opacity:1;border:0;background:radial-gradient(circle,transparent 19.4%,#1db6ad 19.6%,transparent 19.8%,transparent 39.4%,#1db6ad 39.6%,transparent 39.8%,transparent 59.4%,#1db6ad 59.6%,transparent 59.8%,transparent 79.4%,#1db6ad 79.6%,transparent 79.8%)}
+.radar-crosshair{inset:0;background:linear-gradient(transparent 49.8%,#13c7bc 50%,transparent 50.2%),linear-gradient(90deg,transparent 49.8%,#13c7bc 50%,transparent 50.2%)}
+.radar-sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 58deg,transparent 0 272deg,#02fed400 310deg,#02f6cc99 357deg,#8afff0 359deg,transparent 360deg);opacity:.62;pointer-events:none}
+.radar-strength-labels{position:absolute;inset:0;pointer-events:none;text-align:center;font-size:11px;color:#d8f7f2;text-shadow:0 1px 4px #001816}.radar-strength-labels span{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap}.radar-strength-labels span:nth-child(1){top:3%}.radar-strength-labels span:nth-child(2){top:13%}.radar-strength-labels span:nth-child(3){top:23%}.radar-strength-labels span:nth-child(4){top:33%}.radar-strength-labels span:nth-child(5){top:43%}
+#radar-points button{display:flex;align-items:center;gap:7px;overflow:visible;max-width:45%;min-height:32px;white-space:nowrap;border:0;border-radius:8px;background:transparent;padding:4px;color:#f4ffff;font-size:15px;font-weight:700;box-shadow:none;text-shadow:0 1px 4px #001a20;transform:translate(-14px,-50%)}
+#radar-points button::before{content:'';flex:0 0 16px;width:16px;height:16px;border-radius:50%;border:2px solid #05252a;background:#ff7183;box-shadow:0 0 0 2px #ff718344,0 0 14px #ff7183}
+#radar-points button.radar-unknown{background:transparent}#radar-points button.radar-unknown::before{background:#9babb6;box-shadow:0 0 0 2px #9babb644,0 0 12px #9babb6}
+#radar-points button.radar-backtested{background:transparent}#radar-points button.radar-backtested::before{background:#42f990;box-shadow:0 0 0 2px #42f99044,0 0 14px #42f990}
+#radar-points button[aria-pressed=true]{box-shadow:none}#radar-points button[aria-pressed=true]::before{outline:2px solid #fff;outline-offset:3px}
+.radar-legend{margin:7px 0;color:#c3d4dc;font-size:11px}.radar-help,.radar-context-details,.radar-plan-editor,.radar-more-tools{margin-top:8px;color:#a9bcc8;font-size:12px}.radar-help summary,.radar-context-details summary,.radar-plan-editor summary,.radar-more-tools summary{cursor:pointer;color:#9bece2}.radar-help p{line-height:1.4}
+.radar-overflow-list{display:flex;flex-wrap:wrap;gap:6px;max-width:100%;margin-top:6px}.radar-overflow-list:empty{display:none}.radar-overflow-list button{min-height:44px;max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left}
+.radar-detail h3{font-size:clamp(24px,2vw,36px);margin:0 0 6px;color:#f5faff}.radar-badge{display:inline-block;margin:0 0 8px!important;padding:6px 10px;border:1px solid #357c86;border-radius:7px;background:#123742;color:#e4faff!important;font-weight:700}
+.radar-price-row{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:72px;border-bottom:1px solid #244553;margin-bottom:12px}.radar-price-row>div:first-child{min-width:0}.radar-price-row #radar-price{font-size:clamp(22px,2.4vw,40px);color:#f2f8fb}.radar-price-row p{margin:2px 0 8px;font-size:11px;line-height:1.4}.radar-ost{padding-left:14px;border-left:1px solid #55707e;color:#b8c9d5;min-width:160px}.radar-ost strong,.radar-ost small{display:block}.radar-ost small{font-size:11px;margin-top:4px}
+.radar-decision-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.radar-plan-card,.radar-checklist{border:1px solid #284958;border-radius:9px;background:#0b1f2b;padding:12px;min-width:0}.radar-decision-grid h4{font-size:16px;margin:0 0 10px}.radar-trace-row{margin:0;padding:5px 0;border-bottom:1px solid #244553;line-height:1.3;font-size:12px}.radar-detail .radar-actions{margin-top:14px}.radar-actions button{min-height:40px}.radar-actions button:first-child{background:#00796f;border-color:#19e2ca}
+#radar-plan-summary th,#radar-plan-summary td{padding:5px 8px}#radar-plan-summary p{margin:8px 0 0;font-size:11px}
+.uim-context-row{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-top:14px}.uim-context-card.panel{margin:0;padding:15px 18px}.uim-context-card h3{font-size:17px;margin:0 0 8px}.uim-context-card p{margin:4px 0;color:#b9cbd2}
+@media(max-width:1099px){.uim-market-strip{margin:0 0 12px}.strategy-radar-shell>details>summary{position:relative;top:auto;left:auto;max-width:none;padding:15px 16px;background:#0b202d;border:1px solid #284958;border-radius:12px 12px 0 0}.strategy-radar-shell>details>summary strong{font-size:25px}.radar-visual{padding-top:16px}}
+@media(max-width:760px){.radar-layout,.radar-decision-grid,.uim-context-row{grid-template-columns:minmax(0,1fr)}.radar-visual,.radar-detail{padding:14px}.radar-scope{width:min(100%,390px)}.radar-strength-labels{font-size:9px}.radar-price-row{flex-wrap:wrap}.radar-price-row #radar-price{font-size:26px}.radar-ost{min-width:120px}.uim-market-strip{gap:7px 16px}.uim-market-strip span{white-space:normal}#radar-points button{font-size:10px;min-height:44px;padding:4px 5px}}
+@media(prefers-reduced-motion:reduce){.radar-sweep{animation:none!important}}
+@media(min-width:1100px){
+ .radar-visual{padding-top:55px;padding-bottom:18px}
+ .radar-instruction{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .radar-toolbar{min-height:30px;margin-bottom:3px}
+ .radar-legend{position:absolute;left:16px;bottom:8px;max-width:200px;font-size:10px;line-height:1.35}
+ .radar-help{position:absolute;right:16px;bottom:6px;max-width:38%}
+ /* Crowded watches need normal flow: the list can span multiple rows. */
+ .radar-visual:has(.radar-overflow-list:not([hidden])) .radar-legend{position:static;max-width:none;margin:10px 0}
+ .radar-visual:has(.radar-overflow-list:not([hidden])) .radar-help{position:static;max-width:none;margin-top:8px}
+ .radar-help[open]{z-index:4;background:#0b202d;padding:10px;border:1px solid #284958;border-radius:8px}
+ .radar-context-details,.radar-plan-editor,.radar-more-tools{display:inline-block;vertical-align:top;margin:8px 12px 0 0}
+ .radar-context-details[open],.radar-plan-editor[open],.radar-more-tools[open]{display:block}
+}

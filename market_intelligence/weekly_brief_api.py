@@ -43,6 +43,24 @@ def create_weekly_brief_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get("/api/market-intelligence/issuer-events/<instrument>")
+    def read_issuer_events(instrument):
+        from application.strategy_radar.issuer_events import issuer_events
+        repository = factory()
+        try:
+            return jsonify(issuer_events(repository, instrument, request.args.get('product', ''), now=datetime.now(timezone.utc)))
+        finally:
+            repository.close()
+
+    @bp.get("/api/market-intelligence/issuer-news/<instrument>")
+    def read_issuer_news(instrument):
+        from application.strategy_radar.issuer_news import issuer_news
+        repository = factory()
+        try:
+            return jsonify(issuer_news(repository, instrument, request.args.get('product', ''), now=datetime.now(timezone.utc)))
+        finally:
+            repository.close()
+
     @bp.get("/api/market-intelligence/anticipatory-radar")
     def read_anticipatory_radar():
         from .anticipatory_radar import status as radar_status
