@@ -1,6 +1,6 @@
 # Strategy Radar: delivery roadmap and context
 
-**Status:** Updated 11 November 2026. M1–M6 are completed locally; M7–M8 implementations are local with live verification pending. Here “M1”, “M2”, etc. refer to this Strategy Radar series, not the earlier research redesign M1–M7. R12, P1 and the earlier research M5–M7 retain their recorded status and independent monitoring. One coding milestone at a time; evidence gathering already in progress need not be relabelled complete.
+**Status:** Updated 11 November 2026. M1–M6 are completed locally; M7–M8 implementations are local with live verification pending; M9 is scoped and incomplete. Here “M1”, “M2”, etc. refer to this Strategy Radar series, not the earlier research redesign M1–M7. R12, P1 and the earlier research M5–M7 retain their recorded status and independent monitoring. One coding milestone at a time; evidence gathering already in progress need not be relabelled complete.
 
 ## Desired experience
 
@@ -25,6 +25,7 @@ An accessible, large and collapsible radar tracks Top 5 shares, selected contend
 - [M6 — Interactive radar and investigation handoffs](milestones/M6.md)
 - [M7 — Quiet background monitor and Windows alerts](milestones/M7.md)
 - [M8 — End-to-end verification and operational rollout](milestones/M8.md)
+- [M9 — Delayed swing-data qualification](milestones/M9.md)
 
 Each linked file begins with a compact context brief, includes a ready-to-use prompt, acceptance criteria and a checkpoint to update. “Go M1” starts the first file; finish its implementation and debugging before “Go M2”. A milestone cannot claim a verified live feed or real alert where the provider or Windows permission is unavailable; deliver independent functionality and record the actual gap. Do not let lack of one optional source block other usable data.
 

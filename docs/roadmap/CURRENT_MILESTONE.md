@@ -20,17 +20,26 @@ broker action, notification or monitor setting change occurred. M6 acceptance
 is complete locally with these limitations. See [M6 checkpoint](../strategy-radar/milestones/M6.md),
 ADR 0102 and [change note](../changes/2026-11-11-swing-ema20-reclaim-window.md).
 
+## Strategy Radar status reconciliation — 11 November 2026
+
+The Strategy Radar M-series is separate from the UIM/research redesign.
+Strategy Radar M6 was completed locally and committed/pushed as `bfec6fc`;
+its post-restart dashboard verification is recorded in the M6 brief below.
+Older entries saying M6 is pending are dated snapshots, not current status.
+M7/M8 runtime and source-availability gaps remain separate; M9 is scoped, not
+complete. No UIM6/UIM7/UIM8 briefs are implied by these M-series labels.
+
 ## Strategy Radar M7/M8 — locally implemented, live verification pending, 9 November 2026
 
-Explicit local-only background monitor, durable trace-linked alerts and dashboard controls added. Fixture replay and isolated worker lifecycle passed. No qualified unattended intraday feed exists; Windows notification was submitted but visible receipt is unverified. Running dashboard requires restart; M6 post-fix verification remains open, and monitor does not auto-start at Windows logon. See [M7](../strategy-radar/milestones/M7.md), [M8](../strategy-radar/milestones/M8.md), and [operator guide](../strategy-radar/OPERATOR_GUIDE.md).
+Historical snapshot as of 9 November, before M6 completion: explicit local-only background monitor, durable trace-linked alerts and dashboard controls added. Fixture replay and isolated worker lifecycle passed. No qualified unattended intraday feed exists; Windows notification was submitted but visible receipt is unverified. At that time the running dashboard needed a restart and M6 verification was still open. M6 was subsequently completed locally on 11 November; the M7/M8 source and operational gaps remain. See [M7](../strategy-radar/milestones/M7.md), [M8](../strategy-radar/milestones/M8.md), and [operator guide](../strategy-radar/OPERATOR_GUIDE.md).
 
-## Strategy Radar M6 — post-restart performance fix pending reload, 7 November 2026
+## Historical M6 snapshot — post-restart performance fix pending reload, 7 November 2026
 
-IRESS was observed online and the new radar was served, but concurrent evidence scans caused timeouts. The local fix avoids scans for unsupported profiles and loads evidence only on selection; 6 focused tests passed. The dashboard process needs a normal restart to load the backend fix. M6 remains active until verified. See [M6 checkpoint](../strategy-radar/milestones/M6.md).
+IRESS was observed online and the new radar was served, but concurrent evidence scans caused timeouts. The local fix avoids scans for unsupported profiles and loads evidence only on selection; 6 focused tests passed. The dashboard process still needed a normal restart to load the backend fix at this checkpoint. This pending state was superseded by the 11 November M6 completion. See [M6 checkpoint](../strategy-radar/milestones/M6.md).
 
-## Strategy Radar M6 — implementation ready, verification pending, 7 November 2026
+## Historical M6 snapshot — implementation ready, verification pending, 7 November 2026
 
-Exact-context desk, retained evidence matching, share-aware handoffs and fixture browser checks are in place. 1957 offline tests passed. Actual dashboard integration and real touch checks await the user's chosen restart; no model or broker call was made. M6 remains active pending that verification, and M7 is not started. See [M6 checkpoint](../strategy-radar/milestones/M6.md).
+Exact-context desk, retained evidence matching, share-aware handoffs and fixture browser checks were in place. 1957 offline tests passed. Actual dashboard integration and real touch checks awaited restart; no model or broker call was made. This pending state was superseded by the 11 November M6 completion. See [M6 checkpoint](../strategy-radar/milestones/M6.md).
 
 ## Strategy Radar M6 — active / partial, 7 November 2026
 
