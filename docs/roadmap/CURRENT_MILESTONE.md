@@ -1,14 +1,24 @@
-## Strategy Radar M6 continuation — 11 November 2026
+## Strategy Radar M6 — completed locally, 11 November 2026
 
-Daily Swing Radar now uses additive feature/profile 1.1.1 for its three-session
-EMA20 reclaim rule and combines breakout/reclaim in one OR trace row. Frozen
-feature 1.1.0 and the 1.2.0 shadow policy remain unchanged. Eighty-five focused
-tests and JavaScript checks passed. No exact-profile fill backtest exists for
-1.1.1, so that selection skips the legacy fill-run scan. The dashboard still
-requires a normal restart for integration verification; Strategy Radar M6
-remains partial, and the separate research M5/R12/P1 statuses are unchanged.
-See ADR 0102 and
-`docs/changes/2026-11-11-swing-ema20-reclaim-window.md`.
+After a normal dashboard restart, health and PostgreSQL were available and the
+swing endpoint returned 11 research-only evaluations with live execution
+disabled. All six dashboard handoffs were exercised with typed context; Ask
+prompt preview reconstructed the trace without a model call; retained news and
+sector context loaded; technical selection and manual Costs behavior passed.
+The selected VOD share had no exact match in the saved backtest run, so no
+substitute or run was selected. Keyboard selection/focus, collapse/expand,
+reversible pin/unpin and 390px touch emulation passed (49.9×44px target,
+375px document width); physical touchscreen hardware was not available.
+
+The final focused combined M6/issuer-news/sector-context/watch suite passed 35
+tests, as did JavaScript syntax and `git diff --check`. The 2,091-test offline
+suite reported 21 errors and 2 failures in UIM5 async/storage/search tests; its socket
+guard blocks `socket.socketpair` used by asyncio. No M6 test failure was
+identified. Daily Swing 1.1.1 has no exact-profile fill backtest; no forecast
+skill or profitability claim is made. No model/provider generation, backtest,
+broker action, notification or monitor setting change occurred. M6 acceptance
+is complete locally with these limitations. See [M6 checkpoint](../strategy-radar/milestones/M6.md),
+ADR 0102 and [change note](../changes/2026-11-11-swing-ema20-reclaim-window.md).
 
 ## Strategy Radar M7/M8 — locally implemented, live verification pending, 9 November 2026
 

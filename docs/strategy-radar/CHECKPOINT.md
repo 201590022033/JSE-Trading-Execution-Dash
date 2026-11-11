@@ -1,6 +1,6 @@
 # Strategy Radar checkpoint
 
-Prepared 2026-11-06. M1–M5 completed locally; M6 is active and partial. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve the currently dirty tree and the separately ongoing research M5/M6/M7 and R12/P1 records. Before each implementation milestone refresh this checkpoint from actual repo status; after completion include commit state, tests, source availability, residual work and a concise handoff.
+Prepared 2026-11-06; updated 2026-11-11. M1–M6 completed locally; M7–M8 implementation and live verification remain separate. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve the separately ongoing research M5/M6/M7 and R12/P1 records. Before each implementation milestone refresh this checkpoint from actual repo status; after completion include commit state, tests, source availability, residual work and a concise handoff.
 
 ## M1 completed locally — 6 November 2026
 
@@ -17,6 +17,35 @@ Quote contracts, protected intraday cache, manual source input, source-aware mer
 EODHD preference recorded: use it for JSE intraday if the existing account includes it. The account status check on 6 November returned a free subscription and 19/20 credits used; the documented intraday endpoint costs five credits and lists paid intraday plans. No intraday request or upgrade was made. See M3 source qualification.
 
 Source preference: keep OST, IRESS, EODHD and IG paths open independently; lack of unattended broker access does not block usable per-field data. The user may reconnect the existing IG API. Reuse the existing IG integration read-only, verify present JSE instrument mappings, history/streaming entitlements, costs and timestamps when access is restored, and do not treat earlier entitlement failures as current. No order submission.
+
+## M6 completed locally — 11 November 2026
+
+After restarting the workspace dashboard, health and PostgreSQL were available;
+the swing endpoint returned 11 research-only evaluations with live execution
+disabled. The live UI was exercised across all six research handoffs, including
+typed instrument/product/strategy/version/timeframe context. Ask prompt preview
+reconstructed the selected trace without calling a model. Retained issuer news
+and sector context loaded; technical history was preselected; Costs remained a
+manual scenario; pin/unpin persistence, updated labels and focus restoration
+were verified. The selected VOD share had no exact-instrument match in the
+available saved backtest run, so no alternate instrument was selected and no
+backtest was run.
+
+Keyboard selection/focus and collapse/expand passed. Touch emulation selected a
+watch using a 49.9×44px target at a 390px viewport; document width was 375px.
+Physical touchscreen hardware was unavailable. The final focused combined
+M6/issuer-news/sector-context/watch suite passed 35 tests; JavaScript syntax and
+`git diff --check` passed. The 2,091-test offline suite reported 21 errors and
+2 failures, all in separate UIM5 async/storage/search tests; the offline socket
+guard blocks `socket.socketpair` used by asyncio. No M6 test failure was
+identified. These failures remain recorded, not suppressed.
+
+No model/provider generation, backtest run, broker action, notification or
+monitor setting change was made. Daily Swing 1.1.1 remains a research-only
+profile without an exact-profile fill backtest; no performance claim is made.
+M6 acceptance is complete locally with these evidence limitations. M7/M8
+operational verification and the earlier research M5/R12/P1 work remain
+independent. Commit state is recorded by Git, not implied by this checkpoint.
 
 Post-restart M3 check, 6 November 2026: localhost:5000 serves the watch, quote and intraday endpoints (HTTP 200). Saved ranking CLS/BVT/MTN/VOD/ABSPJ matches the five leading watches; BTI/FSR/NPN/PRX are retained in grace. The dashboard displays the two ABSPJ ViewPoint manual records with unknown interval timing. IG demo account status is CREDENTIALS_MISSING; current IG mapping/entitlements remain untested. EODHD intraday account check remains scheduled. No M4 work or order was started.
 
@@ -80,5 +109,35 @@ EMA20 reclaim from any of the latest three sessions and displaying breakout OR
 reclaim as one trace row. Feature 1.1.0 and the 1.2.0 shadow policy remain
 unchanged. No exact-profile fill backtest is available; this version skips the
 legacy fill-run scan. Eighty-five focused Swing/Radar/profile API tests and
-JavaScript syntax/OR-state checks passed. This does not resolve M6's pending
-actual-dashboard verification; no performance claim is made.
+JavaScript syntax/OR-state checks passed. At that point actual-dashboard
+verification was still pending; it is documented in the later completion entry
+below. No performance claim is made.
+
+## M6 completed locally — 11 November 2026
+
+After restarting the workspace dashboard, health and PostgreSQL were available;
+the swing endpoint returned 11 research-only evaluations with live execution
+disabled. The live UI was exercised across all six research handoffs, including
+typed instrument/product/strategy/version/timeframe context. Ask prompt preview
+reconstructed the selected trace without calling a model. Retained issuer news
+and sector context loaded; technical history was preselected; Costs remained a
+manual scenario; pin/unpin persistence, updated labels and focus restoration
+were verified. The selected VOD share had no exact-instrument match in the
+available saved backtest run, so no alternate instrument was selected and no
+backtest was run.
+
+Keyboard selection/focus and collapse/expand passed. Touch emulation selected a
+watch using a 49.9×44px target at a 390px viewport; document width was 375px.
+Physical touchscreen hardware was unavailable. The 25-test M6 group and an
+additional 14 issuer-news/sector/watch tests passed; JavaScript syntax and
+`git diff --check` passed. The 2,091-test offline suite reported 21 errors and
+2 failures, all in separate UIM5 async/storage/search tests; the offline socket
+guard blocks `socket.socketpair` used by asyncio. No M6 test failure was
+identified. These failures remain recorded, not suppressed.
+
+No model/provider generation, backtest run, broker action, notification or
+monitor setting change was made. Daily Swing 1.1.1 remains a research-only
+profile without an exact-profile fill backtest; no performance claim is made.
+M6 acceptance is complete locally with these evidence limitations. M7/M8
+operational verification and the earlier research M5/R12/P1 work remain
+independent.

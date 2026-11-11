@@ -453,7 +453,16 @@ function mergeEntryRules(rules) {
   async function handoff(destination,watch,evaluation) {
     const status=document.getElementById('radar-handoff-status');
     if (destination==='pin') {
-      try { await json(`/api/v1/strategy-radar/watches/${encodeURIComponent(watch.instrument)}/pin`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pinned:!watch.pinned})}); await load(); }
+      const pinned=!watch.pinned;
+      try {
+        await json(`/api/v1/strategy-radar/watches/${encodeURIComponent(watch.instrument)}/pin`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pinned})});
+        await load();
+        if (selectedWatch===watch.instrument) {
+          const selectionRefresh=renderSelection();
+          [...document.querySelectorAll('#radar-selected-actions button')].find(button=>button.textContent===(pinned?'Unpin':'Pin'))?.focus();
+          await selectionRefresh;
+        }
+      }
       catch (error) { status.textContent=error.message; } return;
     }
     const section=destination==='ask'||destination==='sector' ? 'backtest-lab' : destination;
@@ -478,7 +487,21 @@ function mergeEntryRules(rules) {
     const selector=section==='backtest-lab' ? document.getElementById('bl-research-instrument') : null;
     const found=typed.product==='CASH_SHARE' && selector && [...selector.options].some(option=>option.value===typed.instrument);
     if (found) { selector.value=typed.instrument; selector.dispatchEvent(new Event('change', {bubbles:true})); }
-    notice.textContent=`Radar handoff: ${typed.instrument} · ${typed.strategy_id} v${typed.strategy_version} · ${typed.product} · ${typed.timeframe_minutes == null ? 'daily' : typed.timeframe_minutes + ' min'} · selected ${typed.selected_at}. ${found ? 'Instrument selected in the destination control; inspect its source and time.' : 'Exact instrument/product selection is unavailable here; verify the destination controls before use.'} This destination does not support automatic profile/version selection; verify it before running anything. No run or model request was started.`;
+    const savedRunHasInstrument=selector && [...selector.options].some(option=>option.value);
+    const selectionStatus=selector
+      ? found
+        ? 'Instrument selected in the destination control; inspect its source and time.'
+        : savedRunHasInstrument
+          ? 'Exact cash-share instrument is unavailable in the selected saved run; no substitute was selected.'
+          : 'No exact instrument is selected in available saved research; no substitute was selected.'
+      : destination==='technical-view'
+        ? typed.product==='CASH_SHARE'
+          ? 'Exact share code selected for the Zebra history control; history loads only on explicit request.'
+          : 'Zebra history is cash-share only; no incompatible product was selected.'
+        : destination==='market-ai'
+          ? 'Issuer lookup is scoped to the exact selected share and product; general news panels may be broader.'
+          : 'Exact radar context attached; verify destination controls before any research action.';
+    notice.textContent=`Radar handoff: ${typed.instrument} · ${typed.strategy_id} v${typed.strategy_version} · ${typed.product} · ${typed.timeframe_minutes == null ? 'daily' : typed.timeframe_minutes + ' min'} · selected ${typed.selected_at}. ${selectionStatus} This destination does not support automatic profile/version selection; verify it before running anything. No run or model request was started.`;
     if (destination==='sector') {
       line(notice,'p',`${typed.instrument} sector: ${watch.sector || 'unknown'} · benchmark: ${watch.benchmark || 'unavailable'} · latest historical session ${watch.daily?.latest_session || 'unknown'} · ${watch.daily?.sessions ?? 0} sessions. Sector classification is research context, not a live fundamental or recommendation.`);
       const sources=watch.daily?.sources || {};
