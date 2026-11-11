@@ -26,11 +26,11 @@ The Strategy Radar M-series is separate from the UIM/research redesign.
 Strategy Radar M6 was completed locally and committed/pushed as `bfec6fc`;
 its post-restart dashboard verification is recorded in the M6 brief below.
 Older entries saying M6 is pending are dated snapshots, not current status.
-Strategy Radar M7 is now completed locally and documented below. M8 is active
-for end-to-end operational/source validation; M9 remains scoped, not complete.
+Strategy Radar M7 and M8 are now completed locally and documented below; M9
+remains scoped, not complete.
 No UIM6/UIM7/UIM8 briefs are implied by these M-series labels.
 
-## Strategy Radar M7 completed locally; M8 active — 11 November 2026
+## Strategy Radar M7/M8 completed locally — 11 November 2026
 
 The monitor/notification/startup suite passed 13 tests; one Windows shortcut test
 was skipped to preserve an existing user shortcut. The existing monitor
@@ -45,9 +45,27 @@ recorded delivery to Strategy Radar on session 1, but visible banner
 presentation was not independently observed. The actual System view displayed
 the status at 390px without horizontal page overflow. No source/provider,
 model, paid request, broker action, or notification/startup preference was
-changed. There are no qualified clocked intraday bars, so M8 is active to
-document the usable local path and exact source/operational gaps. See [M7](../strategy-radar/milestones/M7.md),
-[M8](../strategy-radar/milestones/M8.md), and [operator guide](../strategy-radar/OPERATOR_GUIDE.md).
+changed. There are no qualified clocked intraday bars; the locally verified
+software path therefore remains separate from an actual live/delayed feed.
+
+M8 read-only dashboard measurements: 11 watches, Top 5 VOD/TFMJ/MTN/NTU/NPN;
+one watch-endpoint response took 1.09 seconds. The five Top 5 histories ended
+on 10 November and retained ShareData/Yahoo daily fields had 11 November
+receipts; IRESS/OST had no retained fields. The intraday cache had two
+unknown-clock ABSPJ records and zero verified bars. The runtime folder was
+135,198,108 bytes; the worker's working set was about 4.0 MB. These are point
+measurements, not service-level guarantees.
+
+The focused M8 integration suite passed 47 tests. `scripts/run_tests.py` ran
+2,091 tests in 160.493 seconds with 21 errors, 2 failures, and 1 skip. Errors
+were confined to UIM5 async/MCP/OAuth/Qwen tests affected by the offline
+socket guard and Windows Proactor `socketpair`; both failures were UIM5 tool
+research API storage/stage results. No Strategy Radar test failed. JavaScript
+syntax checks and `git diff --check` passed. Desktop and 390px browser checks,
+isolated worker lifecycle, retained-bar alert replay, and OS-recorded TEST ONLY
+toast delivery are recorded in [M7](../strategy-radar/milestones/M7.md) and
+[M8](../strategy-radar/milestones/M8.md). No qualified intraday source, visible
+toast presentation, or sign-out/sign-in lifecycle is claimed.
 
 ## Historical M6 snapshot — post-restart performance fix pending reload, 7 November 2026
 

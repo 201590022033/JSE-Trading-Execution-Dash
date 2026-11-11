@@ -1,6 +1,6 @@
 # Strategy Radar checkpoint
 
-Prepared 2026-11-06; updated 2026-11-11. M1–M7 completed locally; M8 is active for end-to-end operational validation, and M9 is scoped. This Strategy Radar M-series is distinct from UIM/research milestones; no UIM6–UIM8 briefs are present. The old dated M6/M7/M8 entries below are historical snapshots, superseded by the later M6 and M7 completion entries. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve the separately ongoing research M5/M6/M7 and R12/P1 records. Before each implementation milestone refresh this checkpoint from actual repo status; after completion include commit state, tests, source availability, residual work and a concise handoff.
+Prepared 2026-11-06; updated 2026-11-11. M1–M8 completed locally with evidence limitations; M9 is scoped. This Strategy Radar M-series is distinct from UIM/research milestones; no UIM6–UIM8 briefs are present. The old dated M6/M7/M8 entries below are historical snapshots, superseded by the later completion entries. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve the separately ongoing research M5/M6/M7 and R12/P1 records. Before each implementation milestone refresh this checkpoint from actual repo status; after completion include commit state, tests, source availability, residual work and a concise handoff.
 
 ## M1 completed locally — 6 November 2026
 
@@ -159,5 +159,48 @@ was not independently observed. The System view showed the running status at
 390px with no horizontal page overflow. Existing retained-bar→trace→dashboard
 history replay covers the end-to-end alert path. No provider, model, broker,
 paid quote, live order, notification setting, or startup task was changed.
-No clock-qualified intraday feed is available; M8 is now active to record the
+No clock-qualified intraday feed was available at M7 completion; M8 records the
 full rollout and source gaps without implying live-data qualification.
+
+## M8 completed locally — 11 November 2026
+
+The read-only live dashboard was healthy. The watch endpoint returned 11
+instruments in 1.09 seconds (one observation, not a latency guarantee); Top 5
+was VOD/TFMJ/MTN/NTU/NPN. Each had completed daily history through 10 November.
+For VOD, 2,524 sessions were available; retained ShareData and Yahoo daily
+fields had receipts on 11 November at approximately 10:03 UTC. IRESS and OST
+had no retained fields and remain manual-capture paths with automation
+unverified. This is completed daily history, not a current quote.
+
+The intraday cache contained two ABSPJ records with unknown clock semantics,
+zero verified interval bars, and no records for the current Top 5. Thus no
+current/delayed intraday path can be claimed. The named dependency is an
+entitled, permitted, unattended JSE intraday source with verified bar clocks;
+the observed EODHD free plan does not establish intraday entitlement, and
+interactive IRESS/OST access does not establish unattended ingestion.
+
+The existing monitor remained enabled on the owner's existing 30-minute,
+900-second interval, desktop notifications enabled, sign-in startup disabled.
+Its live worker reports `SOURCE_UNAVAILABLE`, no error, and zero alert events.
+The separate temporary-store worker lifecycle and retained-bar→trace→history
+fixture passed. `TEST ONLY` Windows toast delivery was recorded by OS event
+3052, although visible banner presentation was not independently witnessed.
+The actual System view was checked on desktop and at 390px; mobile document
+width was 390px. M6 had verified all six research handoffs and keyboard/touch
+emulation.
+
+Focused M8 integration passed 47 tests. The full offline suite ran 2,091 tests
+in 160.493 seconds: 21 errors, 2 failures, and 1 skip. The errors were confined
+to UIM5 async/MCP/OAuth/Qwen tests affected by the safe runner's socket guard
+and Windows Proactor `socketpair` behavior. The two failures were UIM5 tool
+research API storage/stage results. No Strategy Radar test failed. JavaScript
+syntax and `git diff --check` passed. Runtime folder size was about 135.2 MB;
+the worker process used about 4.0 MB working set at the point measured.
+
+No paid/provider/model request, broker action, live order, source capture,
+notification preference or sign-in task was changed during this verification;
+only the clearly labelled TEST ONLY Windows toast was submitted. M8's local
+software, fixture, lifecycle and browser verification is complete. A qualified
+live/delayed intraday source, user-visible toast confirmation, and actual
+Windows sign-out/sign-in testing remain operational evidence gaps, not claims
+of live-feed qualification or strategy performance.

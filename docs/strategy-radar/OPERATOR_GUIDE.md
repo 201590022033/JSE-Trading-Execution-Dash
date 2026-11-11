@@ -11,3 +11,14 @@ Costs: the monitor makes no provider, paid quote, model or broker requests. Othe
 Rollback: press Pause and confirm the worker is no longer running. To disable the new UI, restore the prior dashboard template and stylesheet only after preserving any independent changes. Do not delete or reset caches or the monitor database; retained alerts and evidence remain available. The optional sign-in task is installed only when explicitly selected; pause requests its removal. Registration is implemented but has not been verified by signing out and back in.
 
 The check interval controls how often the worker evaluates local data; the profile controls the bar timeframe. Neither selection initiates API calls. Deduplication is separate for each instrument and profile.
+
+## Verification note — 11 November 2026
+
+The live local monitor was found already enabled with a 30-minute profile,
+900-second interval, desktop notifications enabled, and sign-in startup off;
+its worker had stopped and its lease expired. The worker was relaunched without
+changing those preferences. It reports `SOURCE_UNAVAILABLE`, no error, and no
+events because no clock-qualified intraday bars are retained. Windows event
+3052 recorded a clearly labelled `TEST ONLY` toast as delivered to the Strategy
+Radar app on session 1; the visible banner was not independently observed.
+Thus, OS acceptance is verified, but a user-visible popup is not guaranteed.
