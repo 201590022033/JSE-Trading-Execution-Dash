@@ -26,8 +26,8 @@ The Strategy Radar M-series is separate from the UIM/research redesign.
 Strategy Radar M6 was completed locally and committed/pushed as `bfec6fc`;
 its post-restart dashboard verification is recorded in the M6 brief below.
 Older entries saying M6 is pending are dated snapshots, not current status.
-Strategy Radar M7 and M8 are now completed locally and documented below; M9
-remains scoped, not complete.
+Strategy Radar M7, M8 and M9 are now completed locally and documented below;
+no next Strategy Radar coding milestone is active.
 No UIM6/UIM7/UIM8 briefs are implied by these M-series labels.
 
 ## Strategy Radar M7/M8 completed locally — 11 November 2026
@@ -66,6 +66,46 @@ isolated worker lifecycle, retained-bar alert replay, and OS-recorded TEST ONLY
 toast delivery are recorded in [M7](../strategy-radar/milestones/M7.md) and
 [M8](../strategy-radar/milestones/M8.md). No qualified intraday source, visible
 toast presentation, or sign-out/sign-in lifecycle is claimed.
+
+## Strategy Radar M9 completed locally — 11 November 2026
+
+The explicit public ShareData MTN capture retained raw HTML
+`b99c9ac275fed977829d321da7969866b6029b9a89facdc4e6a93007288ba472` and
+ZAR 228.88. Provider session metadata and HTTP `Date` agreed with the 11
+November SAST receipt date. The last-trade label was 16:17 SAST; actual local
+receipt was 16:33:00.648 SAST. ShareData declared “15 mins delayed”; the
+observed timestamp gap was about 16 minutes. The running radar displayed the
+quote as DELAYED with its source/receipt times and minimum delay. Existing
+quotes differed across source times and remain separately visible.
+
+The swing view's 1,800-second freshness threshold classified this quote as
+DELAYED; the 300-second default/intraday threshold classified it as STALE.
+Capture is explicit, MTN-only, and limited to one request per five minutes.
+It produces a delayed last-price observation, not OHLC, candles or live data.
+It uses the public page without browser credentials and has no login session;
+automatic collection, other-symbol qualification, unattended permissions and
+continuous source availability remain unverified.
+
+The live capture was persisted but its POST initially returned 503 because
+Flask `jsonify` received positional and keyword data together. The endpoint
+now returns the captured payload correctly, logs source/input failure classes,
+and reports raw-file and SQLite retention errors separately. API tests cover
+success, rate-limit no-call, source interruption/recovery, and retention
+failures. The live
+dashboard GET/browser display confirmed the persisted observation. Focused
+ShareData quote tests: 7 passed; JavaScript syntax check passed. The latest
+full safe suite ran 2,097 tests in 168.792 seconds: 21 UIM5 async/MCP/OAuth/
+Qwen Windows Proactor socket-guard errors, one unrelated Release Inbox
+concurrency error about an unsafe local store file, 2 UIM5 tool-research API
+storage/stage failures, and 1 skip; no Strategy Radar failures.
+
+No qualified unattended JSE intraday OHLC source or verified candle clocks
+are available. M9 qualifies only a single public delayed MTN last-price
+observation; it does not claim price-feed continuity or strategy performance.
+At 16:51:59 SAST the sample source age reached 2,099 seconds and was correctly
+marked STALE after the 1,800-second swing threshold. The next step is a
+separate source/options brainstorm, not automatic polling. See [M9](../strategy-radar/milestones/M9.md)
+and the [verification note](../changes/2026-11-11-strategy-radar-m9-sharedata-qualification.md).
 
 ## Historical M6 snapshot — post-restart performance fix pending reload, 7 November 2026
 

@@ -1,6 +1,6 @@
 # Strategy Radar checkpoint
 
-Prepared 2026-11-06; updated 2026-11-11. M1–M8 completed locally with evidence limitations; M9 is scoped. This Strategy Radar M-series is distinct from UIM/research milestones; no UIM6–UIM8 briefs are present. The old dated M6/M7/M8 entries below are historical snapshots, superseded by the later completion entries. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve the separately ongoing research M5/M6/M7 and R12/P1 records. Before each implementation milestone refresh this checkpoint from actual repo status; after completion include commit state, tests, source availability, residual work and a concise handoff.
+Prepared 2026-11-06; updated 2026-11-11. M1–M9 completed locally with evidence limitations; no next Strategy Radar coding milestone is active. This Strategy Radar M-series is distinct from UIM/research milestones; no UIM6–UIM8 briefs are present. The old dated M6/M7/M8 entries below are historical snapshots, superseded by the later completion entries. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve the separately ongoing research M5/M6/M7 and R12/P1 records. Before each implementation milestone refresh this checkpoint from actual repo status; after completion include commit state, tests, source availability, residual work and a concise handoff.
 
 ## M1 completed locally — 6 November 2026
 
@@ -204,3 +204,46 @@ software, fixture, lifecycle and browser verification is complete. A qualified
 live/delayed intraday source, user-visible toast confirmation, and actual
 Windows sign-out/sign-in testing remain operational evidence gaps, not claims
 of live-feed qualification or strategy performance.
+
+## M9 completed locally — 11 November 2026
+
+One explicitly invoked public ShareData MTN capture retained a raw response
+(`b99c9ac275fed977829d321da7969866b6029b9a89facdc4e6a93007288ba472`) and a
+delayed last-price observation of ZAR 228.88: source label 16:17 SAST on
+11 November, local receipt 16:33:00.648 SAST, provider-declared delay at least
+15 minutes (observed source-to-receipt gap about 16 minutes). The live radar
+display showed source, receipt, delay floor and that retained values differ.
+This is one delayed trade observation, not OHLC or a candle.
+
+The swing quote view uses an explicit 1,800-second source-age limit; the
+intraday/default view remains 300 seconds. The same saved observation reads
+`DELAYED` for swing and `STALE` for the default view. Capture is a manual
+MTN-only action with a five-minute minimum interval; other instruments,
+authenticated sources, continuous coverage and unattended permissions are
+not qualified. At 16:51:59 SAST its source age reached 2,099 seconds and the
+swing view correctly reclassified it STALE after its 1,800-second limit.
+Public capture has no login session to expire; source-date or
+transport failures remain visible, and mocked failure/recovery and throttle
+tests cover the operator path.
+
+The real capture initially returned a false HTTP 503 after saving the quote.
+The API response construction now merges capture fields as keyword arguments;
+source/input failures are logged and reported as unavailable, while raw-file
+and SQLite retention failures are separately reported. After a normal dashboard restart,
+health and PostgreSQL were available, 11 watches loaded, and the same retained
+quote was read by API and browser. By 16:51:59 SAST its source age was 2,099
+seconds, so both API and radar correctly showed STALE. The updated POST
+response is verified by isolated API tests; no second provider capture was
+made.
+
+The focused ShareData quote test module passed 7 tests and JavaScript syntax
+validation passed. The latest full safe suite ran 2,097 tests in 168.792
+seconds with 22 errors, 2 failures and 1 skip. Twenty-one errors were existing
+UIM5 async/MCP/OAuth/Qwen Windows Proactor `socketpair` failures caused by the
+safe runner's socket guard; one unrelated Release Inbox concurrency test
+reported an unsafe local store file. Both failures were UIM5 tool-research API
+storage/stage expectations. No Strategy Radar test failed. A suitable unattended,
+permitted intraday OHLC source, verified interval clocks and candle coverage
+remain open for post-M9 planning; no intraday feed or trading signal is
+qualified. See [M9](milestones/M9.md) and its
+[verification note](../changes/2026-11-11-strategy-radar-m9-sharedata-qualification.md).

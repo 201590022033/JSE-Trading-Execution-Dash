@@ -14,6 +14,10 @@ URL = 'https://www.sharedata.co.za/v2/Scripts/Quote.aspx'
 SAST = ZoneInfo('Africa/Johannesburg')
 
 
+class ShareDataRetentionError(Exception):
+    """Raw provider evidence could not be retained locally."""
+
+
 def parse_quote(raw, received_at, response_date):
     if not isinstance(raw, bytes) or len(raw) > 2_000_000:
         raise ValueError('invalid provider response')
@@ -65,9 +69,12 @@ def capture(folder):
     record = parse_quote(raw, received, server_date)
     digest = sha256(raw).hexdigest()
     rawdir = Path(folder)/'sharedata-quote-raw'
-    rawdir.mkdir(parents=True, exist_ok=True)
-    target = rawdir/(digest+'.html')
-    if not target.exists(): target.write_bytes(raw)
+    try:
+        rawdir.mkdir(parents=True, exist_ok=True)
+        target = rawdir/(digest+'.html')
+        if not target.exists(): target.write_bytes(raw)
+    except OSError as exc:
+        raise ShareDataRetentionError('raw provider response could not be retained') from exc
     record['source_ref'] += '; raw sha256 ' + digest
     QuoteStore(Path(folder)/'quotes.sqlite3').put(record, evidence=True)
     return {'state':'CAPTURED','source_time':record['source_time'],

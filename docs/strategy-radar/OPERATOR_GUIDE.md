@@ -12,6 +12,26 @@ Rollback: press Pause and confirm the worker is no longer running. To disable th
 
 The check interval controls how often the worker evaluates local data; the profile controls the bar timeframe. Neither selection initiates API calls. Deduplication is separate for each instrument and profile.
 
+## Explicit delayed ShareData quote
+
+When MTN is selected in Strategy Radar, **Refresh ShareData quote** makes one
+bounded request to the public ShareData MTN quote page. It does not use a
+browser login, collect credentials, run automatically, or create OHLC bars.
+The endpoint enforces at least five minutes between requests. A failure is
+shown as unavailable; source-date or delay validation must not be bypassed.
+The quote view retains the source time, actual local receipt time, declared
+minimum delay, and raw-response SHA-256. Raw HTML is retained under
+`runtime/local-swing-data/strategy-radar/sharedata-quote-raw/`; the normalized
+observation is in `quotes.sqlite3`.
+
+The daily swing quote view deliberately permits a 1,800-second source age;
+the ordinary/intraday view remains 300 seconds. A quote marked DELAYED is a
+single last-trade observation, not a candle or a live price; it becomes STALE
+when its source time exceeds the selected view's limit. Older differing
+observations remain visible as alternatives. This capture currently qualifies
+only public MTN last-price observations; it does not establish other symbols,
+continuous access, unattended permission or intraday OHLC coverage.
+
 ## Verification note — 11 November 2026
 
 The live local monitor was found already enabled with a 30-minute profile,

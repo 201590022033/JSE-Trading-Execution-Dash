@@ -1,6 +1,7 @@
 """Local Strategy Radar API. Reads do not call providers; no broker access."""
+import sqlite3
 from urllib.parse import urlsplit
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 
 def create_radar_blueprint(factory):
@@ -195,17 +196,30 @@ def create_radar_blueprint(factory):
     @bp.post('/api/v1/strategy-radar/quotes/sharedata-mtn')
     def sharedata_mtn_quote():
         if not mutation_allowed(): return jsonify(error='Local same-origin JSON required'), 403
-        from .sharedata_quote import capture
+        from .sharedata_quote import ShareDataRetentionError, capture
         from .poll_gate import PollGate
+        from urllib3.exceptions import HTTPError as Urllib3HTTPError
+        import requests
         from datetime import datetime, timezone
         try:
             folder = factory().folder
             reservation = PollGate(folder / 'poll.sqlite3').reserve('SHAREDATA','MTN',datetime.now(timezone.utc),enabled=True)
             if not reservation['allowed']:
                 return jsonify(error='Please wait five minutes between ShareData requests'), 429
-            return jsonify(capture(folder), live_execution=False)
-        except Exception:
+            result = capture(folder)
+        except ShareDataRetentionError:
+            current_app.logger.exception('Failed to retain ShareData raw quote evidence')
+            return jsonify(error='ShareData quote evidence could not be retained'), 500
+        except (requests.RequestException, OSError, ValueError, TypeError, KeyError) as exc:
+            current_app.logger.warning('ShareData quote capture unavailable: %s', type(exc).__name__)
             return jsonify(error='ShareData quote unavailable or source date unverified'), 503
+        except Urllib3HTTPError as exc:
+            current_app.logger.warning('ShareData quote capture unavailable: %s', type(exc).__name__)
+            return jsonify(error='ShareData quote unavailable or source date unverified'), 503
+        except sqlite3.Error:
+            current_app.logger.exception('Failed to retain ShareData quote evidence')
+            return jsonify(error='ShareData quote evidence could not be retained'), 500
+        return jsonify(**result, live_execution=False)
 
     @bp.get('/api/v1/strategy-radar/intraday/<instrument>')
     def intraday(instrument):

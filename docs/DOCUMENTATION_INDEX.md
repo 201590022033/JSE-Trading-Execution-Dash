@@ -1,3 +1,10 @@
+## Strategy Radar M9 delayed swing-data qualification — 11 November 2026
+
+[M9 completion](strategy-radar/milestones/M9.md) and
+[verification note](changes/2026-11-11-strategy-radar-m9-sharedata-qualification.md):
+one explicit public MTN delayed last quote was retained and displayed with its
+source/receipt clocks. This is not an intraday candle feed.
+
 ## Boolean-only source screening — 27 October 2026
 
 [Correction](changes/2026-10-27-boolean-source-screening.md),
