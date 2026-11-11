@@ -12,8 +12,27 @@ VERSION = "swing-ohlcv-wilder-v1"
 DECISION_KIND = "swing-feature-decision"
 OUTCOME_KIND = "swing-feature-outcome"
 HORIZONS = (3, 4, 5)
+# 1.1.0 remains immutable; 1.1.1 widens the reclaim event window for Radar.
+RECLAIM_LOOKBACK_SESSIONS = 3
 READ_LIMIT = 5000
-STRATEGY_FIELDS = {"strategy_profile_id": "jse_swing_3_5d", "strategy_profile_version": "1.1.0"}
+STRATEGY_PROFILE_ID = "jse_swing_3_5d"
+_FEATURE_CONTRACTS = {
+    "1.1.0": (VERSION, 1),
+    "1.1.1": ("swing-ohlcv-wilder-v2", RECLAIM_LOOKBACK_SESSIONS),
+}
+
+
+def ema20_reclaimed(closes, lookback=RECLAIM_LOOKBACK_SESSIONS):
+    """Return whether a close crossed above EMA20 within the last `lookback` sessions."""
+    if type(lookback) is not int or lookback < 1:
+        raise ValueError("positive reclaim lookback required")
+    for k in range(lookback):
+        end = len(closes) - k
+        if end < 2:
+            break
+        if closes[end - 2] <= _ema(closes[:end - 1], 20) and closes[end - 1] > _ema(closes[:end], 20):
+            return True
+    return False
 
 
 def usable_bars(chart, now):
@@ -33,14 +52,21 @@ def usable_bars(chart, now):
     return bars
 
 
-def snapshot(chart, *, evaluated_at, benchmark_chart=None):
+def snapshot(chart, *, evaluated_at, benchmark_chart=None, feature_profile_version="1.1.0"):
     """All calculations use only observable bars. Null means unavailable, not neutral."""
     from .public_research import _available_at
+    try:
+        feature_version, reclaim_lookback = _FEATURE_CONTRACTS[feature_profile_version]
+    except (KeyError, TypeError):
+        raise ValueError("unsupported Swing technical feature profile") from None
     now = timestamp(evaluated_at.isoformat() if hasattr(evaluated_at, "isoformat") else evaluated_at)
     try:
         bars = usable_bars(chart, now)
     except (ValueError, KeyError, TypeError, OverflowError):
-        unavailable = {"version": VERSION, "state": "UNAVAILABLE", "reason": "INVALID_OR_STALE_DAILY_CHART"}
+        unavailable = {"version": feature_version,
+                       "strategy_profile_id": STRATEGY_PROFILE_ID,
+                       "strategy_profile_version": feature_profile_version,
+                       "state": "UNAVAILABLE", "reason": "INVALID_OR_STALE_DAILY_CHART"}
         if chart and chart.get("interval") == "1d" and chart.get("currency") == "ZAR":
             try:
                 from .swing_data_quality import diagnostics
@@ -111,7 +137,7 @@ def snapshot(chart, *, evaluated_at, benchmark_chart=None):
     trend = None if values["ema50"] is None else closes[-1] > values["ema20"] > values["ema50"]
     breakout = None if values["prior_high20"] is None else closes[-1] > values["prior_high20"]
     pullback = None if values["ema20"] is None or values["prior_high10"] is None else (
-        trend and closes[-2] <= _ema(closes[:-1], 20) and closes[-1] > values["ema20"])
+        trend and ema20_reclaimed(closes, reclaim_lookback))
     # Declared research geometry, not an admitted policy or executable quote.
     geometry = {"state": "UNAVAILABLE", "basis": "SIGNAL_CLOSE_REFERENCE_NOT_ENTRY_FILL"}
     if values["atr14_wilder"] is not None and values["prior_low10"] is not None:
@@ -129,7 +155,10 @@ def snapshot(chart, *, evaluated_at, benchmark_chart=None):
         trend and (breakout or pullback) and conditions["rsi_50_70"] and
         conditions["volume_above_prior20"] and conditions["outperforming_benchmark20"])
     conditions["core_setup"] = core
-    return {"version": VERSION, **STRATEGY_FIELDS, "state": "AVAILABLE" if not missing else "PARTIAL",
+    return {"version": feature_version,
+            "strategy_profile_id": STRATEGY_PROFILE_ID,
+            "strategy_profile_version": feature_profile_version,
+            "state": "AVAILABLE" if not missing else "PARTIAL",
             "evaluated_at": now.isoformat(), "session": bars[-1]["timestamp"][:10],
             "available_at": _available_at(bars[-1]["timestamp"]).isoformat(),
             "last_close": closes[-1], "source_symbol": chart.get("symbol"),

@@ -5,13 +5,14 @@ import json
 import math
 from .intraday_evaluation import _trace
 from application.opportunities.session_freshness import latest_expected_session, next_session
-from application.opportunities.swing_technical import snapshot
+from application.opportunities.swing_technical import ema20_reclaimed, snapshot
 
 _FIELDS = ('open', 'high', 'low', 'close', 'volume')
 _STATES = {'SINGLE_SOURCE', 'AGREEMENT', 'THREE_PROVIDER_AGREEMENT'}
+_FEATURE_PROFILE_VERSION = '1.1.1'
 _NAMES = (('ema_uptrend', 'Close above EMA20 above EMA50'),
           ('breakout20', 'Close above prior 20-session high'),
-          ('ema20_reclaim', 'Price reclaims EMA20 in an uptrend'),
+          ('ema20_reclaim', 'Price reclaims EMA20 within the last 3 sessions in an uptrend'),
           ('rsi_50_70', 'RSI between 50 and 70'),
           ('volume_above_prior20', 'Volume above its prior 20-session mean'),
           ('outperforming_benchmark20', '20-session return exceeds aligned benchmark'))
@@ -159,10 +160,9 @@ def _apply_component_windows(data, chart):
         conditions['breakout20']=float(bars[-1]['close'])>high
         used.append('breakout20')
     if conditions.get('ema20_reclaim') is None and len(bars)>=50 and valid_highs(bars[-11:-1]) and conditions.get('ema_uptrend') is not None:
-        from domain.features.technical import _ema
         closes=[float(b['close']) for b in bars]
         values['prior_high10']=max(float(b['high']) for b in bars[-11:-1])
-        conditions['ema20_reclaim']=bool(conditions['ema_uptrend'] and closes[-2] <= _ema(closes[:-1],20) and closes[-1] > values['ema20'])
+        conditions['ema20_reclaim']=bool(conditions['ema_uptrend'] and ema20_reclaimed(closes))
         used.append('ema20_reclaim')
     return used
 
@@ -193,7 +193,8 @@ def evaluate_watches(service, *, now=None, instrument=None):
         calc_clock=now
         if chart and quality and (quality['stale'] or quality['calendar_unverified']):
             calc_clock=datetime.fromisoformat(quality['session']).replace(tzinfo=timezone.utc)+timedelta(days=1,seconds=1)
-        data = snapshot(chart, evaluated_at=calc_clock, benchmark_chart=benchmark_chart)
+        data = snapshot(chart, evaluated_at=calc_clock, benchmark_chart=benchmark_chart,
+                        feature_profile_version=_FEATURE_PROFILE_VERSION)
         component_windows = _apply_component_windows(data, chart)
         conditions = data.get('conditions', {})
         rules = []
@@ -212,7 +213,8 @@ def evaluate_watches(service, *, now=None, instrument=None):
             rules.append(_trace(name, False, passed_rule, value, threshold, [], description if passed_rule is not None else description + ' - missing or disputed source fields'))
         passed = sum(r['state'] == 'PASS' for r in rules)
         unknown = sum(r['state'] == 'UNKNOWN' for r in rules)
-        results[key] = {'instrument': key, 'strategy_id': 'jse_swing_3_5d', 'strategy_version': '1.1.0',
+        results[key] = {'instrument': key, 'strategy_id': 'jse_swing_3_5d',
+                        'strategy_version': _FEATURE_PROFILE_VERSION,
                         'timeframe_minutes': None, 'evaluated_at': now.isoformat(),
                         'state': 'UNKNOWN' if unknown == len(rules) else 'WATCHING', 'rules': rules,
                         'passed': passed, 'unknown': unknown, 'applicable': len(rules),
@@ -221,6 +223,6 @@ def evaluate_watches(service, *, now=None, instrument=None):
                         'benchmark_cache_status': benchmark_state,
                         'benchmark_quality': benchmark_chart.get('data_quality') if benchmark_chart else None,
                         'data_quality': quality, 'calculation_clock': calc_clock.isoformat(),
-                        'component_evaluation_version':'zebra-component-windows-v1', 'component_window_rules':component_windows,
+                        'component_evaluation_version':'zebra-component-windows-v2', 'component_window_rules':component_windows,
                         'research_only': True, 'live_signal': False}
     return results

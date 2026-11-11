@@ -72,3 +72,13 @@ The restarted dashboard displayed 12 watches and the actual background monitor c
 Daily Swing 1.1.0 is connected to the radar in code and verified in an isolated local preview. MTN showed 2/6 descriptive conditions passed and 4 unknown for the completed 6 November session. Five-minute remains separately selectable; this does not supply intraday bars or daily monitoring. The running dashboard needs a restart. M6-M9 remain partial; see M9 for acceptance gaps and validation.
 
 Follow-up: prewarmed four saved benchmark ETF histories locally. MTN now evaluates 3/6 passed and 3 unknown for 6 November, including aligned benchmark outperformance. Benchmark prewarm was one-off, not automatic. Full safe suite passed 1974 tests; four focused swing tests passed after the added API-locality check.
+
+## Daily Swing reclaim profile 1.1.1 — 11 November 2026
+
+The Radar now selects the additive `swing-ohlcv-wilder-v2` profile, counting an
+EMA20 reclaim from any of the latest three sessions and displaying breakout OR
+reclaim as one trace row. Feature 1.1.0 and the 1.2.0 shadow policy remain
+unchanged. No exact-profile fill backtest is available; this version skips the
+legacy fill-run scan. Eighty-five focused Swing/Radar/profile API tests and
+JavaScript syntax/OR-state checks passed. This does not resolve M6's pending
+actual-dashboard verification; no performance claim is made.

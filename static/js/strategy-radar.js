@@ -1,4 +1,17 @@
 /* Historical daily watches only; no polling starts a provider or model. */
+// core_setup accepts breakout OR reclaim, so present the trigger as one rule.
+function mergeEntryRules(rules) {
+  const breakout=rules.find(r=>r.id==='breakout20'), reclaim=rules.find(r=>r.id==='ema20_reclaim');
+  if (!breakout || !reclaim) return rules;
+  const state=(breakout.state==='PASS' || reclaim.state==='PASS') ? 'PASS' : (breakout.state==='UNKNOWN' || reclaim.state==='UNKNOWN') ? 'UNKNOWN' : 'FAIL';
+  const merged={id:'breakout_or_reclaim', mandatory:false, state,
+    value:`breakout ${breakout.state}: ${breakout.value ?? 'unknown'} vs prior 20-session high ${breakout.threshold ?? 'unknown'}; reclaim ${reclaim.state}: close ${reclaim.value ?? 'unknown'} vs EMA20 ${reclaim.threshold ?? 'unknown'}`,
+    threshold:'either one', reason:`Breakout ${breakout.state}; reclaim ${reclaim.state}. Either one satisfies the entry trigger.`,
+    provenance:[...(breakout.provenance||[]), ...(reclaim.provenance||[])]};
+  const out=[]; for (const r of rules) { if (r===breakout) out.push(merged); else if (r!==reclaim) out.push(r); }
+  return out;
+}
+
 (() => {
   const status = document.getElementById('strategy-watch-status');
   const list = document.getElementById('strategy-watch-list');
@@ -388,8 +401,8 @@
       for (const field of b.fields || []) line(detail,'p',JSON.stringify(field));
     }
     const trace=document.getElementById('radar-selected-trace'); trace.replaceChildren();
-    if (evaluation) for (const rule of (evaluation.rules || [])) {
-      const names={ema_uptrend:'EMA uptrend',breakout20:'20-session breakout',ema20_reclaim:'EMA20 reclaim',rsi_50_70:'RSI 50–70',volume_above_prior20:'Volume above prior 20',outperforming_benchmark20:'Outperforming benchmark'};
+    if (evaluation) for (const rule of mergeEntryRules(evaluation.rules || [])) {
+      const names={ema_uptrend:'EMA uptrend',breakout_or_reclaim:'Breakout or EMA20 reclaim',breakout20:'20-session breakout',ema20_reclaim:'EMA20 reclaim',rsi_50_70:'RSI 50–70',volume_above_prior20:'Volume above prior 20',outperforming_benchmark20:'Outperforming benchmark'};
       const row=document.createElement('details'); row.className='radar-trace-row'; trace.append(row);
       line(row,'summary',`${rule.state || 'UNKNOWN'} · ${names[rule.id] || rule.id || 'Rule unavailable'}`);
       line(row,'p',`${rule.reason || 'reason unavailable'} · value ${rule.value ?? 'unknown'} · threshold ${rule.threshold ?? 'unknown'}`);

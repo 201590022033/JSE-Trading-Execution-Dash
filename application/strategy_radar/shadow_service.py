@@ -96,6 +96,9 @@ def retained_fill_backtests(instrument,profile_id,version,*,root=None,limit=5):
     import os
     try: DEFAULT_STRATEGY_REGISTRY.resolve(profile_id,version)
     except (KeyError,ValueError,TypeError): return []
+    if (profile_id, version) == ('jse_swing_3_5d', '1.1.1'):
+        # No exact-profile fill backtest exists for the new Radar-only feature version.
+        return []
     # Older lab files do not record an exact timeframe. Do not promote them to
     # matched evidence merely because their strategy identifiers happen to match.
     if profile_id == 'jse_swing_3_5d':

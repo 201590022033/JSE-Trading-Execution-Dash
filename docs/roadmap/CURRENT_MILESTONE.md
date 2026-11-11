@@ -1,3 +1,15 @@
+## Strategy Radar M6 continuation — 11 November 2026
+
+Daily Swing Radar now uses additive feature/profile 1.1.1 for its three-session
+EMA20 reclaim rule and combines breakout/reclaim in one OR trace row. Frozen
+feature 1.1.0 and the 1.2.0 shadow policy remain unchanged. Eighty-five focused
+tests and JavaScript checks passed. No exact-profile fill backtest exists for
+1.1.1, so that selection skips the legacy fill-run scan. The dashboard still
+requires a normal restart for integration verification; Strategy Radar M6
+remains partial, and the separate research M5/R12/P1 statuses are unchanged.
+See ADR 0102 and
+`docs/changes/2026-11-11-swing-ema20-reclaim-window.md`.
+
 ## Strategy Radar M7/M8 — locally implemented, live verification pending, 9 November 2026
 
 Explicit local-only background monitor, durable trace-linked alerts and dashboard controls added. Fixture replay and isolated worker lifecycle passed. No qualified unattended intraday feed exists; Windows notification was submitted but visible receipt is unverified. Running dashboard requires restart; M6 post-fix verification remains open, and monitor does not auto-start at Windows logon. See [M7](../strategy-radar/milestones/M7.md), [M8](../strategy-radar/milestones/M8.md), and [operator guide](../strategy-radar/OPERATOR_GUIDE.md).

@@ -269,6 +269,7 @@ Swing versions are immutable experiments, not automatic upgrades:
 | 1.0.0 | Original foundation record; attribution was then planned |
 | 1.0.1 | Current canonical default; paired profile ID/version retained through new records |
 | 1.1.0 | Separate EMA20/50, Wilder RSI/ATR14, relative volume, and 3/4/5-session technical shadow |
+| 1.1.1 | Additive technical shadow; Strategy Radar EMA20 reclaim may cross within the latest three sessions; 1.1.0 remains unchanged |
 | 1.2.0 | Separate cash LONG daily stop/target policy replay with hypothetical costs |
 | 1.3.0 | Separate bounded AI hypothesis/replay research loop |
 

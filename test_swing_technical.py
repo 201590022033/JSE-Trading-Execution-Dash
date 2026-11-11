@@ -6,7 +6,9 @@ import tempfile
 import unittest
 import json
 
-from application.opportunities.swing_technical import snapshot, record_and_label, OUTCOME_KIND, DECISION_KIND
+from application.opportunities.swing_technical import (
+    snapshot, record_and_label, OUTCOME_KIND, DECISION_KIND, ema20_reclaimed,
+)
 from application.opportunities.public_research import candidate_from_chart, public_share_catalog
 from application.opportunities.paper_config import PaperLoopConfig
 from application.opportunities.paper_host import compose_paper_worker
@@ -51,6 +53,24 @@ class SwingTechnicalTests(unittest.TestCase):
         self.assertAlmostEqual(values["ema20"], 179-9.5+9.5*((19/21)**79))
         self.assertEqual(result["geometry"]["target_2r"]-179, 2*result["geometry"]["risk_per_share"])
         self.assertLess(len(json.dumps(result)), 3000)
+
+    def test_feature_profile_111_is_additive_to_immutable_110(self):
+        from domain.strategy import DEFAULT_STRATEGY_REGISTRY
+        data = chart(64)
+        closes = [100 + i * 0.5 for i in range(60)] + [105, 125, 127, 129]
+        for bar, close in zip(data["bars"], closes):
+            bar.update(open=close, high=close + 1, low=close - 1, close=close)
+        v110 = snapshot(data, evaluated_at=clock(data), benchmark_chart=data)
+        v111 = snapshot(data, evaluated_at=clock(data), benchmark_chart=data,
+                        feature_profile_version="1.1.1")
+        self.assertEqual((v110["version"], v110["strategy_profile_version"]),
+                         ("swing-ohlcv-wilder-v1", "1.1.0"))
+        self.assertEqual((v111["version"], v111["strategy_profile_version"]),
+                         ("swing-ohlcv-wilder-v2", "1.1.1"))
+        self.assertFalse(v110["conditions"]["ema20_reclaim"])
+        self.assertTrue(v111["conditions"]["ema20_reclaim"])
+        self.assertEqual(DEFAULT_STRATEGY_REGISTRY.resolve(
+            "jse_swing_3_5d", "1.1.1").reference.strategy_profile_version, "1.1.1")
 
     def test_atr_wilder_smoothing_not_simple_window_average(self):
         data = chart(30)
@@ -152,6 +172,29 @@ class SwingTechnicalTests(unittest.TestCase):
                     self.assertEqual(result, handler(job))
             finally:
                 repo.close()
+
+
+class Ema20ReclaimWindowTests(unittest.TestCase):
+    def _series(self, tail):
+        base = [100 + i * 0.5 for i in range(60)]
+        return base + tail
+
+    def test_reclaim_on_latest_bar(self):
+        self.assertTrue(ema20_reclaimed(self._series([105, 125]), 1))
+
+    def test_reclaim_two_bars_ago_counts_only_in_three_session_window(self):
+        closes = self._series([105, 125, 127, 129])
+        self.assertFalse(ema20_reclaimed(closes, 1))
+        self.assertTrue(ema20_reclaimed(closes, 3))
+
+    def test_no_reclaim_when_price_never_dipped(self):
+        closes = self._series([131, 132, 133, 134, 135])
+        self.assertFalse(ema20_reclaimed(closes, 3))
+
+    def test_reclaim_lookback_must_be_positive_integer(self):
+        for lookback in (0, -1, 1.5, True):
+            with self.subTest(lookback=lookback), self.assertRaises(ValueError):
+                ema20_reclaimed([100, 101], lookback)
 
 
 if __name__ == "__main__":

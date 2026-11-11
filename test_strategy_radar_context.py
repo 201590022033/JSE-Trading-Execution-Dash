@@ -102,3 +102,9 @@ class RadarContextTests(unittest.TestCase):
    folder=Path(tmp)/'lab'; folder.mkdir(); (folder/('a'*64+'.json')).write_text('{}')
    self.assertEqual(retained_fill_backtests('ABC','intraday_5m_research_v1','1.0.0',root=tmp),[])
    read.assert_not_called()
+
+ def test_new_radar_feature_profile_skips_unmatched_fill_backtest_scan(self):
+  with tempfile.TemporaryDirectory() as tmp, patch('application.backtest_lab.blueprint._read') as read:
+   folder=Path(tmp)/'lab'; folder.mkdir(); (folder/('a'*64+'.json')).write_text('{}')
+   self.assertEqual(retained_fill_backtests('ABC','jse_swing_3_5d','1.1.1',root=tmp),[])
+   read.assert_not_called()
