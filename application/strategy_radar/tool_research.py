@@ -213,3 +213,64 @@ def execute(instrument, question):
             if repo is not None: repo.close()
         finally:
             _LOCK.release()
+
+
+def execute_qwen(instrument, question, mode, service):
+    """Run one explicit small-model request with the existing shared budget."""
+    if not _LOCK.acquire(blocking=False): return {'state':'BUSY'}
+    repo=None
+    try:
+        if mode not in ('alpha_search','zebra') or not isinstance(instrument,str) or not re.fullmatch(r'[A-Z0-9]{1,12}',instrument):
+            return {'state':'INVALID_REQUEST'}
+        if not isinstance(question,str) or not 1 <= len(question.strip()) <= 500:
+            return {'state':'INVALID_REQUEST'}
+        from .mcp_oauth import access_token
+        token = (access_token() or os.environ.get('ALPHA_VANTAGE_MCP_ACCESS_TOKEN')) if mode=='alpha_search' else None
+        if mode=='alpha_search' and not token: return {'state':'OAUTH_NOT_CONFIGURED'}
+        from scripts import calendar_ollama as runner
+        from scripts.calibrate_calendar_model import MODEL, DIGEST
+        minimum_start = 7 * runner.GIB // 2
+        minimum_running = 3 * runner.GIB // 2
+        if runner.available_memory_bytes() < minimum_start: return {'state':'INSUFFICIENT_MEMORY'}
+        executable=Path(os.environ.get('LOCALAPPDATA',''))/'Programs/Ollama/ollama.exe'
+        if not executable.is_file(): return {'state':'MODEL_UNAVAILABLE'}
+        repo=_repo()
+        now=datetime.now(timezone.utc)
+        repo.create_paper_account(_ACCOUNT, {'mode':'PAPER','purpose':'TOOL_RESEARCH_BUDGET','requests':[]})
+        from shadow_learning import timestamp
+        with repo.paper_account_transaction(_ACCOUNT) as budget:
+            budget['requests']=[at for at in budget['requests'] if now-timestamp(at)<timedelta(days=1)]
+            if len(budget['requests'])>=2: return {'state':'MODEL_BUDGET_EXHAUSTED'}
+            budget['requests'].append(now.isoformat())
+        from .qwen_research import alpha_search, run_tool_research, zebra_context
+        async def perform(owner):
+            model=OwnedOllamaChat(owner,model_name=MODEL,model_digest=DIGEST,
+                                  minimum_running_memory=minimum_running)
+            server=None
+            try:
+                if mode=='alpha_search':
+                    server=AlphaMCPTransport(token)
+                    await asyncio.wait_for(server.initialize(),timeout=15)
+                    guarded=SharedQuotaMCP(server,repo)
+                    async def fetch(key): return await alpha_search(guarded,key)
+                else:
+                    async def fetch(key): return zebra_context(service,key)
+                result=await run_tool_research(model,instrument,question,mode,fetch,requested=True)
+                return {**result,'model':MODEL,'model_scope':'EXPLICIT_RESEARCH_ONLY'}
+            finally:
+                await model.close()
+                if server is not None: await server.close()
+        with runner.OwnedOllama(executable,_runtime_folder()) as owner:
+            async def ready_and_run():
+                for _ in range(60):
+                    if owner.owns_listener(): return await perform(owner)
+                    if runner.available_memory_bytes() < minimum_running: return {'state':'INSUFFICIENT_MEMORY'}
+                    await asyncio.sleep(.5)
+                return {'state':'MODEL_START_TIMEOUT'}
+            return asyncio.run(ready_and_run())
+    except Exception:
+        return {'state':'RESEARCH_UNAVAILABLE'}
+    finally:
+        try:
+            if repo is not None: repo.close()
+        finally: _LOCK.release()

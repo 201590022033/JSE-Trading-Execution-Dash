@@ -72,4 +72,21 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
                 response=await model.chat([{'role':'user','content':'hi'}],[])
                 self.assertEqual(response['message']['content'],'fixture')
 
+    async def test_owned_chat_can_use_explicit_small_model_profile(self):
+        from scripts import calendar_ollama as runner
+        async def handler(req):
+            if req.url.path.endswith('/tags'):
+                return httpx.Response(200,json={'models':[{'name':'qwen-fixture','digest':'fixture-digest'}]})
+            self.assertEqual(json.loads(req.content)['model'],'qwen-fixture')
+            return httpx.Response(200,json={'done':True,'message':{'content':'fixture'}})
+        class Owner:
+            def owns_listener(self): return True
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            with patch.object(runner,'available_memory_bytes',return_value=20):
+                model=OwnedOllamaChat(Owner(),client=client,model_name='qwen-fixture',
+                                      model_digest='fixture-digest',minimum_running_memory=10)
+                self.assertEqual((await model.chat([{'role':'user','content':'hi'}],[]))['message']['content'],'fixture')
+            with patch.object(runner,'available_memory_bytes',return_value=9):
+                with self.assertRaises(RuntimeError): await model.chat([],[])
+
 if __name__=='__main__': unittest.main()

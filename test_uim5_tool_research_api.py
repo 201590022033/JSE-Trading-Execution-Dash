@@ -26,6 +26,19 @@ class ToolResearchTests(unittest.TestCase):
             result=self.client.post(path,json={'connect_saved':True})
             self.assertEqual(result.json['state'],'CONNECTED')
             connect.assert_called_once_with()
+    def test_qwen_modes_require_explicit_model_and_provider_choices(self):
+        path='/api/v1/strategy-radar/tool-research/qwen'
+        body={'instrument':'MTN','question':'What is known?','mode':'zebra',
+              'confirm_model':True,'confirm_provider':False}
+        with patch('application.strategy_radar.tool_research.execute_qwen',return_value={'state':'FIXTURE'}) as run:
+            self.assertEqual(self.client.post(path,json={**body,'confirm_model':False}).status_code,422)
+            self.assertEqual(self.client.post(path,json={**body,'mode':'alpha_search'}).status_code,422)
+            self.assertEqual(self.client.post(path,json={**body,'instrument':'OTHER'}).status_code,404)
+            self.assertEqual(self.client.post(path,json=body,headers={'Origin':'https://evil.example'}).status_code,403)
+            run.assert_not_called()
+            self.assertEqual(self.client.post(path,json=body).json['state'],'FIXTURE')
+            self.assertEqual(self.client.post(path,json={**body,'mode':'alpha_search','confirm_provider':True}).json['state'],'FIXTURE')
+            self.assertEqual(run.call_count,2)
     def test_owned_process_working_directory_is_created(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory

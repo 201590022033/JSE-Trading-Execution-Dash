@@ -88,10 +88,12 @@ class AlphaMCPTransport:
 
 class OwnedOllamaChat:
     """Tool-capable chat on the pre-entered owned loopback Ollama process."""
-    def __init__(self, owner, *, client=None):
+    def __init__(self, owner, *, client=None, model_name=None, model_digest=None, minimum_running_memory=None):
         self.owner = owner
         self.client = client or httpx.AsyncClient(timeout=httpx.Timeout(110), follow_redirects=False, trust_env=False)
         self._owns_client = client is None
+        self.model_name, self.model_digest = model_name, model_digest
+        self.minimum_running_memory = minimum_running_memory
         self.ready = False
 
     async def close(self):
@@ -99,18 +101,21 @@ class OwnedOllamaChat:
 
     def _check(self):
         from scripts import calendar_ollama as runner
-        if not self.owner.owns_listener() or runner.available_memory_bytes() < runner.MIN_RUNNING_MEMORY:
+        minimum = runner.MIN_RUNNING_MEMORY if self.minimum_running_memory is None else self.minimum_running_memory
+        if not self.owner.owns_listener() or runner.available_memory_bytes() < minimum:
             raise RuntimeError('Owned local model unavailable or memory pressure')
 
     async def chat(self, messages, tools):
         from scripts import calendar_ollama as runner
         self._check()
+        model_name = self.model_name or runner.MODEL
+        model_digest = self.model_digest or runner.MODEL_DIGEST
         if not self.ready:
             tags, _ = await bounded_response(self.client, 'GET', runner.HOST+'/api/tags')
-            if not any(x.get('name') == runner.MODEL and x.get('digest') == runner.MODEL_DIGEST for x in tags.get('models', [])):
+            if not any(x.get('name') == model_name and x.get('digest') == model_digest for x in tags.get('models', [])):
                 raise RuntimeError('Required installed model not found')
             self.ready = True
-        payload = {'model':runner.MODEL, 'messages':messages, 'tools':tools, 'stream':False,
+        payload = {'model':model_name, 'messages':messages, 'tools':tools, 'stream':False,
                    'keep_alive':0, 'options':{'num_thread':2, 'num_gpu':0, 'num_ctx':4096,
                    'num_predict':400, 'temperature':0}}
         if len(json.dumps(payload).encode()) > MAX_BYTES: raise ValueError('Packet too large')

@@ -570,7 +570,8 @@
     const target = document.getElementById('intraday-import-status');
     try {
       const result = await json('/api/v1/strategy-radar/intraday/manual', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({instrument:value('intraday-instrument'),symbol:value('intraday-symbol').toUpperCase(),unit:value('intraday-unit'),interval_minutes:Number(value('intraday-interval')),rows:[row]})});
-      target.textContent = `Saved ${result.saved} manual observation; bar timing is unverified.`;
+      const invalid = Array.isArray(result.invalid_fields) && result.invalid_fields.length ? ` Invalid fields left unknown: ${result.invalid_fields.join(', ')}.` : '';
+      target.textContent = `Saved ${result.saved} manual observation; bar timing is unverified.${invalid}`;
     } catch (error) { target.textContent = error.message; }
   });
   const planForm = document.getElementById('manual-plan-form');
@@ -647,11 +648,33 @@
   });
   updatePlanProduct();
   renderPlanSummary();
+  let dismissedMonitorAlert='';
+  let displayedMonitorAlert='';
+  try { dismissedMonitorAlert=localStorage.getItem('strategy-radar-dismissed-alert') || ''; } catch (_) {}
+  function showMonitorAlert(events) {
+    const banner=document.getElementById('radar-alert-banner'), text=document.getElementById('radar-alert-banner-text');
+    if (!banner || !text) return;
+    const event=Array.isArray(events) ? events[0] : null;
+    if (!event || !Number.isInteger(event.id) || !event.observed_at) { banner.hidden=true; return; }
+    displayedMonitorAlert=`${event.id}:${event.observed_at}`;
+    banner.hidden=displayedMonitorAlert===dismissedMonitorAlert;
+    text.textContent=`Latest recorded research alert: ${event.instrument} · ${event.state} · ${event.observed_at}. Open history for the trace; this is not a live price.`;
+  }
+  document.getElementById('radar-alert-dismiss')?.addEventListener('click',()=>{
+    dismissedMonitorAlert=displayedMonitorAlert;
+    try { localStorage.setItem('strategy-radar-dismissed-alert',dismissedMonitorAlert); } catch (_) {}
+    const banner=document.getElementById('radar-alert-banner'); if (banner) banner.hidden=true;
+  });
+  document.querySelector('#radar-alert-banner [data-open-tab="system"]')?.addEventListener('click',()=>{
+    const details=document.getElementById('radar-monitor-history')?.closest('details');
+    if (details) details.open=true;
+  });
   let monitorInitialized=false;
   async function loadMonitor() {
     const output=document.getElementById('radar-monitor-status'), history=document.getElementById('radar-monitor-history');
     try {
       const result=await json('/api/v1/strategy-radar/monitor'); const c=result.config;
+      showMonitorAlert(result.events);
       if (!monitorInitialized) { document.getElementById('radar-monitor-interval').value=String(c.interval_seconds); document.getElementById('radar-monitor-profile').value=c.profile || 'intraday_5m_research_v1'; document.getElementById('radar-monitor-desktop').checked=!!c.desktop; document.getElementById('radar-monitor-autostart').checked=!!c.autostart; monitorInitialized=true; }
       output.textContent=`${c.enabled ? (result.worker_running ? 'Enabled · worker running' : 'Enabled · worker not running; enable again') : 'Paused'} · ${c.profile || 'intraday_5m_research_v1'} · ${c.last_status || 'not checked yet'} · last check ${c.last_check || 'never'} · ${c.last_error || 'no reported error'} · local retained evidence only`;
       const summary=document.getElementById('radar-monitor-summary'); if (summary) summary.textContent=output.textContent;

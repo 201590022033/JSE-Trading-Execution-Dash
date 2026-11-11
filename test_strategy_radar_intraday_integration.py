@@ -20,6 +20,12 @@ class IntradayIntegrationTests(unittest.TestCase):
   self.assertIsNone(parsed['unknown_clock_records'][0]['source_timestamp'])
   with self.assertRaises(ValueError): manual_viewpoint_rows('ABSPJ',[{'label':'x','volume':'1.7M'}],NOW)
   with self.assertRaises(ValueError): manual_viewpoint_rows('ABSPJ',[{'label':'x'}],NOW)
+ def test_manual_bad_field_does_not_discard_other_observations(self):
+  records=manual_viewpoint_rows('ABSPJ',[{'label':'x','open':'10000','high':'9000','low':'9500','close':'10000'}],NOW)
+  parsed=merge_bars(records)['unknown_clock_records'][0]
+  self.assertIsNone(parsed['fields']['high'])
+  self.assertEqual(parsed['fields']['close'],'100')
+  self.assertIn('high',parsed['invalid_fields'])
  def test_eodhd_mapping_unit_clock_and_raw(self):
   start=int(datetime(2026,11,6,8,0,tzinfo=timezone.utc).timestamp())
   payload=[{'timestamp':start,'open':23000,'high':23100,'low':22900,'close':23050,'volume':100}]

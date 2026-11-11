@@ -29,7 +29,7 @@ def manual_viewpoint_rows(instrument, raw_rows, received_at, *, unit='ZAR_CENTS'
                   'availability':'MANUAL', 'unit':unit, 'fields':fields,
                   'provisional':True, 'raw_payload':json.dumps(row, sort_keys=True)}
         normalized = normalize_bar(record)
-        if normalized['invalid_fields'] or not any(value is not None for value in normalized['fields'].values()):
+        if not any(value is not None for value in normalized['fields'].values()):
             raise ValueError('enter at least one valid observed field; rounded volume is not exact')
         records.append(record)
     return records

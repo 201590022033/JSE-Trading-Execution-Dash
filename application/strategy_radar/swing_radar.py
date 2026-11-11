@@ -167,9 +167,11 @@ def _apply_component_windows(data, chart):
     return used
 
 
-def evaluate_watches(service, *, now=None):
+def evaluate_watches(service, *, now=None, instrument=None):
     now = now or datetime.now(timezone.utc)
     watches = service.store.list_watches()
+    if instrument is not None:
+        watches = [watch for watch in watches if watch['instrument'] == instrument]
     from .benchmark_refresh import resolve_benchmark_chart
     charts = {}
     chart_quality = {}

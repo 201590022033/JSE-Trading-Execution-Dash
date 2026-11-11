@@ -111,3 +111,6 @@ nav button:focus-visible,button:focus-visible,select:focus-visible{outline:3px s
  .radar-context-details,.radar-plan-editor,.radar-more-tools{display:inline-block;vertical-align:top;margin:8px 12px 0 0}
  .radar-context-details[open],.radar-plan-editor[open],.radar-more-tools[open]{display:block}
 }
+.radar-alert-banner { display:flex; flex-wrap:wrap; align-items:center; gap:.75rem; margin:.75rem 0; padding:.8rem 1rem; border:2px solid #c27b13; border-radius:.6rem; background:#fff5db; color:#402900; }
+.radar-alert-banner[hidden] { display:none; }
+.radar-alert-banner span { flex:1 1 20rem; font-weight:600; }

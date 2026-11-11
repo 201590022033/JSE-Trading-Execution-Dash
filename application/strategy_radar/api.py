@@ -78,6 +78,24 @@ def create_radar_blueprint(factory):
         from .tool_research import execute
         return jsonify(**execute(instrument,question),live_execution=False)
 
+    @bp.post('/api/v1/strategy-radar/tool-research/qwen')
+    def explicit_qwen_tool_research():
+        if not mutation_allowed(): return jsonify(error='Local same-origin JSON required'),403
+        body=request.get_json(silent=True)
+        keys={'instrument','question','mode','confirm_model','confirm_provider'}
+        if not isinstance(body,dict) or set(body)!=keys:
+            return jsonify(state='INVALID_REQUEST'),422
+        instrument,question,mode=body['instrument'],body['question'],body['mode']
+        if (not isinstance(instrument,str) or not isinstance(question,str) or not 1<=len(question.strip())<=500
+            or mode not in ('alpha_search','zebra') or body['confirm_model'] is not True
+            or body['confirm_provider'] is not (mode=='alpha_search')):
+            return jsonify(state='INVALID_REQUEST'),422
+        service=factory()
+        watch=service.store.get(instrument)
+        if not watch or watch.get('state')=='ARCHIVED': return jsonify(state='WATCH_UNAVAILABLE'),404
+        from .tool_research import execute_qwen
+        return jsonify(**execute_qwen(instrument,question,mode,service),live_execution=False)
+
     @bp.get('/api/v1/strategy-radar/watches')
     def watches():
         if not local(): return jsonify(error='Local dashboard only'), 403
@@ -206,7 +224,7 @@ def create_radar_blueprint(factory):
         if not mutation_allowed(): return jsonify(error='Local same-origin JSON required'), 403
         from datetime import datetime, timezone
         from application.opportunities.zebra_instruments import mappings
-        from .intraday_store import IntradayCache
+        from .intraday_store import IntradayCache, normalize_bar
         from .intraday_adapters import manual_viewpoint_rows, retain
         try:
             body = request.get_json()
@@ -217,10 +235,11 @@ def create_radar_blueprint(factory):
                 raise ValueError('instrument and chart symbol do not match the registered mapping')
             records = manual_viewpoint_rows(key,body['rows'],datetime.now(timezone.utc),
                        unit=body['unit'],interval_minutes=body['interval_minutes'])
+            invalid_fields=sorted({field for record in records for field in normalize_bar(record)['invalid_fields']})
             cache = IntradayCache(service.folder / 'intraday.sqlite3')
             digests = retain(cache,records,evidence=True)
             return jsonify(saved=len(digests), clock_semantics='UNKNOWN',
-                           source='IRESS_VIEWPOINT_MANUAL', live_execution=False), 201
+                           invalid_fields=invalid_fields,source='IRESS_VIEWPOINT_MANUAL', live_execution=False), 201
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             return jsonify(error=str(exc)), 422
 
