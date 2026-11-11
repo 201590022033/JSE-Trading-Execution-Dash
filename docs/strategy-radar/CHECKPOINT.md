@@ -1,6 +1,6 @@
 # Strategy Radar checkpoint
 
-Prepared 2026-11-06; updated 2026-11-11. M1–M6 completed locally; M7–M8 implementation and live verification remain separate, and M9 is scoped. This Strategy Radar M-series is distinct from UIM/research milestones; no UIM6–UIM8 briefs are present. The old dated M6/M7/M8 entries below are historical snapshots, superseded by the 11 November M6 completion entry. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve the separately ongoing research M5/M6/M7 and R12/P1 records. Before each implementation milestone refresh this checkpoint from actual repo status; after completion include commit state, tests, source availability, residual work and a concise handoff.
+Prepared 2026-11-06; updated 2026-11-11. M1–M7 completed locally; M8 is active for end-to-end operational validation, and M9 is scoped. This Strategy Radar M-series is distinct from UIM/research milestones; no UIM6–UIM8 briefs are present. The old dated M6/M7/M8 entries below are historical snapshots, superseded by the later M6 and M7 completion entries. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve the separately ongoing research M5/M6/M7 and R12/P1 records. Before each implementation milestone refresh this checkpoint from actual repo status; after completion include commit state, tests, source availability, residual work and a concise handoff.
 
 ## M1 completed locally — 6 November 2026
 
@@ -75,9 +75,9 @@ Historical post-restart M6 check: IRESS ViewPoint was online and the dashboard s
 9 November source check: EODHD free plan reports 19/20 daily calls used plus 500 extra prepaid calls; provider documentation excludes intraday from the free plan, so no intraday request was made. Existing five watch captures already reach 6 November. Africa API was the additional 4 November source; a 9 November bounded SASOL probe succeeded with 188 completed daily rows through 22 October, source-labelled Yahoo EOD, 49/60 matching closes against retained reference. IRESS and OST sessions are open; unattended access remains unverified. The one-time EODHD automation was removed. See [source qualification](M3_SOURCE_QUALIFICATION.md).
 
 
-## M7/M8 local implementation — 9 November 2026
+## Historical M7/M8 implementation snapshot — 9 November 2026
 
-As of 9 November, explicit local-only background monitor, persistent trace-linked alert history, dashboard controls and Windows notification submission were implemented. Nine focused tests passed; synthetic retained-bar-to-alert history and isolated worker start/pause passed; Windows accepted a test notification submission but visible delivery was not verified. Actual Top 5 had daily history through 6 November and zero clock-qualified intraday bars. The dashboard had not yet been restarted to load the routes, automatic feed and Windows logon restart were not installed, and M6 post-fix verification was open at that time. M6 has since been completed locally; M7/M8 runtime and feed gaps remain. See [M7](milestones/M7.md), [M8](milestones/M8.md) and [operator guide](OPERATOR_GUIDE.md).
+As of 9 November, explicit local-only background monitor, persistent trace-linked alert history, dashboard controls and Windows notification submission were implemented. Nine focused tests passed; synthetic retained-bar-to-alert history and isolated worker start/pause passed; Windows accepted a test notification submission but visible delivery was not verified. Actual Top 5 had daily history through 6 November and zero clock-qualified intraday bars. The dashboard had not yet been restarted to load the routes, and M6 post-fix verification was open at that time. Subsequent M6 and M7 completion records follow. See [M7](milestones/M7.md), [M8](milestones/M8.md) and [operator guide](OPERATOR_GUIDE.md).
 
 
 Optional Windows sign-in startup was subsequently added as an explicit opt-in. The control registers a named logon task when checked and requests removal on pause; mocked tests cover success and failure. It is not enabled by default and was not actually installed or verified through a Windows sign-out/sign-in in this check. Earlier statements in this document that no startup option exists describe the preceding state.
@@ -141,3 +141,23 @@ profile without an exact-profile fill backtest; no performance claim is made.
 M6 acceptance is complete locally with these evidence limitations. M7/M8
 operational verification and the earlier research M5/R12/P1 work remain
 independent.
+
+## M7 completed locally — 11 November 2026
+
+The monitor/notification/startup suite passed 13 tests; one shortcut test was
+skipped to avoid modifying an existing user shortcut. The actual dashboard was
+healthy. Its existing settings (enabled, 30-minute profile, 900-second
+interval, desktop notifications on, sign-in startup off) were preserved while
+the dead worker was relaunched. The dashboard now reports worker running,
+`SOURCE_UNAVAILABLE`, no error, and zero events. A separate hidden worker on a
+temporary store acquired its lease, checked an empty watchlist without a
+dashboard dependency, and exited cleanly on pause, releasing the lease.
+
+A `TEST ONLY` Windows toast was recorded by PushNotification-Platform event
+3052 as delivered to Strategy Radar on session 1; visible banner presentation
+was not independently observed. The System view showed the running status at
+390px with no horizontal page overflow. Existing retained-bar→trace→dashboard
+history replay covers the end-to-end alert path. No provider, model, broker,
+paid quote, live order, notification setting, or startup task was changed.
+No clock-qualified intraday feed is available; M8 is now active to record the
+full rollout and source gaps without implying live-data qualification.

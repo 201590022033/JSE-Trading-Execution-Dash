@@ -26,12 +26,28 @@ The Strategy Radar M-series is separate from the UIM/research redesign.
 Strategy Radar M6 was completed locally and committed/pushed as `bfec6fc`;
 its post-restart dashboard verification is recorded in the M6 brief below.
 Older entries saying M6 is pending are dated snapshots, not current status.
-M7/M8 runtime and source-availability gaps remain separate; M9 is scoped, not
-complete. No UIM6/UIM7/UIM8 briefs are implied by these M-series labels.
+Strategy Radar M7 is now completed locally and documented below. M8 is active
+for end-to-end operational/source validation; M9 remains scoped, not complete.
+No UIM6/UIM7/UIM8 briefs are implied by these M-series labels.
 
-## Strategy Radar M7/M8 — locally implemented, live verification pending, 9 November 2026
+## Strategy Radar M7 completed locally; M8 active — 11 November 2026
 
-Historical snapshot as of 9 November, before M6 completion: explicit local-only background monitor, durable trace-linked alerts and dashboard controls added. Fixture replay and isolated worker lifecycle passed. No qualified unattended intraday feed exists; Windows notification was submitted but visible receipt is unverified. At that time the running dashboard needed a restart and M6 verification was still open. M6 was subsequently completed locally on 11 November; the M7/M8 source and operational gaps remain. See [M7](../strategy-radar/milestones/M7.md), [M8](../strategy-radar/milestones/M8.md), and [operator guide](../strategy-radar/OPERATOR_GUIDE.md).
+The monitor/notification/startup suite passed 13 tests; one Windows shortcut test
+was skipped to preserve an existing user shortcut. The existing monitor
+configuration was already enabled (30-minute shadow profile, 900-second check,
+desktop notifications enabled, sign-in startup disabled), but its lease had
+expired and no worker process was running. The worker was relaunched with those
+same settings. Actual dashboard status now reports `SOURCE_UNAVAILABLE`, no
+error, zero alerts, and a live worker lease. An isolated hidden worker using a
+temporary store checked an empty watchlist without a dashboard dependency and
+exited cleanly on pause. A `TEST ONLY` toast was submitted; Windows event 3052
+recorded delivery to Strategy Radar on session 1, but visible banner
+presentation was not independently observed. The actual System view displayed
+the status at 390px without horizontal page overflow. No source/provider,
+model, paid request, broker action, or notification/startup preference was
+changed. There are no qualified clocked intraday bars, so M8 is active to
+document the usable local path and exact source/operational gaps. See [M7](../strategy-radar/milestones/M7.md),
+[M8](../strategy-radar/milestones/M8.md), and [operator guide](../strategy-radar/OPERATOR_GUIDE.md).
 
 ## Historical M6 snapshot — post-restart performance fix pending reload, 7 November 2026
 

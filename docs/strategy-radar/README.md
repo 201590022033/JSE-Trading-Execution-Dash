@@ -1,6 +1,6 @@
 # Strategy Radar: delivery roadmap and context
 
-**Status:** Updated 11 November 2026. M1–M6 are completed locally; M7–M8 implementations are local with live verification pending; M9 is scoped and incomplete. Here “M1”, “M2”, etc. refer to this Strategy Radar series, not the earlier research redesign M1–M7. R12, P1 and the earlier research M5–M7 retain their recorded status and independent monitoring. One coding milestone at a time; evidence gathering already in progress need not be relabelled complete.
+**Status:** Updated 11 November 2026. M1–M7 are completed locally; M8 is active for end-to-end operational validation; M9 is scoped and incomplete. Here “M1”, “M2”, etc. refer to this Strategy Radar series, not the earlier research redesign M1–M7. R12, P1 and the earlier research M5–M7 retain their recorded status and independent monitoring. One coding milestone at a time; evidence gathering already in progress need not be relabelled complete.
 
 ## Desired experience
 
