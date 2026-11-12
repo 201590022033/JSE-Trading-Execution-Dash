@@ -9,12 +9,12 @@ from application.opportunities.swing_technical import ema20_reclaimed, snapshot
 
 _FIELDS = ('open', 'high', 'low', 'close', 'volume')
 _STATES = {'SINGLE_SOURCE', 'AGREEMENT', 'THREE_PROVIDER_AGREEMENT'}
-_FEATURE_PROFILE_VERSION = '1.1.1'
+_FEATURE_PROFILE_VERSION = '1.1.2'
 _NAMES = (('ema_uptrend', 'Close above EMA20 above EMA50'),
           ('breakout20', 'Close above prior 20-session high'),
           ('ema20_reclaim', 'Price reclaims EMA20 within the last 3 sessions in an uptrend'),
           ('rsi_50_70', 'RSI between 50 and 70'),
-          ('volume_above_prior20', 'Volume above its prior 20-session mean'),
+          ('volume_above_prior20', 'Volume above its prior 20-session median'),
           ('outperforming_benchmark20', '20-session return exceeds aligned benchmark'))
 
 
@@ -204,7 +204,7 @@ def evaluate_watches(service, *, now=None, instrument=None):
             'breakout20': (data.get('last_close'), values.get('prior_high20')),
             'ema20_reclaim': (data.get('last_close'), values.get('ema20')),
             'rsi_50_70': (values.get('rsi14_wilder'), '50 to 70'),
-            'volume_above_prior20': (values.get('relative_volume20'), '1.0 times prior mean'),
+            'volume_above_prior20': (values.get('relative_volume20_median'), '1.0 times prior median (mean if median is zero)'),
             'outperforming_benchmark20': (values.get('relative_return20'), '0 excess return'),
         }
         for name, description in _NAMES:

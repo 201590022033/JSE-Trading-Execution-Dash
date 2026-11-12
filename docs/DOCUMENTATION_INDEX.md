@@ -1,3 +1,12 @@
+## Strategy Radar M11 freshness and prepared context — 12 November 2026
+
+[M11 brief](strategy-radar/milestones/M11.md),
+[ADR0103](adr/0103-dashboard-freshness-and-prepared-context.md), and
+[change note](changes/2026-11-12-dashboard-freshness-and-prepared-context.md):
+source-specific dashboard clocks and bounded local research packets are
+implemented. Freshness reads remain provider-free; the running dashboard
+needs a normal restart to load the new route.
+
 ## Strategy Radar M9 delayed swing-data qualification — 11 November 2026
 
 [M9 completion](strategy-radar/milestones/M9.md) and

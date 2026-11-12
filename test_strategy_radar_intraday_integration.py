@@ -26,27 +26,55 @@ class IntradayIntegrationTests(unittest.TestCase):
   self.assertIsNone(parsed['fields']['high'])
   self.assertEqual(parsed['fields']['close'],'100')
   self.assertIn('high',parsed['invalid_fields'])
- def test_viewpoint_csv_retains_raw_values_without_normalizing_or_scoring(self):
+ def test_viewpoint_csv_normalizes_using_owner_accepted_conventions(self):
   raw=(b'"Date","Open","High","Low","Close","% Change","% Change vs Average","Volume"\n'
        b'"2026-11-06T08:00:00.000Z","23032.00","23051.00","22999.00","23039.00","0.03","0.02","19,944"\n')
+  with self.assertRaises(ValueError):
+   viewpoint_table_csv(raw,'MTN','MTN.JSE',NOW,file_name='sample.csv')
   rows=viewpoint_table_csv(raw,'MTN','MTN.JSE',NOW,file_name='MTN.JSE sample.csv',
-      file_modified_at=NOW-timedelta(minutes=1),interval_minutes=5)
+      file_modified_at=NOW-timedelta(minutes=1),interval_minutes=5,
+      accept_operator_conventions=True)
   parsed=merge_bars(rows)
-  self.assertEqual(parsed['bars'],[])
-  row=parsed['unknown_clock_records'][0]
-  self.assertEqual(row['unit'],'UNVERIFIED')
-  self.assertIsNone(row['fields']['close'])
-  self.assertEqual(row['source_timestamp'],'2026-11-06T08:00:00+00:00')
-  payload=__import__('json').loads(row['raw_payload'])
+  self.assertEqual(len(parsed['bars']),1)
+  self.assertEqual(parsed['unknown_clock_records'],[])
+  row=parsed['bars'][0]
+  self.assertEqual(row['fields']['close']['selected']['value'],'230.39')
+  self.assertEqual(row['fields']['volume']['selected']['value'],'19944')
+  self.assertEqual(row['bar_start'],'2026-11-06T08:00:00+00:00')
+  self.assertEqual(row['bar_end'],'2026-11-06T08:05:00+00:00')
+  self.assertEqual(row['fields']['close']['selected']['normalization_basis'],
+                   'OPERATOR_ACCEPTED_VIEWPOINT_CSV_CONVENTION_V1')
+  payload=__import__('json').loads(rows[0]['raw_payload'])
   self.assertEqual(payload['raw_values']['Close'],'23039.00')
   self.assertEqual(payload['raw_values']['Volume'],'19,944')
-  self.assertEqual(payload['qualification']['use_for_scoring'],False)
-  invalid_unit_rows=[dict(rows[0],fields=dict(rows[0]['fields'],close='23039.00'))]
-  with self.assertRaises(ValueError): merge_bars(invalid_unit_rows)
+  self.assertEqual(payload['qualification']['use_for_scoring'],True)
+  self.assertEqual(payload['qualification']['price_unit'],'ZAR_CENTS')
+  raw_only=dict(rows[0],bar_start=None,bar_end=None,clock_semantics='UNKNOWN',unit='UNVERIFIED',
+                fields={field:None for field in ('open','high','low','close','volume')})
+  normalized_with_hash=dict(rows[0],source_raw_sha256='a'*64)
+  raw_only['source_raw_sha256']='a'*64
+  self.assertEqual(merge_bars([raw_only,normalized_with_hash])['unknown_clock_records'],[])
   with self.assertRaises(ValueError):
    viewpoint_table_csv(raw,'MTN','OTHER',NOW,file_name='sample.csv')
   with self.assertRaises(ValueError):
    viewpoint_table_csv(raw.replace(b'.000Z',b'.000'), 'MTN','MTN.JSE',NOW,file_name='sample.csv')
+ def test_operator_normalized_csv_is_available_to_research_shadow(self):
+  from application.strategy_radar.intraday_evaluation import evaluate_intraday
+  now=datetime(2026,11,6,8,1,tzinfo=timezone.utc)
+  raw=(b'"Date","Open","High","Low","Close","% Change","% Change vs Average","Volume"\n'
+       b'"2026-11-06T07:40:00.000Z","22900","22920","22890","22910","0.01","0.01","1000"\n'
+       b'"2026-11-06T07:45:00.000Z","22910","22930","22900","22920","0.01","0.01","1100"\n'
+       b'"2026-11-06T07:50:00.000Z","22920","22940","22910","22930","0.01","0.01","1200"\n'
+       b'"2026-11-06T07:55:00.000Z","22930","22960","22920","22950","0.02","0.02","1800"\n')
+  rows=viewpoint_table_csv(raw,'MTN','MTN.JSE',now,file_name='MTN.JSE sample.csv',
+      interval_minutes=5,accept_operator_conventions=True)
+  result=evaluate_intraday('intraday_5m_research_v1','MTN',rows,now)
+  self.assertEqual(result['evaluation_mode'],'SHADOW')
+  self.assertTrue(result['component_plan']['reference_close'])
+  self.assertTrue(all(rule['state'] != 'UNKNOWN' for rule in result['rules'] if rule['mandatory']))
+  entry=next(rule for rule in result['rules'] if rule['id']=='entry')
+  self.assertEqual(entry['provenance'][0]['normalization_basis'],
+                   'OPERATOR_ACCEPTED_VIEWPOINT_CSV_CONVENTION_V1')
  def test_eodhd_mapping_unit_clock_and_raw(self):
   start=int(datetime(2026,11,6,8,0,tzinfo=timezone.utc).timestamp())
   payload=[{'timestamp':start,'open':23000,'high':23100,'low':22900,'close':23050,'volume':100}]
@@ -111,7 +139,7 @@ class IntradayIntegrationTests(unittest.TestCase):
    self.assertEqual(response.json['unknown_clock_records'][0]['fields']['close'],'230.73')
    self.assertEqual(response.json['bars'],[])
 
- def test_api_imports_viewpoint_csv_as_hash_bound_raw_only_evidence(self):
+ def test_api_imports_viewpoint_csv_as_hash_bound_normalized_research_bars(self):
   import hashlib
   from io import BytesIO
   with tempfile.TemporaryDirectory() as tmp:
@@ -120,23 +148,26 @@ class IntradayIntegrationTests(unittest.TestCase):
    raw=(b'"Date","Open","High","Low","Close","% Change","% Change vs Average","Volume"\n'
         b'"2026-11-06T08:05:00.000Z","23042.00","23061.00","23009.00","23049.00","0.04","0.03","20,004"\n'
         b'"2026-11-06T08:00:00.000Z","23032.00","23051.00","22999.00","23039.00","0.03","0.02","19,944"\n')
-   data={'instrument':'MTN','symbol':'MTN.JSE','interval_minutes':'5','confirm_raw_only':'yes',
+   data={'instrument':'MTN','symbol':'MTN.JSE','interval_minutes':'5','accept_operator_conventions':'yes',
          'file_modified_at':'2026-11-06T14:59:00+00:00',
          'file':(BytesIO(raw),'MTN.JSE sample.csv')}
-   with patch('application.opportunities.zebra_instruments.mappings',return_value={'MTN':'MTN'}):
+   with patch('application.opportunities.zebra_instruments.mappings',return_value={'MTN':'MTN'}), \
+        patch.object(service,'prepare_context',return_value={'state':'PREPARED','id':'context-id'}) as prepare:
     response=client.post('/api/v1/strategy-radar/intraday/viewpoint-csv',data=data,content_type='multipart/form-data')
    self.assertEqual(response.status_code,201,response.json)
+   self.assertEqual(response.json['prepared_context']['state'],'PREPARED')
+   prepare.assert_called_once_with('VIEWPOINT_CSV_IMPORT',imported_instrument='MTN')
    self.assertEqual(response.json['source_raw_sha256'],hashlib.sha256(raw).hexdigest())
-   self.assertFalse(response.json['use_for_scoring'])
+   self.assertTrue(response.json['use_for_scoring'])
+   self.assertEqual(response.json['clock_semantics'],'START')
+   self.assertEqual(response.json['price_unit'],'ZAR_CENTS')
    result=client.get('/api/v1/strategy-radar/intraday/MTN')
    self.assertEqual(result.status_code,200)
-   self.assertEqual(result.json['bars'],[])
-   items=result.json['unknown_clock_records']
-   self.assertEqual([x['source_timestamp'] for x in items],
+   self.assertEqual(len(result.json['bars']),2)
+   self.assertEqual(result.json['unknown_clock_records'],[])
+   self.assertEqual([x['bar_start'] for x in result.json['bars']],
                     ['2026-11-06T08:00:00+00:00','2026-11-06T08:05:00+00:00'])
-   item=items[0]
-   self.assertEqual(item['unit'],'UNVERIFIED')
-   self.assertEqual(__import__('json').loads(item['raw_payload'])['raw_values']['Close'],'23039.00')
+   self.assertEqual(result.json['bars'][0]['fields']['close']['selected']['value'],'230.39')
    invalid={'instrument':'MTN','symbol':'MTN.JSE','interval_minutes':'5',
             'file':(BytesIO(raw),'MTN.JSE sample.csv')}
    with patch('application.opportunities.zebra_instruments.mappings',return_value={'MTN':'MTN'}):

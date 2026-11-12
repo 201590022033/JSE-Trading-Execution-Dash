@@ -135,6 +135,12 @@ _technical_swing_reclaim = replace(_technical_swing,
         for item in _technical_swing.capabilities),
     limitations=("Radar-only additive version; 1.1.0 remains immutable and no exact-profile fill backtest is available.",
         *_technical_swing.limitations[1:]))
+_technical_swing_median = replace(_technical_swing_reclaim,
+    reference=StrategyProfileRef("jse_swing_3_5d", "1.1.2"),
+    capabilities=tuple(replace(item,
+        description="Radar technical trace with a three-session EMA20 reclaim and prior-20 median volume.")
+        if item.capability_id == "swing_technical_horizons" else item
+        for item in _technical_swing_reclaim.capabilities))
 _policy_swing = replace(_technical_swing,
     reference=StrategyProfileRef("jse_swing_3_5d", "1.2.0"),
     universe_scope=("JSE_CASH_EQUITIES",),
@@ -158,6 +164,12 @@ _research_swing = replace(_policy_swing,
         "Historical comparisons are not prospective walk-forward validation or executable portfolio evidence.",
         "Local collector requires a powered-on signed-in computer; incomplete source data stays blocked.",
         *_policy_swing.limitations[1:]))
+_lab_swing_median = replace(_research_swing,
+    reference=StrategyProfileRef("jse_swing_3_5d", "1.3.1"),
+    capabilities=(*_research_swing.capabilities,
+        Capability("lab_median_volume", C.IMPLEMENTED_REUSABLE,
+            "Backtest Lab uses prior-20 median volume with a mean fallback when the median is zero.",
+            ("application.backtest_lab.strategies",))))
 _lab_profiles = tuple(StrategyProfile(StrategyProfileRef(identity, "1.0.0"), name, name, "3 sessions",
     L.DEVELOPMENT_DATA_VALIDATION_REQUIRED, identity, ("JSE_CASH_EQUITIES",), "1d", ("3_sessions",),
     ("RESEARCH",), (Capability("daily_approximation", C.IMPLEMENTED_REUSABLE,
@@ -167,6 +179,6 @@ _lab_profiles = tuple(StrategyProfile(StrategyProfileRef(identity, "1.0.0"), nam
                           ("box_breakout_daily_research", "Box breakout daily approximation"),
                           ("pullback_daily_research", "Pullback daily approximation")))
 DEFAULT_STRATEGY_REGISTRY = StrategyProfileRegistry((*_defaults, _attributed_swing, _technical_swing,
-    _technical_swing_reclaim, _policy_swing, _research_swing), research_profiles=_lab_profiles, current_versions={
+    _technical_swing_reclaim, _technical_swing_median, _policy_swing, _research_swing, _lab_swing_median), research_profiles=_lab_profiles, current_versions={
     **{profile.reference.strategy_profile_id: profile.reference.strategy_profile_version for profile in _defaults},
     "jse_swing_3_5d": "1.0.1"})

@@ -45,6 +45,13 @@ def main():
                 run_cycle(repository, now)
                 from market_intelligence.sasol_refinement import tick as refinement_tick
                 refinement_tick(repository, now)
+                try:
+                    from application.strategy_radar.service import RadarService
+                    from market_intelligence.anticipatory_radar import status as radar_status
+                    prepared_context = RadarService().prepare_context(
+                        'SENS_RADAR_TICK', event_status=radar_status(repository, now), now=now)
+                except Exception as exc:
+                    prepared_context = {'state': 'UNAVAILABLE', 'error_type': type(exc).__name__}
             else:
                 from application.opportunities.research_data_requests import status as data_status
                 data_requests = data_status(repository, now)
@@ -55,6 +62,7 @@ def main():
                 "upcoming": len(view["upcoming"]), "model_calls": 0, "trading_weight": 0}
             summary["daily_import_required"] = data_requests["daily_reminder"]["due"]
             if args.command == "tick":
+                summary["prepared_context"] = prepared_context
                 staged = FOLDER/"calendar-clock.partial"
                 staged.write_text(json.dumps(summary), encoding="utf-8")
                 staged.replace(FOLDER/"calendar-clock.json")

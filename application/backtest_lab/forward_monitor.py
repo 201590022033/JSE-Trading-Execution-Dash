@@ -112,8 +112,7 @@ def capture(plan_id, plan, instrument, rows, benchmark_rows, observed_at, folder
         return saved
     if existing and session <= existing[-1].stem: raise ValueError('late session cannot be backfilled')
     benchmark = _visible_rows(benchmark_rows, observed_at)
-    if evaluator is None:
-        from .strategies import evaluate as evaluator
+    from .strategies import evaluate
     decisions = []
     charts = {instrument:visible, 'ETF_STX40':benchmark}
     for strategy in plan['cases'][instrument]['strategies']:
@@ -122,7 +121,11 @@ def capture(plan_id, plan, instrument, rows, benchmark_rows, observed_at, folder
             continue
         reason=None
         try:
-            trace, stop = evaluator(strategy['id'], instrument, len(visible)-1, charts)
+            if evaluator is None:
+                trace, stop = evaluate(strategy['id'], instrument, len(visible)-1, charts,
+                                       swing_version=strategy['strategy_profile_version'])
+            else:
+                trace, stop = evaluator(strategy['id'], instrument, len(visible)-1, charts)
             state = 'SIGNAL' if trace and all(c.get('ok') is True for c in trace) else 'NO_SIGNAL' if trace else 'PARTIAL'
             if state == 'PARTIAL': reason='INSUFFICIENT_RULE_HISTORY'
         except (KeyError, TypeError, ValueError, IndexError, ZeroDivisionError):

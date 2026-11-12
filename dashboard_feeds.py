@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from threading import Lock
 from time import monotonic
 import os
+import logging
 
 from instrument_registry import resolve_instrument
 
@@ -25,6 +26,7 @@ class DashboardFeeds:
     def __init__(self, chart_fetcher=None, scanner=None):
         self._chart_fetcher = chart_fetcher
         self._scanner = scanner
+        self.on_news_updated = None
         self._lock = Lock()
         self._pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="public-feed")
         self._entries = {}
@@ -40,6 +42,19 @@ class DashboardFeeds:
         if not entry:
             return None
         return {key: entry.get(key) for key in ('data', 'last_success', 'last_attempt', 'error', 'refreshing')}
+
+    def peek_news(self):
+        """Read the news cache without starting a source scan or model work."""
+        with self._lock:
+            entry = deepcopy(self._entries.get('news'))
+        if not entry:
+            return {'state': 'NOT_LOADED', 'last_success': None, 'last_attempt': None,
+                    'error': None, 'refreshing': False}
+        state = ('STALE' if entry.get('data') and entry.get('error') else
+                 'AVAILABLE' if entry.get('data') else
+                 'UNAVAILABLE' if entry.get('error') else 'LOADING')
+        return {'state': state, **{key: entry.get(key) for key in
+                ('data', 'last_success', 'last_attempt', 'error', 'refreshing')}}
 
     def _snapshot(self, key, ttl, loader):
         with self._lock:
@@ -75,6 +90,11 @@ class DashboardFeeds:
                 else:
                     entry["last_success"] = datetime.now(timezone.utc).isoformat()
             entry.update(error=error, refreshing=False, next_poll=monotonic() + ttl)
+        if key == 'news' and data is not None and self.on_news_updated is not None:
+            try:
+                self.on_news_updated(data)
+            except Exception:
+                logging.getLogger(__name__).exception('Prepared Radar context update after news capture failed')
 
     def chart(self, symbol, period="3mo"):
         if period not in {"1d", "1mo", "3mo", "1y"}:

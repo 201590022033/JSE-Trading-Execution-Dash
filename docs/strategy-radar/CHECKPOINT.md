@@ -1,6 +1,51 @@
 # Strategy Radar checkpoint
 
-Prepared 2026-11-06; updated 2026-11-12. M1–M9 completed locally; M10 is active with source limitations recorded. At the owner's request, bounded Radar M10 work proceeds alongside the existing research M5; M5 remains unchanged. This is a one-time sequencing exception, not a general parallel-work policy. This Strategy Radar M-series is distinct from UIM/research milestones; no UIM6–UIM8 briefs are present. The old dated M6/M7/M8 entries below are historical snapshots, superseded by the later completion entries. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve R12/P1 and the separately ongoing research M5/M6/M7 records.
+Prepared 2026-11-06; updated 2026-11-12. M1–M11 are completed locally. M12 adds owner-approved ViewPoint preference for overlapping intraday evidence; focused tests and the restarted API verify source selection. Browser verification of actual overlapping-source provenance remains open. At the owner's request, bounded Radar M10 work proceeded alongside the existing research M5; M5 remains unchanged. This was a one-time sequencing exception, not a general parallel-work policy. This Strategy Radar M-series is distinct from UIM/research milestones; no UIM6–UIM8 briefs are present. The old dated M6/M7/M8 entries below are historical snapshots, superseded by later completion entries. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve R12/P1 and the separately ongoing research M5/M6/M7 records.
+
+## Strategy Radar M12 - ViewPoint-preferred intraday source selection, 12 November 2026
+
+The selected source policy prefers a usable, completed ViewPoint CSV field on
+an overlapping interval, retains conflicting alternatives, and falls back
+field-by-field to other usable retained sources when the ViewPoint field is
+missing or unusable. The decision policy is explicit in the evaluation
+provenance and prepared context. The existing dashboard process still needs a
+normal restart to load this change. Only eight five-minute MTN rows are
+currently retained; other choices still need manual source imports. Daily
+history remains on the existing Zebra path. No ViewPoint login automation,
+background download or keepalive was added. See [M12](milestones/M12.md),
+[ADR 0104](../adr/0104-viewpoint-preferred-intraday-source.md), and the
+[change note](../changes/2026-11-12-viewpoint-preferred-intraday-source.md).
+
+## Strategy Radar M11 - data freshness and prepared context, 12 November 2026
+
+Source-specific freshness clocks now appear on each relevant dashboard tab,
+with direct links to existing refresh actions, manual import forms, or the
+source page. Browser status refreshes query only the local freshness endpoint;
+no provider or model work is started. OST and ViewPoint sign-in status and
+timeout remain unknown, with no keepalive.
+
+The local context packet is initialized for existing choices and refreshed for Top-5 membership changes, manual
+selection/pin changes, successful news capture, accepted ViewPoint CSV import,
+and the existing SENS/calendar tick. It retains at most six Radar choices,
+150 bars per choice, 20 news items, 20 SENS items, 20 calendar entries, and 100
+packets. Imported evidence outside the six choices is separated from the Radar
+selection list. No provider, model, backtest, alert, or broker action is run.
+
+Focused validation passed 87 tests for context, freshness, feeds, intraday,
+Radar, and anticipatory radar; JavaScript syntax and `git diff --check` passed.
+A live in-process Flask test client returned HTTP 200 and all eight data areas.
+After the normal dashboard restart, the live freshness endpoint returned
+AVAILABLE with eight areas and no endpoint errors. The dashboard displayed its
+freshness rows and PREPARED Radar context; the last displayed trigger was
+NEWS_CAPTURE with five current choices. Its 390px viewport had no horizontal
+overflow. Exact browser idle timeouts and the earlier Save-button pause remain
+unresolved. See [M11](milestones/M11.md), [ADR
+0103](../adr/0103-dashboard-freshness-and-prepared-context.md), and the
+[change note](../changes/2026-11-12-dashboard-freshness-and-prepared-context.md).
+The initial retained packet has five current choices with daily bars through
+11 November, eight MTN five-minute bars, 20 SENS leads and eight calendar
+events. No five-minute bars were present for the other four choices, and the
+dashboard's in-memory news cache was not loaded at preparation time.
 
 ## Strategy Radar M10 — six-choice radar and churn audit, 12 November 2026
 
@@ -22,16 +67,20 @@ November (80.0091). This separates stale/new-input changes from relative
 ranking churn. The descriptive score and weights were not changed.
 
 The owner-supplied MTN.JSE five-minute chart-table CSV was imported into the
-local Radar intraday cache. Its 823 raw bytes are retained under SHA-256
+local Radar intraday cache and normalized under the owner's accepted
+interpretation: prices are ZAR cents, Volume is shares, and UTC Date is the
+interval start. Its 823 raw bytes are retained under SHA-256
 `D64F5286D80D81995F75343EF48BCEFF96FF137D2C278EE8F63CDD4236A4BCD3`,
-with eight source rows from 07:20 to 07:55 UTC. File modification and import
-receipt clocks remain distinct. All normalized OHLCV fields are null; the
-records remain unknown-clock, unverified-unit evidence and are excluded from
-canonical bars, shadow evaluation and daily Zebra ranking. Manual local
-research use was authorized; unattended collection rights remain unverified.
+with eight source rows from 07:20 to 07:55 UTC and eight canonical five-minute
+bars. File modification and import receipt clocks remain distinct. The chosen
+convention is recorded as operator-accepted, not provider-certified. Bars are
+available to local research shadow; Live execution remains disabled.
 
-The focused intraday integration file passed 10 tests, including chronological
-ordering of reversed CSV rows. JavaScript syntax and `git diff --check` passed.
+The last bar ends at 08:00 UTC, 14 minutes before the original 08:14:23 UTC
+import receipt, so this file is historical context, not a current quote. The
+focused intraday integration file passed 11 tests, including normalization,
+chronological ordering, deduplication and shadow evaluation. JavaScript syntax
+and `git diff --check` passed.
 At approximately 10:07 SAST both OST and ViewPoint pages were accessible, but
 there was no known login start or controlled idle interval, so no timeout
 duration is established. The Save dialog was not exposed to the browser tool;

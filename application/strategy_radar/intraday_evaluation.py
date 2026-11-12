@@ -7,7 +7,7 @@ bars. Every value remains attributable to the selected M3 field evidence.
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from statistics import mean
-from .intraday_store import merge_bars, normalize_bar, _time, _session, SAST
+from .intraday_store import merge_bars, normalize_bar, _time, _session, SAST, _is_viewpoint_source
 
 PROFILES = {
     'intraday_5m_research_v1': {'strategy_version':'1.0.0', 'timeframe_minutes':5},
@@ -54,14 +54,32 @@ def _field(bar, name, historical_replay=False):
     evidence=[{'field':name, 'bar_start':bar['bar_start'], 'bar_end':bar['bar_end'],
                'source':selected['source'], 'source_timestamp':selected['source_timestamp'],
                'received_at':selected['received_at'], 'availability':selected['availability'],
+               'selection_policy':selected.get('selection_policy'),
                'source_timestamp_basis':selected.get('source_timestamp_basis'),
+               'normalization_basis':selected.get('normalization_basis'),
                'derived_inputs_sha256':selected.get('derived_inputs_sha256'),
                'derived_inputs':selected.get('derived_inputs'),
                'field_state':field['state'], 'alternatives':field['alternatives'],
                'revisions':field['revisions']}]
     # A selected source is not enough to confirm a condition if that exact field
     # is disputed, provisional, stale or has unqualified historical/unknown data.
-    if (selected.get('provisional') or field['state'] != 'AVAILABLE' or
+    preferred_viewpoint_conflict = (
+        field['state'] == 'CONFLICT'
+        and selected.get('selection_policy') == 'VIEWPOINT_PREFERRED'
+    )
+    fallback_from_unusable_viewpoint = (
+        field['state'] == 'CONFLICT'
+        and selected.get('selection_policy') == 'FALLBACK_SOURCE'
+        and bool(field['alternatives'])
+        and any(_is_viewpoint_source(candidate.get('source')) for candidate in field['alternatives'])
+        and all(candidate.get('provisional')
+                or candidate.get('availability') in ('STALE', 'UNKNOWN', 'HISTORICAL')
+                for candidate in field['alternatives'])
+    )
+    if (selected.get('provisional') or
+            (field['state'] != 'AVAILABLE' and not (
+                preferred_viewpoint_conflict or fallback_from_unusable_viewpoint
+            )) or
             selected['availability'] not in (('LIVE','DELAYED','MANUAL','HISTORICAL') if historical_replay else ('LIVE','DELAYED','MANUAL'))):
         return None, evidence
     value=_decimal(selected['value'])

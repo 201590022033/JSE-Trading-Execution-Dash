@@ -74,7 +74,13 @@ def strategy_radar_service():
         if _strategy_radar_service is None:
             from application.strategy_radar.service import RadarService
             _strategy_radar_service = RadarService(grace_sessions=int(os.environ.get("STRATEGY_RADAR_GRACE_SESSIONS", "2")))
+            _strategy_radar_service.ensure_prepared_context()
         return _strategy_radar_service
+
+def prepare_radar_context_after_news(data):
+    return strategy_radar_service().prepare_context('NEWS_CAPTURE', news_report=data)
+
+feeds.on_news_updated = prepare_radar_context_after_news
 
 def strategy_radar_screen_success(snapshot):
     from application.opportunities.zebra_screen_queue import record_research_screen
@@ -162,6 +168,53 @@ def health():
                    service="oi2", database=database, database_state=state, mode=mode, live_execution=False), (200 if healthy else 503)
 @app.get("/api/system/status")
 def status(): return jsonify(service.status())
+@app.get("/api/v1/data-freshness")
+def data_freshness():
+    if request.remote_addr not in ("127.0.0.1", "::1"):
+        return jsonify(error="Local dashboard only"), 403
+    from application.data_freshness import build_dashboard_freshness
+    from application.strategy_radar.intraday_store import IntradayCache
+    from application.strategy_radar.prepared_context import PreparedContextStore
+    from application.strategy_radar.quote_store import QuoteStore
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    screen_status, screen_items = {}, []
+    if zebra_research_screen is not None:
+        screen_status = zebra_research_screen.status()
+        screen_items = zebra_research_screen.listing(limit=5)
+    radar = strategy_radar_service()
+    watches = [item for item in radar.store.list_watches() if item["in_top5"] or item["pinned"]][:6]
+    intraday = IntradayCache(radar.folder / "intraday.sqlite3")
+    quotes = QuoteStore(radar.folder / "quotes.sqlite3")
+    radar_inputs = []
+    for watch in watches:
+        selected = quotes.read(watch["instrument"], now)["fields"]["last"]["selected"]
+        radar_inputs.append({"instrument": watch["instrument"], "bars": intraday.read(watch["instrument"]),
+                             "quote": selected})
+    repository = None
+    errors = []
+    daily_imports, event_radar = None, None
+    try:
+        repository = runtime_repository()
+        from application.opportunities.research_data_requests import status as import_status
+        from market_intelligence.anticipatory_radar import status as event_status
+        daily_imports = import_status(repository, now)
+        event_radar = event_status(repository, now)
+    except Exception as exc:
+        errors.append({"source": "RETAINED_RESEARCH_DATABASE", "error_type": type(exc).__name__})
+    finally:
+        if repository is not None:
+            repository.close()
+    result = build_dashboard_freshness(
+        now, news_feed=feeds.peek_news(), screen_status=screen_status,
+        screen_items=screen_items, daily_imports=daily_imports,
+        radar_inputs=radar_inputs, event_radar=event_radar,
+        prepared_context=PreparedContextStore(radar.folder / 'prepared-context.sqlite3').latest())
+    result["errors"] = errors
+    result["state"] = "PARTIAL" if errors else "AVAILABLE"
+    response = jsonify(result)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 @app.get("/api/learning/status")
 def learning_status():
     """Read-only persisted shadow-learning counters; never includes secrets."""

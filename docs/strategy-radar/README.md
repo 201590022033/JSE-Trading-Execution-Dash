@@ -1,6 +1,6 @@
 # Strategy Radar: delivery roadmap and context
 
-**Status:** Updated 12 November 2026. M1–M9 are completed locally; M10 is active by owner request for the six-choice radar and IRESS intraday qualification. The owner asked that this bounded Radar M10 work proceed alongside the existing research M5; M5's scope and status remain unchanged. This is a documented one-time sequencing exception, not a general parallel-work policy. Here “M1”, “M2”, etc. refer to this Strategy Radar series, not the earlier research redesign M1–M7. R12, P1 and the earlier research M5–M7 retain their recorded status and independent monitoring.
+**Status:** Updated 12 November 2026. Strategy Radar M1–M11 are completed locally; M11 is live-verified after dashboard restart. M12 is implemented locally and makes accepted ViewPoint intraday CSV data preferred over overlapping retained sources; the restarted API confirms the preference on retained MTN bars, with browser verification of actual overlap provenance still open. Research M5 remains active with its original scope. Here “M1”, “M2”, etc. refer to this Strategy Radar series, not the earlier research redesign M1–M7. R12, P1 and the earlier research M5–M7 retain their recorded status and independent monitoring.
 
 ## Desired experience
 
@@ -10,10 +10,11 @@ An accessible, large and collapsible radar tracks the current Top 5 plus at most
 
 - Canonical screening and field-level Zebra select usable research observations across sources with provenance. The stricter `zebra_consensus.py` and older continuity checks exist in other paths; audit exact call paths rather than asserting every disagreement is already resolved.
 - Existing daily component controls separate entry, trend, momentum, volume, benchmark, stop, target, trailing and exit; they do not automatically constitute a 5-minute strategy. Existing Backtest Lab, sector/peer and SENS/news evidence are reusable.
-- Yahoo's existing 30-minute chart fetch and short in-memory cache are not a durable multi-provider intraday Zebra. Source bar-clock semantics, permissions and delay need verification. A manually uploaded ViewPoint chart-table CSV is now retained in the intraday cache as hash-bound raw evidence; its values remain unavailable to scoring until field units and bar boundaries are verified. OST and IRESS unattended-feed availability is unverified. IRESS rounded time-series volume must not be represented as exact.
+- Intraday records retain source alternatives and field provenance. When accepted ViewPoint CSV data overlaps another source on the same interval and field, ViewPoint is selected by default; conflicts remain visible, and the existing source is used where ViewPoint is missing or not usable. The imported CSV is normalized under the owner's accepted cents/share, shares-volume and UTC interval-start interpretation. This is a manual-import path, not an automatically refreshed or guaranteed-live IRESS feed; daily history continues to use its existing Zebra sources.
 - Cash-share and CFD estimates exist with specific assumptions and incomplete invoice verification. Other products and exact OST entry-field units need separate evidence. News/calendar alerts exist; an operating desktop price alert has not been verified. The existing dashboard-active five-minute research clock is a different process.
 - The existing Ask the Desk supports cloud or local advisory. Existing Qwen and daily swing proposer budgets are independent; no LLM is required to run price monitoring.
-- The interactive radar, typed investigation handoffs and cost-aware replay are implemented. M10 enforces the six-choice view; the manual CSV path preserves raw-only evidence and does not qualify IRESS for scoring or unattended collection.
+- The interactive radar, typed investigation handoffs and cost-aware replay are implemented. M10 enforces the six-choice view; normalized ViewPoint bars are eligible for local research shadow and preferred when merged with overlapping retained sources. No broker execution or unattended IRESS collector is enabled.
+- M11 adds source-specific dashboard freshness clocks and existing/manual refresh links, plus an initial and trigger-updated bounded local context packet after Top-5 changes, manual choice or CSV changes, news capture and the SENS/calendar tick. Freshness reads are cache-only; browser session timeouts remain unknown and are not kept alive.
 
 ## Ordered milestones
 
@@ -27,6 +28,8 @@ An accessible, large and collapsible radar tracks the current Top 5 plus at most
 - [M8 — End-to-end verification and operational rollout](milestones/M8.md)
 - [M9 — Delayed swing-data qualification](milestones/M9.md)
 - [M10 — Six-choice radar and IRESS intraday qualification](milestones/M10.md)
+- [M11 — Data freshness and prepared research context](milestones/M11.md)
+- [M12 — ViewPoint-preferred intraday source selection](milestones/M12.md)
 
 Each linked file begins with a compact context brief, includes a ready-to-use prompt and acceptance criteria. A milestone cannot claim a verified live feed or real alert where the provider or Windows permission is unavailable; deliver independent functionality and record the actual gap. Do not let lack of one optional source block other usable data.
 

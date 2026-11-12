@@ -79,6 +79,27 @@ class FeedTests(unittest.TestCase):
         self.assertIn('Keyword fallback', result['data']['analysis_method'])
         self.assertIsNone(result['last_success'])
 
+    def test_news_freshness_peek_does_not_schedule_a_scan(self):
+        scanner = Mock()
+        self.feed._scanner = scanner
+        result = self.feed.peek_news()
+        self.assertEqual(result['state'], 'NOT_LOADED')
+        self.assertIsNone(result['last_success'])
+        self.assertEqual(self.feed._pool.jobs, [])
+        scanner.scan.assert_not_called()
+
+    def test_completed_news_capture_notifies_prepared_context_hook(self):
+        scanner = Mock(use_llm=False, source_status={'Moneyweb': 'AVAILABLE'})
+        scanner.scan.return_value.to_dict.return_value = {'items': [{'title': 'Sourced headline'}],
+                                                          'llm_used': False}
+        self.feed._scanner = scanner
+        prepared = Mock()
+        self.feed.on_news_updated = prepared
+        self.feed.news()
+        self.feed._pool.finish()
+        prepared.assert_called_once()
+        self.assertEqual(prepared.call_args.args[0]['items'][0]['title'], 'Sourced headline')
+
     def test_unavailable_or_delayed_quote_cannot_pass_freshness_gate(self):
         for state in ('UNAVAILABLE', 'STALE_OR_MARKET_CLOSED', 'DELAYED_PUBLIC'):
             gates = evaluate_gates({'state':state,'success':state != 'UNAVAILABLE'}, {}, {}, {})

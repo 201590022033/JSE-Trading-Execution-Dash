@@ -17,6 +17,7 @@ from application.opportunities.session_freshness import HOLIDAYS_2026
 SAST = timezone(timedelta(hours=2))
 FIELDS = ('open', 'high', 'low', 'close', 'volume')
 AVAILABILITY = {'LIVE', 'DELAYED', 'MANUAL', 'STALE', 'HISTORICAL', 'UNKNOWN'}
+VIEWPOINT_SOURCE = 'IRESS_VIEWPOINT_TABLE_CSV'
 
 
 def _time(value):
@@ -45,6 +46,10 @@ def _value(value, field, unit):
         return str(n)
     except (InvalidOperation, ValueError):
         return None
+
+
+def _is_viewpoint_source(source):
+    return source == VIEWPOINT_SOURCE or source == f'DERIVED_5M:{VIEWPOINT_SOURCE}'
 
 
 def normalize_bar(record):
@@ -109,7 +114,9 @@ def normalize_bar(record):
             'original_unit': unit, 'volume_unit': 'unverified' if unit == 'UNVERIFIED' else 'shares', 'fields': fields,
             'invalid_fields': invalid, 'provisional': bool(record.get('provisional', False) or (end and end > received)),
             'raw_payload': record.get('raw_payload'),
+            'source_raw_sha256':record.get('source_raw_sha256'),
             'source_timestamp_basis':record.get('source_timestamp_basis'),
+            'normalization_basis':record.get('normalization_basis'),
             'derived_inputs_sha256':record.get('derived_inputs_sha256'),
             'derived_inputs':record.get('derived_inputs')}
 
@@ -117,9 +124,18 @@ def normalize_bar(record):
 def merge_bars(records):
     """Merge valid canonical bars by field; source revisions remain visible."""
     groups, unknown = {}, []
-    for record in records:
-        item = normalize_bar(record)
+    normalized = [normalize_bar(record) for record in records]
+    accepted_csv_hashes = {
+        item['source_raw_sha256'] for item in normalized
+        if item['source'] == 'IRESS_VIEWPOINT_TABLE_CSV'
+        and item.get('normalization_basis') == 'OPERATOR_ACCEPTED_VIEWPOINT_CSV_CONVENTION_V1'
+        and item.get('source_raw_sha256')
+    }
+    for item in normalized:
         if not item['interval_verified']:
+            if (item['source'] == 'IRESS_VIEWPOINT_TABLE_CSV'
+                    and item.get('source_raw_sha256') in accepted_csv_hashes):
+                continue
             unknown.append(item)
             continue
         identity = (item['instrument'], item['interval_minutes'], item['bar_start'], item['bar_end'])
@@ -139,13 +155,24 @@ def merge_bars(records):
                 revisions.extend({'source': source, 'value': x['fields'][field],
                                   'received_at': x['received_at'], 'source_timestamp': x['source_timestamp']}
                                  for x in entries[:-1] if x['fields'][field] != entries[-1]['fields'][field])
-            # Prefer completed and usable evidence; keep every alternative.
+            # Prefer usable ViewPoint imports on overlapping bars; retain every
+            # alternative so a source disagreement remains inspectable.
             quality = {'LIVE':0,'DELAYED':1,'MANUAL':2,'HISTORICAL':3,'UNKNOWN':4,'STALE':5}
-            latest.sort(key=lambda x:(x['provisional'], quality[x['availability']], -_time(x['received_at']).timestamp(), x['source']))
+            latest.sort(key=lambda x:(
+                x['provisional'],
+                x['availability'] in ('STALE', 'UNKNOWN', 'HISTORICAL'),
+                not _is_viewpoint_source(x['source']),
+                quality[x['availability']],
+                -_time(x['received_at']).timestamp(),
+                x['source'],
+            ))
             candidates = [{'source': x['source'], 'value': x['fields'][field],
                            'source_timestamp': x['source_timestamp'], 'received_at': x['received_at'],
                            'availability': x['availability'], 'provisional': x['provisional'],
+                           'selection_policy': 'VIEWPOINT_PREFERRED' if _is_viewpoint_source(x['source']) else 'FALLBACK_SOURCE',
                            'source_timestamp_basis': x.get('source_timestamp_basis'),
+                           'normalization_basis': x.get('normalization_basis'),
+                           'source_raw_sha256': x.get('source_raw_sha256'),
                            'derived_inputs_sha256': x.get('derived_inputs_sha256'),
                            'derived_inputs': x.get('derived_inputs')} for x in latest]
             selected = candidates[0] if candidates else None

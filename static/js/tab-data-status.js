@@ -1,15 +1,131 @@
 /* Status checks are read-only. Refresh buttons invoke existing, explicit actions. */
 (() => {
   const definitions = {
+    'market-overview': ['/api/v1/strategy-radar/watches', 'manual-source'],
     'trading-strategies': ['/api/v1/strategy-profiles', 'refresh-strategies'],
     'canonical-opportunities': ['/api/v1/opportunities', 'refresh-canonical'],
-    'market-ai': ['/api/feed/news', 'refresh-news'],
+    'market-ai': ['/api/v1/data-freshness', 'refresh-news'],
     'technical-view': ['/api/v1/opportunities', 'bl-windowed-load'],
     'backtest-lab': ['/api/v1/backtest-lab/status', 'backtest-lab:refresh'],
     'system': ['/api/system/status', 'refresh-learning-status'],
     'portfolio': ['/api/paper/status', 'refresh-paper']
   };
   const controls = {};
+  const freshnessAreas = {};
+  let freshnessSnapshot = null;
+  let freshnessLoading = false;
+  const externalActions = {
+    'open-ost': 'https://securities.standardbank.co.za/ost/',
+    'open-viewpoint': 'https://viewpoint.iress.co.za/st/'
+  };
+  function navigate(tab) {
+    document.querySelector(`nav button[data-tab="${tab}"]`)?.click();
+  }
+  function runAction(action) {
+    if (externalActions[action]) {
+      window.open(externalActions[action], '_blank', 'noopener');
+      return;
+    }
+    if (action === 'refresh-news') { document.getElementById('refresh-news')?.click(); return; }
+    if (action === 'refresh-canonical') { document.getElementById('refresh-canonical')?.click(); return; }
+    if (action === 'open-backtest') { navigate('backtest-lab'); return; }
+    if (action === 'open-strategies') { navigate('trading-strategies'); return; }
+    if (action === 'open-portfolio') { navigate('portfolio'); return; }
+    if (action === 'open-market-ai') { navigate('market-ai'); return; }
+    if (action === 'open-technical') {
+      navigate('technical-view');
+      document.getElementById('bl-windowed-load')?.click();
+      return;
+    }
+    if (action === 'manual-quote' || action === 'manual-source') {
+      navigate('system');
+      const target = action === 'manual-quote' ? 'manual-quote-form' : 'viewpoint-csv-form';
+      const details = document.getElementById(target)?.closest('details');
+      if (details) details.open = true;
+      document.getElementById(target)?.scrollIntoView({block:'center'});
+    }
+  }
+  function renderFreshness(area) {
+    const host = freshnessAreas[area];
+    if (!host) return;
+    host.replaceChildren();
+    const sources = freshnessSnapshot?.areas?.[area] || [];
+    if (!sources.length) {
+      host.textContent = 'Source freshness unavailable.';
+      return;
+    }
+    for (const source of sources) {
+      const row = document.createElement('div');
+      row.className = 'freshness-item';
+      const name = document.createElement('span');
+      name.className = 'freshness-label';
+      name.textContent = `${source.label}${source.instrument ? ` · ${source.instrument}` : ''}`;
+      const clock = document.createElement('span');
+      clock.className = 'freshness-clock';
+      clock.setAttribute('aria-live', 'off');
+      const state = document.createElement('span');
+      state.className = 'freshness-state';
+      state.textContent = source.state.replaceAll('_', ' ');
+      row.dataset.state = source.state.toLowerCase();
+      const detail = document.createElement('small');
+      detail.textContent = source.note || source.expiry_basis || '';
+      row.append(name, state, clock);
+      if (source.action) {
+        const action = document.createElement('button');
+        action.type = 'button';
+        action.className = 'freshness-action';
+        action.textContent = source.action.startsWith('refresh-') ? 'Refresh' :
+          externalActions[source.action] ? 'Open source' :
+          source.action === 'manual-quote' || source.action === 'manual-source' ? 'Import / enter' : 'Open';
+        action.addEventListener('click', () => runAction(source.action));
+        row.append(action);
+      }
+      if (detail.textContent) row.append(detail);
+      if (source.expires_at) clock.dataset.expiresAt = source.expires_at;
+      updateClock(row, source);
+      host.append(row);
+    }
+  }
+  function updateClock(row, source) {
+    const clock = row.querySelector('.freshness-clock');
+    const expiry = source.expires_at ? Date.parse(source.expires_at) : NaN;
+    if (!Number.isFinite(expiry)) {
+      clock.textContent = source.last_seen_at ? `Last ${new Date(source.last_seen_at).toLocaleString()}` : 'No expiry clock';
+      return;
+    }
+    const seconds = Math.ceil((expiry - Date.now()) / 1000);
+    if (seconds <= 0 || source.state === 'STALE') {
+      row.dataset.state = 'stale';
+      clock.textContent = 'STALE';
+      return;
+    }
+    if (source.state !== 'FRESH') {
+      clock.textContent = `Expiry in ${formatCountdown(seconds)}`;
+      return;
+    }
+    row.dataset.state = 'fresh';
+    clock.textContent = `Stale in ${formatCountdown(seconds)}`;
+  }
+  function formatCountdown(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const rest = seconds % 60;
+    return days ? `${days}d ${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}` :
+      `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}`;
+  }
+  async function loadFreshness() {
+    if (freshnessLoading) return;
+    freshnessLoading = true;
+    try {
+      const response = await fetch('/api/v1/data-freshness', {cache:'no-store', signal:AbortSignal.timeout(20000)});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      freshnessSnapshot = await response.json();
+      for (const area of Object.keys(freshnessAreas)) renderFreshness(area);
+    } catch (error) {
+      for (const host of Object.values(freshnessAreas)) host.textContent = `Freshness status unavailable: ${error.message}`;
+    } finally { freshnessLoading = false; }
+  }
   function show(id, state, message) {
     const c = controls[id];
     c.nav.dataset.dataState = state;
@@ -18,6 +134,7 @@
     c.buttons.forEach(button => { button.dataset.refreshState=state; button.title=message; });
   }
   function assess(id, body) {
+    if (id === 'market-overview') return body.watches?.length ? ['available', `${body.watches.length} radar watches; bars and quotes are evaluated separately.`] : ['attention', 'No active radar watches.'];
     if (id === 'trading-strategies') return body.count ? ['available', `${body.count} saved strategy profiles available; no market freshness claim.`] : ['unavailable', 'No strategy profiles available.'];
     if (id === 'canonical-opportunities' || id === 'technical-view') {
       const expected = body.refresh?.expected_session;
@@ -30,10 +147,10 @@
       return ['available', `${current} shares through latest expected session ${expected}; saved daily data, not live quotes.`];
     }
     if (id === 'market-ai') {
-      if (body.state !== 'AVAILABLE' || !body.last_success) return ['unavailable', 'News feed is not available.'];
-      const age = Date.now() - Date.parse(body.last_success);
-      if (!Number.isFinite(age) || age < -300000 || age > 86400000) return ['attention', `News available; last successful refresh ${body.last_success}.`];
-      return ['available', `News feed available; last successful refresh ${body.last_success}. Individual publication times vary.`];
+      const rows = body.areas?.['market-ai'] || [];
+      const stale = rows.some(item => item.state === 'STALE');
+      return [stale ? 'attention' : body.state === 'AVAILABLE' ? 'available' : 'unavailable',
+        rows.length ? `${rows.length} retained public news/SENS freshness clocks; timers use source-specific expiry.` : 'News/SENS freshness unavailable.'];
     }
     if (id === 'backtest-lab') return body.saved_file_count ? ['available', `${body.saved_file_count} saved backtest files found; individual runs are verified when loaded. Historical results.`] : ['unavailable', 'No saved backtest files found.'];
     if (id === 'system') return body.service === 'operational' ? ['available', 'Dashboard service responding; this does not verify every provider.'] : ['unavailable', 'Dashboard service reports a problem.'];
@@ -61,25 +178,34 @@
       show(id, state, text);
     } catch (error) { show(id, error.name === 'TimeoutError' ? 'attention' : 'unavailable', `Status check unavailable: ${error.message}`); }
   }
-  Object.entries(definitions).forEach(([id, [, action]]) => {
+  Object.entries(definitions).forEach(([id]) => {
     const nav = document.querySelector(`nav button[data-tab="${id}"]`);
     const tab = document.getElementById(id);
     if (!nav || !tab) return;
     const bar = document.createElement('div'); bar.className = 'tab-data-status';
     const output = document.createElement('span'); output.setAttribute('role', 'status');
+    const freshness = document.createElement('div'); freshness.className = 'freshness-list';
+    freshnessAreas[id] = freshness;
     const checkButton = document.createElement('button'); checkButton.type = 'button'; checkButton.textContent = 'Check status';
     checkButton.addEventListener('click', () => check(id));
-    bar.append(output, checkButton);
+    bar.append(output, freshness, checkButton);
     const buttons = [checkButton];
-    if (action && (action === 'backtest-lab:refresh' || document.getElementById(action))) {
-      const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh view';
-      refresh.addEventListener('click', () => { if (action === 'backtest-lab:refresh') document.dispatchEvent(new Event(action)); else document.getElementById(action).click(); check(id); });
-      bar.append(refresh); buttons.push(refresh);
-    }
     tab.prepend(bar); controls[id] = {nav, output, buttons};
-    nav.addEventListener('click', () => check(id));
+    nav.addEventListener('click', () => { check(id); loadFreshness(); });
     check(id);
   });
+  loadFreshness();
+  setInterval(() => { if (!document.hidden) loadFreshness(); }, 60000);
+  setInterval(() => {
+    if (!freshnessSnapshot || document.hidden) return;
+    for (const [area, host] of Object.entries(freshnessAreas)) {
+      for (const row of host.querySelectorAll('.freshness-item')) {
+        const source = (freshnessSnapshot.areas?.[area] || []).find(item =>
+          `${item.label}${item.instrument ? ` · ${item.instrument}` : ''}` === row.querySelector('.freshness-label')?.textContent);
+        if (source) updateClock(row, source);
+      }
+    }
+  }, 1000);
 
   // Colour the existing refresh and scan buttons from their own nearby
   // status output. A button with no attributable status stays neutral.

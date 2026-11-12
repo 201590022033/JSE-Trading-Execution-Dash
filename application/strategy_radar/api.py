@@ -103,6 +103,13 @@ def create_radar_blueprint(factory):
         if not local(): return jsonify(error='Local dashboard only'), 403
         return jsonify(factory().status())
 
+    @bp.get('/api/v1/strategy-radar/prepared-context')
+    def prepared_context():
+        if not local(): return jsonify(error='Local dashboard only'), 403
+        from .prepared_context import PreparedContextStore
+        service = factory()
+        return jsonify(PreparedContextStore(service.folder / 'prepared-context.sqlite3').latest())
+
     @bp.get('/api/v1/strategy-radar/watches/<instrument>/history')
     def history(instrument):
         if not local(): return jsonify(error='Local dashboard only'), 403
@@ -269,8 +276,8 @@ def create_radar_blueprint(factory):
         try:
             if request.content_length is not None and request.content_length > 2_600_000:
                 raise ValueError('CSV upload exceeds the 2.5 MB import limit')
-            if request.form.get('confirm_raw_only') != 'yes':
-                raise ValueError('confirm raw-only research retention')
+            if request.form.get('accept_operator_conventions') != 'yes':
+                raise ValueError('accept the ViewPoint CSV price, volume and interval-start conventions')
             upload = request.files.get('file')
             if upload is None or not upload.filename:
                 raise ValueError('select a ViewPoint CSV file')
@@ -289,14 +296,23 @@ def create_radar_blueprint(factory):
             records = viewpoint_table_csv(
                 raw, instrument, symbol, received_at, file_name=upload.filename,
                 file_modified_at=modified_at, interval_minutes=interval,
+                accept_operator_conventions=True,
             )
             digests = IntradayCache(service.folder / 'intraday.sqlite3').put_batch(
                 records, raw, evidence=True,
             )
+            try:
+                prepared = service.prepare_context('VIEWPOINT_CSV_IMPORT',
+                                                   imported_instrument=instrument)
+            except Exception as exc:
+                current_app.logger.exception('ViewPoint CSV imported but local context preparation failed')
+                prepared = {'state': 'UNAVAILABLE', 'error_type': type(exc).__name__}
             return jsonify(
                 saved=len(digests), instrument=instrument, source='IRESS_VIEWPOINT_TABLE_CSV',
-                source_raw_sha256=sha256(raw).hexdigest(), clock_semantics='UNKNOWN',
-                qualification='RAW_EVIDENCE_ONLY', use_for_scoring=False,
+                source_raw_sha256=sha256(raw).hexdigest(),
+                qualification='OPERATOR_ACCEPTED_CONVENTION', normalization_basis='OPERATOR_ACCEPTED_VIEWPOINT_CSV_CONVENTION_V1',
+                price_unit='ZAR_CENTS', volume_unit='SHARES_AS_EXPORTED',
+                clock_semantics='START', use_for_scoring=True, prepared_context=prepared,
                 live_execution=False,
             ), 201
         except (ValueError, TypeError, KeyError, AttributeError) as exc:

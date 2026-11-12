@@ -7,6 +7,7 @@ from contextlib import closing
 import json
 import sqlite3
 import os
+import logging
 from hashlib import sha256
 from uuid import uuid4
 
@@ -15,6 +16,7 @@ from .watch_store import WatchStore
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PROFILE = ('jse_swing_3_5d', '1.0.1')
+logger = logging.getLogger(__name__)
 
 class RadarService:
     def __init__(self, root=ROOT, *, prewarm=prewarm_daily, refresh=refresh_daily, clock=None, grace_sessions=2):
@@ -68,6 +70,9 @@ class RadarService:
                          (source_time == datetime.fromisoformat(last['source_generated_at']) and fingerprint != last['snapshot_sha256'])):
                 raise ValueError('stale or conflicting canonical snapshot')
         previous = {x['instrument']: x for x in self.store.list_watches(include_archived=True)}
+        previous_top5 = tuple(item['instrument'] for item in
+                              sorted((x for x in previous.values() if x.get('in_top5')),
+                                     key=lambda x: (x.get('rank') or 99, x['instrument'])))
         from application.backtest_lab.zebra_field_windows import SECTOR_PROXY
         records = []
         for row in rows[:5]:
@@ -83,9 +88,12 @@ class RadarService:
                        (source_time.isoformat(), now.isoformat(), fingerprint))
         try:
             self._save_prewarm([watch['instrument'] for watch in watches])
-        except Exception:
-            pass  # A damaged source must not prevent watch lifecycle or public refresh.
+        except Exception as exc:
+            logger.warning('Strategy Radar daily prewarm unavailable (%s)', type(exc).__name__)
         entered = [r['instrument'] for r in records if not previous.get(r['instrument'], {}).get('in_top5')]
+        current_top5 = tuple(r['instrument'] for r in records)
+        if current_top5 != previous_top5:
+            self._prepare_after_change('TOP5_CHANGED')
         with closing(self._db()) as db:
             missing = [r['instrument'] for r in records if not db.execute('SELECT 1 FROM radar_daily_job WHERE instrument=? LIMIT 1', (r['instrument'],)).fetchone()]
         self._queue(list(dict.fromkeys(entered + missing)), now)
@@ -119,10 +127,70 @@ class RadarService:
         if not previous or previous['state'] == 'ARCHIVED':
             self._queue([key], now)
             if start_worker: self.start()
+        self._prepare_after_change('MANUAL_SELECTION')
         return watch
 
     def set_pin(self, key, value):
-        return self.store.set_flag(key, 'pinned', value, self.clock())
+        watch = self.store.set_flag(key, 'pinned', value, self.clock())
+        self._prepare_after_change('PIN_CHANGED')
+        return watch
+
+    def ensure_prepared_context(self):
+        from .prepared_context import PreparedContextStore
+        if not self.store.list_watches():
+            return None
+        latest = PreparedContextStore(self.folder / 'prepared-context.sqlite3').latest()
+        if latest.get('state') in ('PREPARED', 'UNAVAILABLE'):
+            return latest
+        return self._prepare_after_change('INITIAL_SNAPSHOT')
+
+    def prepare_context(self, reason, *, news_report=None, event_status=None, now=None,
+                        imported_instrument=None):
+        from .prepared_context import PreparedContextStore, build_packet
+        from dashboard_feeds import feeds
+
+        now = now or self.clock()
+        news_status = feeds.peek_news()
+        if news_report is None:
+            news_report = news_status.get('data')
+        source_errors = []
+        if event_status is None:
+            repository = None
+            try:
+                from runtime_persistence import runtime_repository
+                from market_intelligence.anticipatory_radar import status as event_radar_status
+                repository = runtime_repository()
+                event_status = event_radar_status(repository, now)
+            except Exception as exc:
+                event_status = {'source_freshness': 'UNAVAILABLE'}
+                source_errors.append({'source': 'RETAINED_SENS_AND_CALENDAR', 'error_type': type(exc).__name__})
+            finally:
+                if repository is not None:
+                    repository.close()
+        store = PreparedContextStore(self.folder / 'prepared-context.sqlite3')
+        try:
+            packet = build_packet(self, reason=reason, now=now, news_report=news_report,
+                                  news_status=news_status, event_status=event_status,
+                                  source_errors=source_errors, imported_instrument=imported_instrument)
+            return store.save(packet)
+        except Exception as exc:
+            failure = {'schema': 'strategy-radar-prepared-context-v1',
+                       'state': 'UNAVAILABLE', 'prepared_at': now.isoformat(),
+                       'trigger': reason, 'error_type': type(exc).__name__,
+                       'choices': [], 'execution': {'provider_calls': 0, 'model_calls': 0,
+                                                    'backtest_runs': 0, 'live_execution': False}}
+            try:
+                store.save(failure)
+            except Exception:
+                logger.exception('Could not retain failed Strategy Radar context preparation')
+            raise
+
+    def _prepare_after_change(self, reason):
+        try:
+            return self.prepare_context(reason)
+        except Exception as exc:
+            logger.exception('Strategy Radar local context preparation failed (%s)', reason)
+            return {'state': 'UNAVAILABLE', 'error_type': type(exc).__name__}
 
     def catalog(self):
         from application.opportunities.zebra_instruments import mappings

@@ -153,7 +153,11 @@ function mergeEntryRules(rules) {
               line(evidence, 'p', value ? `${field}: R${value.value} · ${value.kind} · source ${value.provider} · source time ${value.source_time || 'unknown'} · received ${value.received_at} (${Math.floor(value.receipt_age_seconds / 60)} minutes ago)` : `${field}: unavailable`);
             }
 
-            line(evidence, 'p', `${data.bars.length} aligned bars · ${data.unknown_clock_records.length} observations with unverified interval timing.`);
+            line(evidence, 'p', `${data.bars.length} aligned bars · ${data.unknown_clock_records.length} observations awaiting an interval convention.`);
+            for (const bar of data.bars.filter(item => Object.values(item.fields).some(field => field.selected?.normalization_basis === 'OPERATOR_ACCEPTED_VIEWPOINT_CSV_CONVENTION_V1')).slice(-10)) {
+              const value = field => bar.fields[field].selected?.value || '—';
+              line(evidence, 'p', `IRESS ViewPoint · ${bar.bar_start} UTC start · R${value('open')}/${value('high')}/${value('low')}/${value('close')} · ${value('volume')} shares · owner-accepted CSV convention (cents→rand, UTC Date as interval start)`);
+            }
             for (const item of data.unknown_clock_records.slice(-5)) {
               let label = 'Source time unknown', detail = `close ${item.fields.close || 'unknown'} ZAR`;
               try {
@@ -459,7 +463,11 @@ function mergeEntryRules(rules) {
       line(row,'summary',`${rule.state || 'UNKNOWN'} · ${names[rule.id] || rule.id || 'Rule unavailable'}`);
       line(row,'p',`${rule.reason || 'reason unavailable'} · value ${rule.value ?? 'unknown'} · threshold ${rule.threshold ?? 'unknown'}`);
       const provenance=Array.isArray(rule.provenance) ? rule.provenance : [];
-      if (provenance.length) for (const source of provenance) line(trace,'small',`${source.field || 'field'} · ${source.source || 'source unknown'} · source ${source.source_timestamp || 'unknown'} · received ${source.received_at || 'unknown'} · ${source.availability || 'availability unknown'}`);
+      if (provenance.length) for (const source of provenance) {
+        const selection=source.selection_policy==='VIEWPOINT_PREFERRED' ? ' · ViewPoint preferred' : source.selection_policy==='FALLBACK_SOURCE' ? ' · fallback source' : '';
+        const conflict=source.field_state==='CONFLICT' ? ` · conflict retained: ${(source.alternatives || []).map(item=>`${item.source}=${item.value}`).join(', ') || 'other source value'}` : '';
+        line(trace,'small',`${source.field || 'field'} · ${source.source || 'source unknown'} · source ${source.source_timestamp || 'unknown'} · received ${source.received_at || 'unknown'} · ${source.availability || 'availability unknown'}${selection}${conflict}`);
+      }
     }
     else line(trace,'p','Strategy trace and volume unavailable.');
     const actions=document.getElementById('radar-selected-actions'); actions.replaceChildren();
@@ -646,13 +654,15 @@ function mergeEntryRules(rules) {
     const file = document.getElementById('viewpoint-csv-file')?.files?.[0];
     if (!file) { target.textContent = 'Select a ViewPoint CSV file.'; return; }
     const payload = new FormData(form);
+    payload.set('accept_operator_conventions',
+      form.querySelector('[name="accept_operator_conventions"]').checked ? 'yes' : 'no');
     payload.set('file_modified_at', file.lastModified ? new Date(file.lastModified).toISOString() : '');
-    target.textContent = 'Retaining raw CSV evidence…';
+    target.textContent = 'Normalizing CSV using the accepted ViewPoint conventions…';
     try {
       const response = await fetch('/api/v1/strategy-radar/intraday/viewpoint-csv', {method:'POST', body:payload});
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'CSV import failed');
-      target.textContent = `Saved ${result.saved} raw rows for ${result.instrument} · SHA-256 ${result.source_raw_sha256} · units, volume and candle boundaries unverified; excluded from scoring.`;
+      target.textContent = `Normalized ${result.saved} rows for ${result.instrument} · prices cents→rand · volume shares · UTC timestamps treated as interval starts · SHA-256 ${result.source_raw_sha256} · available to research shadow only.`;
       form.reset();
     } catch (error) { target.textContent = error.message; }
   });
@@ -794,7 +804,11 @@ function mergeEntryRules(rules) {
         line(details,'summary',`${event.instrument} · ${event.trace.strategy_id || 'profile unknown'} v${event.trace.strategy_version || '?'} · ${event.state} · ${event.observed_at} · desktop ${event.desktop_status} · ${event.trace.passed ?? '?'} / ${event.trace.applicable ?? '?'} passed, ${event.trace.unknown ?? '?'} unknown. Research only.`);
         for (const rule of (event.trace.rules || [])) {
           line(details,'p',`${rule.id}: ${rule.state} · ${rule.reason || 'reason unavailable'} · value ${rule.value ?? 'unknown'} · threshold ${rule.threshold ?? 'unknown'}`);
-          for (const source of (rule.provenance || [])) line(details,'p',`${source.field || 'field'}: ${source.source || 'unknown source'} · source ${source.source_timestamp || 'unknown'} · received ${source.received_at || 'unknown'} · ${source.availability || 'unknown'}`);
+          for (const source of (rule.provenance || [])) {
+            const selection=source.selection_policy==='VIEWPOINT_PREFERRED' ? ' · ViewPoint preferred' : source.selection_policy==='FALLBACK_SOURCE' ? ' · fallback source' : '';
+            const conflict=source.field_state==='CONFLICT' ? ` · conflict retained: ${(source.alternatives || []).map(item=>`${item.source}=${item.value}`).join(', ') || 'other source value'}` : '';
+            line(details,'p',`${source.field || 'field'}: ${source.source || 'unknown source'} · source ${source.source_timestamp || 'unknown'} · received ${source.received_at || 'unknown'} · ${source.availability || 'unknown'}${selection}${conflict}`);
+          }
         }
       }
     } catch(error) { output.textContent=`Monitor unavailable: ${error.message}`; const summary=document.getElementById('radar-monitor-summary'); if (summary) summary.textContent=output.textContent; }

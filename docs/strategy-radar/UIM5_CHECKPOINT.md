@@ -35,3 +35,35 @@ Continuation: after the owner authorized, live initialization identified Alpha V
 On 10 November, during source-options review, two explicit EODHD delayed quote probes for MTN.JSE returned the matching symbol but NA for source timestamp and last price. The account reported 19/20 daily requests used before the first probe; requests may have used remaining or extra credits. These observations do not establish overall JSE coverage or account entitlement. EODHD documents its delayed quote as a session snapshot rather than interval OHLC, and its historical intraday feed as finalized after market close; neither has been established as a current qualified intraday bar feed for this account. The separate worker was observed running with SOURCE_UNAVAILABLE. Official EODHD MCP supports ticker resolution and daily historical tools, which is a candidate for an explicitly qualified JSE research path; this would not by itself demonstrate Alpha Vantage JSE coverage or satisfy an Alpha-specific acceptance claim.
 
 Fresh review — 11 November 2026: 46 focused UIM5 and monitor regression tests passed. The dashboard initially showed an empty watch area while loading; after load it displayed 11 daily watches, so the earlier snapshot was not a persistent watch-list defect. Read-only status for MTN is OAUTH_NOT_CONFIGURED / NOT_CONNECTED. The monitor remains configured enabled with desktop notifications enabled, but its worker is not running and its last status is CLOSED; no settings were changed. Free physical memory was 4.37 GiB, below the existing 7 GiB model-start guard; the Ollama executable is present, but no model was started. This review made no provider call, model generation, notification submission, OAuth action or monitor state change. A qualified unattended intraday source, confirmed Alpha Vantage/JSE mapping and entitlement, visible notification delivery, and live owner-authorized integration checks remain unresolved. UIM5 remains ACTIVE / PARTIAL.
+
+Live status recheck — 12 November 2026: the restarted dashboard reports the
+monitor enabled and its worker running on the existing 15-minute
+`intraday_30m_research_v1` profile, with last status `SOURCE_UNAVAILABLE`.
+The MTN tool-research endpoint reports `OAUTH_NOT_CONFIGURED` /
+`NOT_CONNECTED`. The shared OST page is signed in, but its quote is explicitly
+delayed; this does not establish an unattended five-minute source. No provider,
+model or notification call was made for this recheck. The 11 November
+`CLOSED`/worker-not-running observation is superseded for current process
+status only. Qualified source coverage, JSE mapping/entitlement, and visible
+notification delivery remain open; UIM5 remains ACTIVE / PARTIAL.
+
+Alternative-provider review — 12 November 2026: EODHD already has a guarded
+intraday adapter in this repository, but it does not make the current free
+account eligible. The latest retained account check (9 November) reported the
+free plan; EODHD's current public pricing lists intraday under its EOD +
+Intraday plan ($29.99/month), not the free plan. Its intraday API documentation
+describes UTC interval-start bars, five-minute data, five credits per request
+in the existing adapter contract, and data finalized about 2–3 hours after
+market close. Public documentation does not verify this account's JSE symbol
+coverage or units. Thus EODHD could be a delayed historical-bar source if
+entitlement, mapping, and units are verified, but it is not a live five-minute
+feed. No plan was purchased and no EODHD request was made. Sources:
+https://eodhd.com/pricing and
+https://eodhd.com/financial-apis/intraday-historical-data-api .
+
+Restart audit — 12 November 2026: M12 selection is available for the eight
+historical MTN five-minute ViewPoint bars. The running monitor still reports
+`SOURCE_UNAVAILABLE` on the 30-minute profile. Alpha Vantage tool research
+reported `OAUTH_NOT_CONFIGURED` before restart. The imported bars support
+manual research. Unattended feed coverage, actual JSE entitlement and visible
+Windows banner delivery remain open.

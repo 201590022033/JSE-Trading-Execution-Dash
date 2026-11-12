@@ -44,7 +44,7 @@ class SwingRadarTests(unittest.TestCase):
     def test_real_daily_rules_work_without_intraday(self):
         result=self.result()
         self.assertEqual(result['session'],'2026-11-06')
-        self.assertEqual(result['strategy_version'],'1.1.1')
+        self.assertEqual(result['strategy_version'],'1.1.2')
         self.assertEqual(result['component_evaluation_version'],'zebra-component-windows-v2')
         self.assertEqual(result['rules'][0]['state'],'PASS')
         self.assertEqual(result['rules'][-1]['state'],'UNKNOWN')

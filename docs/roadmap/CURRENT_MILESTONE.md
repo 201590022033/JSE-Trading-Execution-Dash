@@ -1,12 +1,67 @@
+## Dashboard and milestone audit — 12 November 2026
+
+- **Swing volume.** Radar 1.1.2 and Backtest Lab 1.3.1 use the latest completed
+  session's volume divided by the median of the prior 20 sessions, strictly
+  above 1.0. A zero median uses the mean ratio. Older strategy versions keep
+  their original thresholds and `relative_volume20` remains the mean ratio.
+  The restarted browser showed MTN on Radar 1.1.2. Its API volume check passed
+  at 1.5759 times the median. Exact-version fill evidence is still open.
+- **Strategy Radar M1–M11.** Recorded local acceptance stands, including
+  M7–M10. This audit confirmed five visible choices and four retained watches
+  outside the view. The dashboard and PostgreSQL responded in shadow mode.
+  M11 returned eight freshness areas with zero errors and a PREPARED context
+  packet. The browser showed both.
+- **Strategy Radar M12.** Source preference is implemented and verified on the
+  restarted API. The historical MTN sample is insufficient for a current
+  intraday checklist or 30-minute monitor evaluation. Visible provenance for
+  a real overlap is still open.
+- **UIM.** UIM0–UIM2 are complete. UIM3 remains partial/deferred. UIM4 was
+  closed at owner direction with its verification gap recorded. UIM5 remains
+  partial. Its worker is running and reports SOURCE_UNAVAILABLE. A qualified
+  unattended intraday feed, visible Windows banner, and Alpha Vantage JSE
+  mapping/entitlement remain open. The repository contains Strategy Radar
+  M7/M8 completion records and no separate UIM7/UIM8 briefs.
+- **Verification.** The 172-test focused run passed, including the Swing,
+  Backtest Lab, forward monitor, freshness, ViewPoint and mocked UIM5 paths.
+  The first full offline run ran 2,122 tests with four failures, 21 errors and
+  one skip. The refresh timer stub and profile-version assertion were corrected
+  and passed in the focused rerun. The other 23 results came from the offline
+  runner blocking Windows asyncio's socket pair. The affected mocked UIM5
+  modules passed under direct unittest. A clean full offline run is pending.
+- **Operational checks.** Startup took over a minute. An earlier Swing request
+  exceeded 15 seconds. After restart the endpoint returned nine evaluations
+  in about four seconds. The browser showed unavailable paper-account data
+  and an unavailable Top 40 value. A fresh median-vs-mean performance replay
+  was outside this dashboard audit.
+
+## Strategy Radar M11 - freshness and prepared context — 12 November 2026
+
+The user-authorized follow-up adds source-specific dashboard clocks and
+manual/existing refresh actions. A local-only status endpoint reads retained
+data, and the browser updates its snapshot once per minute while visible.
+Bounded local context packets are initialized for existing choices and prepared on Top-5/manual-choice changes,
+ViewPoint imports, retained news capture, and the existing SENS/calendar tick.
+Research M5 remains active with its original scope. The dashboard was restarted
+and the M11 freshness route now returns AVAILABLE with eight dashboard areas and
+no endpoint errors; the live dashboard displays freshness rows and PREPARED
+Radar context. M12 implements owner-approved ViewPoint preference for
+overlapping retained intraday fields. The restarted API marked all 40 OHLCV
+fields of eight historical MTN five-minute bars VIEWPOINT_PREFERRED. The browser
+showed the five-minute view with five unknown rules. Visible provenance for an
+actual source overlap remains open. See [Strategy Radar M11](../strategy-radar/milestones/M11.md) and
+[M12](../strategy-radar/milestones/M12.md), ADR 0103/0104, and the M11/M12
+change notes.
+
 ## Owner-authorized parallel execution — 12 November 2026
 
 Research M5 remains active with its documented scope. Separately, the owner
 asked to continue the narrowly scoped Strategy Radar M10 work in parallel; the
-six-choice UI and archived-rank audit are implemented and verified locally.
+six-choice UI, archived-rank audit and owner-accepted ViewPoint CSV
+normalization are implemented and verified locally.
 This is a one-time sequencing exception. It does not complete, replace or
-change the status of research M5. The supplied IRESS CSV is retained as
-raw-only evidence; units, bar boundaries and unattended-use permission remain
-unverified. See [Strategy Radar M10](../strategy-radar/milestones/M10.md)
+change the status of research M5. The supplied IRESS CSV is normalized for
+local shadow research under documented owner-accepted conventions; no
+unattended collector is enabled. See [Strategy Radar M10](../strategy-radar/milestones/M10.md)
 and the [M10 checkpoint](../strategy-radar/CHECKPOINT.md).
 
 ## Strategy Radar M6 — completed locally, 11 November 2026
@@ -37,10 +92,11 @@ The Strategy Radar M-series is separate from the UIM/research redesign.
 Strategy Radar M6 was completed locally and committed/pushed as `bfec6fc`;
 its post-restart dashboard verification is recorded in the M6 brief below.
 Older entries saying M6 is pending are dated snapshots, not current status.
-Strategy Radar M7, M8 and M9 are completed locally. M10 is now active under
-the owner's one-time parallel authorization; its six-choice view and raw-only
-ViewPoint CSV import are verified, while scoring and unattended-use
-qualification remain blocked on source evidence. See [M10](../strategy-radar/milestones/M10.md).
+Strategy Radar M7, M8, M9 and M10 are completed locally. M10's six-choice
+view and normalized ViewPoint CSV research path are complete under the owner's
+one-time parallel authorization. Exact browser idle timeout and unattended
+collection remain operational follow-ups, not barriers to manual use. See
+[M10](../strategy-radar/milestones/M10.md).
 No UIM6/UIM7/UIM8 briefs are implied by these M-series labels.
 
 ## Strategy Radar M7/M8 completed locally — 11 November 2026

@@ -197,5 +197,37 @@ class Ema20ReclaimWindowTests(unittest.TestCase):
                 ema20_reclaimed([100, 101], lookback)
 
 
+class VolumeMedianRuleTests(unittest.TestCase):
+    def _data(self, prior_volumes, last_volume):
+        data = chart()
+        for bar, volume in zip(data["bars"][-21:-1], prior_volumes):
+            bar["volume"] = volume
+        data["bars"][-1]["volume"] = last_volume
+        return data
+
+    def test_median_passes_when_a_few_spikes_inflate_the_mean(self):
+        # 17 quiet sessions at 1000 and 3 spikes at 20000: mean = 3850, median = 1000
+        prior = [1000] * 17 + [20000] * 3
+        data = self._data(prior, 1500)
+        result = snapshot(data, evaluated_at=clock(data), feature_profile_version="1.1.2")
+        self.assertLess(result["values"]["relative_volume20"], 1.0)           # mean-based ratio fails
+        self.assertGreater(result["values"]["relative_volume20_median"], 1.0)  # median-based ratio passes
+        self.assertTrue(result["conditions"]["volume_above_prior20"])
+        legacy = snapshot(data, evaluated_at=clock(data), feature_profile_version="1.1.1")
+        self.assertFalse(legacy["conditions"]["volume_above_prior20"])
+
+    def test_median_fails_when_volume_is_below_typical_session(self):
+        data = self._data([1000] * 20, 900)
+        result = snapshot(data, evaluated_at=clock(data), feature_profile_version="1.1.2")
+        self.assertFalse(result["conditions"]["volume_above_prior20"])
+
+    def test_zero_median_falls_back_to_mean_ratio(self):
+        prior = [0] * 12 + [1000] * 8   # median 0, mean 400
+        data = self._data(prior, 500)
+        result = snapshot(data, evaluated_at=clock(data), feature_profile_version="1.1.2")
+        self.assertEqual(result["values"]["relative_volume20_median"], result["values"]["relative_volume20"])
+        self.assertTrue(result["conditions"]["volume_above_prior20"])
+
+
 if __name__ == "__main__":
     unittest.main()

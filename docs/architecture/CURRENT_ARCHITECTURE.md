@@ -1,13 +1,13 @@
 ## M10 manual ViewPoint CSV evidence — 12 November 2026
 
 The local Radar upload accepts a manually supplied ViewPoint chart-table CSV,
-retains its bytes by SHA-256, and stores the original row values as
-unknown-clock, unverified-unit research evidence. The 12 November MTN.JSE
-sample has eight rows and a UTC `Date` column, but no verified price scale,
-volume meaning or bar-start/end convention. It therefore contributes no
-canonical bars or scoring inputs. Manual local research is authorized;
-automated collection permission and browser session timeout behavior remain
-unverified. No keepalive or polling was added. See the [M10 CSV/session change
+retains its bytes by SHA-256, and stores the original row values alongside
+normalized bars using the owner's accepted interpretation: ZAR cents, shares,
+and UTC `Date` as interval start. The eight MTN.JSE rows feed local research
+shadow; their convention is explicitly attributed to the operator. Normal
+freshness rules still prevent stale bars from posing as current quotes. No
+unattended collection, login automation or keepalive was added; the exact
+browser idle timeout remains unknown. See the [M10 CSV/session change
 note](../changes/2026-11-12-viewpoint-csv-import-and-session-review.md).
 
 ## M5 research context — 5 November 2026
@@ -438,3 +438,16 @@ OST's native Save To Excel control delivers an HTML price-history grid with an `
 ## R11 separate IRESS numerical path, 8 October 2026
 
 The OST v3 collector may now carry one optional full `research_charts.SASOL` IRESS history derived from hash-matched raw archive at its original acquisition time. Normalization preserves and validates it. Canonical `get_chart` remains OST; research selection supplies the complete IRESS chart to technical shadow calculations and retains the OST close benchmark. Hosted audits derive exact integer-cent/whole-unit comparisons from these two charts without a second store. Receipt expiry, missing benchmarks and immutable same-source label rules remain enforced. Historical AI still stops before its model for v3; B5/execution gates are intact. See ADR 0061 and [R11 evidence](../research/IRESS_OPEN_ROUTING_R11.md).
+## Strategy Radar M11 - local freshness and prepared context, 12 November 2026
+
+The dashboard now has a loopback-only source-freshness endpoint backed by
+retained local caches and data. Source-specific clocks remain distinct; status
+reads do not fetch providers or invoke models. Per-tab refresh controls link to
+existing explicit/manual flows, and OST/ViewPoint browser sign-in visibility
+has no inferred timeout or keepalive.
+
+The Strategy Radar stores bounded SQLite context packets on Top-5 membership,
+manual choice/pin, ViewPoint CSV, news-capture, and SENS/calendar-tick events.
+Packets retain current-choice evidence and source citations; they are not
+automatic model prompts, forecasts, or Backtest executions. The already-running
+dashboard process predates the endpoint and must be normally restarted.

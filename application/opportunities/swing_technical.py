@@ -2,6 +2,7 @@
 from hashlib import sha256
 import json
 from math import isfinite
+from statistics import median
 from datetime import timedelta
 
 from domain.features.technical import _ema, candidate_rsi_wilder
@@ -17,8 +18,10 @@ RECLAIM_LOOKBACK_SESSIONS = 3
 READ_LIMIT = 5000
 STRATEGY_PROFILE_ID = "jse_swing_3_5d"
 _FEATURE_CONTRACTS = {
-    "1.1.0": (VERSION, 1),
-    "1.1.1": ("swing-ohlcv-wilder-v2", RECLAIM_LOOKBACK_SESSIONS),
+    "1.1.0": (VERSION, 1, "relative_volume20"),
+    "1.1.1": ("swing-ohlcv-wilder-v2", RECLAIM_LOOKBACK_SESSIONS, "relative_volume20"),
+    "1.1.2": ("swing-ohlcv-wilder-v3", RECLAIM_LOOKBACK_SESSIONS, "relative_volume20_median"),
+    "1.3.1": ("swing-ohlcv-wilder-lab-v2", 1, "relative_volume20_median"),
 }
 
 
@@ -56,7 +59,7 @@ def snapshot(chart, *, evaluated_at, benchmark_chart=None, feature_profile_versi
     """All calculations use only observable bars. Null means unavailable, not neutral."""
     from .public_research import _available_at
     try:
-        feature_version, reclaim_lookback = _FEATURE_CONTRACTS[feature_profile_version]
+        feature_version, reclaim_lookback, volume_metric = _FEATURE_CONTRACTS[feature_profile_version]
     except (KeyError, TypeError):
         raise ValueError("unsupported Swing technical feature profile") from None
     now = timestamp(evaluated_at.isoformat() if hasattr(evaluated_at, "isoformat") else evaluated_at)
@@ -83,7 +86,7 @@ def snapshot(chart, *, evaluated_at, benchmark_chart=None, feature_profile_versi
     from .swing_data_quality import diagnostics, real_ohlc
     quality = diagnostics(bars)
     values = {"ema20": None, "ema50": None, "rsi14_wilder": None, "atr14_wilder": None,
-              "relative_volume20": None, "prior_high10": None, "prior_low10": None,
+              "relative_volume20": None, "relative_volume20_median": None, "prior_high10": None, "prior_low10": None,
               "prior_high20": None, "prior_low20": None, "relative_return20": None}
     missing = []
     if len(bars) >= 50:
@@ -120,6 +123,9 @@ def snapshot(chart, *, evaluated_at, benchmark_chart=None, feature_profile_versi
         if len(volumes) != 21 or any(not isfinite(x) or x < 0 for x in volumes) or sum(volumes[:-1]) <= 0:
             raise ValueError("volume unavailable")
         values["relative_volume20"] = volumes[-1]/(sum(volumes[:-1])/20)
+        prior_median = median(volumes[:-1])
+        values["relative_volume20_median"] = (volumes[-1] / prior_median
+                                              if prior_median > 0 else values["relative_volume20"])
     except (KeyError, TypeError, ValueError, OverflowError):
         missing.append("VOLUME_UNAVAILABLE")
     benchmark_source = None
@@ -149,7 +155,7 @@ def snapshot(chart, *, evaluated_at, benchmark_chart=None, feature_profile_versi
                 stop_rule="LOWER_OF_PRIOR_10_SESSION_LOW_AND_ONE_ATR_BELOW_CLOSE")
     conditions = {"ema_uptrend": trend, "breakout20": breakout, "ema20_reclaim": pullback,
         "rsi_50_70": None if values["rsi14_wilder"] is None else 50 <= values["rsi14_wilder"] <= 70,
-        "volume_above_prior20": None if values["relative_volume20"] is None else values["relative_volume20"] > 1,
+        "volume_above_prior20": None if values[volume_metric] is None else values[volume_metric] > 1,
         "outperforming_benchmark20": None if values["relative_return20"] is None else values["relative_return20"] > 0}
     core = None if missing or geometry["state"] != "SHADOW_REFERENCE" else (
         trend and (breakout or pullback) and conditions["rsi_50_70"] and

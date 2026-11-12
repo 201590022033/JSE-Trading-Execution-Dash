@@ -58,6 +58,46 @@ class IntradayTests(unittest.TestCase):
         self.assertEqual(item['fields']['close']['alternatives'][0]['source'],'A')
         self.assertFalse(item['provisional'])
 
+    def test_viewpoint_preferred_with_field_level_fallback_and_conflicts_retained(self):
+        viewpoint=bar(source='IRESS_VIEWPOINT_TABLE_CSV',availability='MANUAL',unit='ZAR_CENTS',
+                      fields={'close':23000})
+        fallback=bar(source='EODHD',availability='LIVE',fields={
+            'open':22900,'high':23100,'low':22800,'close':23100,'volume':25})
+        fields=merge_bars([fallback,viewpoint])['bars'][0]['fields']
+        self.assertEqual(fields['close']['state'],'CONFLICT')
+        self.assertEqual(fields['close']['selected']['source'],'IRESS_VIEWPOINT_TABLE_CSV')
+        self.assertEqual(fields['close']['selected']['value'],'230')
+        self.assertEqual(fields['close']['selected']['selection_policy'],'VIEWPOINT_PREFERRED')
+        self.assertEqual(fields['close']['alternatives'][0]['source'],'EODHD')
+        self.assertEqual(fields['open']['selected']['source'],'EODHD')
+        self.assertEqual(fields['open']['selected']['selection_policy'],'FALLBACK_SOURCE')
+
+    def test_stale_viewpoint_does_not_override_usable_fallback(self):
+        viewpoint=bar(source='IRESS_VIEWPOINT_TABLE_CSV',availability='STALE',
+                      fields={'close':23000})
+        fallback=bar(source='EODHD',availability='DELAYED',fields={'close':23100})
+        field=merge_bars([viewpoint,fallback])['bars'][0]['fields']['close']
+        self.assertEqual(field['state'],'CONFLICT')
+        self.assertEqual(field['selected']['source'],'EODHD')
+        self.assertEqual(field['selected']['selection_policy'],'FALLBACK_SOURCE')
+
+    def test_derived_viewpoint_source_keeps_preference(self):
+        viewpoint=bar(source='DERIVED_5M:IRESS_VIEWPOINT_TABLE_CSV',unit='ZAR',
+                      interval_minutes=30,fields={'close':230})
+        fallback=bar(source='DERIVED_5M:EODHD',unit='ZAR',interval_minutes=30,
+                     fields={'close':231})
+        for record in (viewpoint,fallback):
+            record.update(
+                bar_start='2026-11-06T07:00:00+00:00',
+                bar_end='2026-11-06T07:30:00+00:00',
+                source_timestamp='2026-11-06T07:30:00+00:00',
+                received_at='2026-11-06T07:31:00+00:00',
+                clock_semantics='END',
+            )
+        field=merge_bars([fallback,viewpoint])['bars'][0]['fields']['close']
+        self.assertEqual(field['selected']['source'],'DERIVED_5M:IRESS_VIEWPOINT_TABLE_CSV')
+        self.assertEqual(field['selected']['selection_policy'],'VIEWPOINT_PREFERRED')
+
     def test_raw_bytes_and_references_are_pruned_atomically(self):
         import sqlite3
         from contextlib import closing

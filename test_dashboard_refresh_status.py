@@ -18,7 +18,7 @@ const button = {textContent:'Refresh feeds', dataset:{}, title:'',
 const document = {querySelector: () => null, getElementById: () => null,
  querySelectorAll: () => [button]};
 class MutationObserver { constructor(fn){changed=fn} observe(){} }
-vm.runInNewContext(fs.readFileSync(process.argv[1], 'utf8'), {document,MutationObserver});
+vm.runInNewContext(fs.readFileSync(process.argv[1], 'utf8'), {document,MutationObserver,setInterval: () => 0});
 if(button.dataset.refreshState !== 'unavailable') throw Error('missing red');
 button.click(); if(button.dataset.refreshState !== 'checking') throw Error('missing checking');
 status.textContent = 'AVAILABLE: refreshed data'; changed();

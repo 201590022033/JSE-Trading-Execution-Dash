@@ -38,10 +38,12 @@ def manual_viewpoint_rows(instrument, raw_rows, received_at, *, unit='ZAR_CENTS'
 
 
 def viewpoint_table_csv(raw, instrument, symbol, received_at, *, file_name, file_modified_at=None,
-                        interval_minutes=5):
-    """Retain a ViewPoint chart-table export without guessing field semantics."""
+                        interval_minutes=5, accept_operator_conventions=False):
+    """Parse a ViewPoint chart-table export using the owner's accepted conventions."""
     if not isinstance(raw, bytes) or not 0 < len(raw) <= 2_500_000:
         raise ValueError('bounded CSV bytes required')
+    if accept_operator_conventions is not True:
+        raise ValueError('operator acceptance of the CSV conventions is required')
     if not isinstance(file_name, str) or not file_name.lower().endswith('.csv') or len(file_name) > 200:
         raise ValueError('CSV filename required')
     if not re.fullmatch(r'[A-Z][A-Z0-9]{1,7}\.JSE', symbol or ''):
@@ -69,23 +71,29 @@ def viewpoint_table_csv(raw, instrument, symbol, received_at, *, file_name, file
             if source_time in seen:
                 raise ValueError('duplicate chart timestamp')
             seen.add(source_time)
+            raw_fields = {}
             for field in ('Open', 'High', 'Low', 'Close'):
                 value = Decimal(row[field].replace(',', ''))
                 if not value.is_finite() or value <= 0:
                     raise ValueError('positive numeric OHLC values required')
+                raw_fields[field.lower()] = str(value)
             volume = row['Volume']
             if not re.fullmatch(r'(?:\d+|\d{1,3}(?:,\d{3})+)', volume or ''):
                 raise ValueError('numeric Volume column required')
+            raw_fields['volume'] = volume.replace(',', '')
             raw_row = {key: value for key, value in row.items() if key is not None}
+            bar_end = source_time + timedelta(minutes=interval_minutes)
             record = {
                 'instrument': instrument, 'source': 'IRESS_VIEWPOINT_TABLE_CSV',
                 'interval_minutes': interval_minutes,
-                'bar_start': None, 'bar_end': None, 'source_timestamp': source_time.isoformat(),
-                'received_at': received_at.isoformat(), 'clock_semantics': 'UNKNOWN',
-                'source_timestamp_basis': 'UTC Date column; bar boundary unverified',
-                'availability': 'MANUAL', 'unit': 'UNVERIFIED',
-                'fields': {field: None for field in ('open', 'high', 'low', 'close', 'volume')},
-                'provisional': True,
+                'bar_start': source_time.isoformat(), 'bar_end': bar_end.isoformat(),
+                'source_timestamp': source_time.isoformat(),
+                'received_at': received_at.isoformat(), 'clock_semantics': 'START',
+                'source_timestamp_basis': 'UTC Date column; interval start accepted by owner',
+                'normalization_basis': 'OPERATOR_ACCEPTED_VIEWPOINT_CSV_CONVENTION_V1',
+                'availability': 'MANUAL', 'unit': 'ZAR_CENTS',
+                'fields': raw_fields,
+                'provisional': bar_end > received_at,
                 'raw_payload': json.dumps({
                     'format': 'IRESS_VIEWPOINT_TABLE_CSV',
                     'file_name': file_name,
@@ -93,10 +101,12 @@ def viewpoint_table_csv(raw, instrument, symbol, received_at, *, file_name, file
                     'timestamp': stamp,
                     'raw_values': raw_row,
                     'qualification': {
-                        'price_unit': 'UNKNOWN',
-                        'volume_semantics': 'UNKNOWN',
-                        'bar_boundary': 'UNKNOWN',
-                        'use_for_scoring': False,
+                        'state': 'OPERATOR_ACCEPTED_CONVENTION',
+                        'price_unit': 'ZAR_CENTS',
+                        'volume_unit': 'SHARES_AS_EXPORTED',
+                        'bar_boundary': 'START',
+                        'use_for_scoring': True,
+                        'basis': 'Price magnitude matches retained JSE daily rand scale; UTC timestamps advance at the selected chart interval.',
                     },
                 }, sort_keys=True),
             }

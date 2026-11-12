@@ -100,6 +100,35 @@ class IntradayEvaluationTests(unittest.TestCase):
         self.assertEqual(out['rules'][0]['state'],'UNKNOWN')
         self.assertNotEqual(out['state'],'ENTRY_MET')
 
+    def test_viewpoint_preference_resolves_overlap_for_shadow_with_conflict_visible(self):
+        viewpoint=bars(source='IRESS_VIEWPOINT_TABLE_CSV')
+        for record in viewpoint:
+            record['availability']='MANUAL'
+            record['unit']='ZAR_CENTS'
+            for field in ('open','high','low','close'):
+                record['fields'][field] *= 100
+        fallback=bars(source='EODHD',values=(100,101,102,90))
+        out=self.run_eval(viewpoint+fallback)
+        entry=out['rules'][0]
+        self.assertEqual(out['state'],'ENTRY_MET')
+        self.assertEqual(entry['state'],'PASS')
+        self.assertEqual(entry['provenance'][0]['source'],'IRESS_VIEWPOINT_TABLE_CSV')
+        self.assertEqual(entry['provenance'][0]['selection_policy'],'VIEWPOINT_PREFERRED')
+        self.assertEqual(entry['provenance'][0]['field_state'],'CONFLICT')
+        self.assertEqual(entry['provenance'][0]['alternatives'][0]['source'],'EODHD')
+
+    def test_usable_fallback_wins_when_viewpoint_copy_is_stale(self):
+        viewpoint=bars(source='IRESS_VIEWPOINT_TABLE_CSV',values=(100,101,102,90))
+        for record in viewpoint:
+            record['availability']='STALE'
+        fallback=bars(source='EODHD')
+        out=self.run_eval(viewpoint+fallback)
+        entry=out['rules'][0]
+        self.assertEqual(entry['state'],'PASS')
+        self.assertEqual(entry['provenance'][0]['source'],'EODHD')
+        self.assertEqual(entry['provenance'][0]['selection_policy'],'FALLBACK_SOURCE')
+        self.assertEqual(entry['provenance'][0]['field_state'],'CONFLICT')
+
     def test_source_quality_is_field_specific_and_shadow_only(self):
         for availability in ('STALE','HISTORICAL','UNKNOWN'):
             with self.subTest(availability=availability):

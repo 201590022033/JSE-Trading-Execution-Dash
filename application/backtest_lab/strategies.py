@@ -3,8 +3,10 @@ from statistics import mean
 from application.opportunities.swing_technical import snapshot
 from domain.features.technical import _ema
 
+SWING_PROFILE_VERSION = '1.3.1'
+
 PROFILES = (
-    ('swing', 'Swing baseline', 'jse_swing_3_5d', '1.3.0'),
+    ('swing', 'Swing baseline', 'jse_swing_3_5d', SWING_PROFILE_VERSION),
     ('vcp', 'VCP daily approximation', 'vcp_daily_research', '1.0.0'),
     ('box', 'Box breakout daily approximation', 'box_breakout_daily_research', '1.0.0'),
     ('pull', 'Pullback daily approximation', 'pullback_daily_research', '1.0.0'),
@@ -16,7 +18,7 @@ def condition(name, text, value, passed):
             'ok': passed is True}
 
 
-def evaluate(strategy, instrument, i, bars_context):
+def evaluate(strategy, instrument, i, bars_context, *, swing_version=SWING_PROFILE_VERSION):
     """Only bars through i and the aligned benchmark may enter the decision."""
     rows = bars_context[instrument][:i + 1]
     if len(rows) < 51:
@@ -34,12 +36,17 @@ def evaluate(strategy, instrument, i, bars_context):
         benchmark = [x for x in bars_context.get('ETF_STX40', []) if x['timestamp'][:10] <= session]
         chart = {'interval': '1d', 'currency': 'ZAR', 'symbol': instrument, 'bars': rows}
         bchart = {'interval': '1d', 'currency': 'ZAR', 'symbol': 'ETF_STX40', 'bars': benchmark} if benchmark else None
-        result = snapshot(chart, evaluated_at=_available_at(session) + timedelta(seconds=1), benchmark_chart=bchart)
+        feature_profile, volume_label, volume_metric = {
+            '1.3.0': ('1.1.0', 'average', 'relative_volume20'),
+            SWING_PROFILE_VERSION: (SWING_PROFILE_VERSION, 'median', 'relative_volume20_median'),
+        }[swing_version]
+        result = snapshot(chart, evaluated_at=_available_at(session) + timedelta(seconds=1),
+                          benchmark_chart=bchart, feature_profile_version=feature_profile)
         c = result.get('conditions', {}); v = result.get('values', {}); geometry = result.get('geometry', {})
         traces = [condition('Trend', 'EMA20/50 uptrend', v.get('ema20'), c.get('ema_uptrend')),
             condition('Breakout or reclaim', '20-session breakout or EMA20 reclaim', v.get('prior_high20'), bool(c.get('breakout20') or c.get('ema20_reclaim'))),
             condition('Momentum', 'Wilder RSI 50–70', v.get('rsi14_wilder'), c.get('rsi_50_70')),
-            condition('Volume', 'Volume above prior 20-session average', v.get('relative_volume20'), c.get('volume_above_prior20')),
+            condition('Volume', f'Volume above prior 20-session {volume_label}', v.get(volume_metric), c.get('volume_above_prior20')),
             condition('Benchmark', 'Outperform aligned benchmark over 20 sessions', v.get('relative_return20'), c.get('outperforming_benchmark20')),
             condition('Snapshot eligibility', 'Complete snapshot and valid shadow stop', None, c.get('core_setup'))]
         traces.append(source_rule)

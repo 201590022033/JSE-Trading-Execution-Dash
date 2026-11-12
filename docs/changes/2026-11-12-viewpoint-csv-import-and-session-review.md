@@ -1,7 +1,7 @@
 # ViewPoint CSV import and session review
 
 Date: 12 November 2026  
-Status: Manual raw-evidence import verified; source qualification and idle-timeout measurement remain open.
+Status: Owner-accepted normalization completed for local research; exact idle-timeout measurement remains open.
 
 ## Import
 
@@ -16,16 +16,39 @@ was imported through the local Strategy Radar endpoint into
 - File modification time (07:56:16 UTC) and local import receipt
   (08:14:23 UTC) are retained separately from source timestamps.
 - Rows are manually supplied, provisional, unknown-clock and
-  `UNVERIFIED`-unit evidence. Raw OHLCV strings are retained, but canonical
-  fields remain null. The sample creates zero aligned bars and cannot feed
-  shadow evaluation or daily Zebra ranking.
-- Manual local research use was authorized. Entitlement or permission for
-  automated collection was not established.
+  `UNVERIFIED`-unit evidence in the original import. The owner subsequently
+  directed normalization using a documented interpretation; the earlier rows
+  remain retained and are hidden from the merged view once their normalized
+  versions exist.
+- The eight normalized bars use ZAR cents converted to rand, integer Volume as
+  shares, and the UTC `Date` as each interval start. Each bar retains the
+  convention ID and the original source bytes/row strings remain hash-bound.
+  The normalization is explicitly an owner-accepted interpretation, not a
+  representation that IRESS certified those semantics.
+- The bars are available for local research shadow only. They do not enter the
+  daily Zebra ranking or broker execution path.
 
-The upload path requires an exact JSE symbol mapping, an explicit raw-only
-confirmation and a bounded CSV. The import preserves raw response bytes by
-hash. The dashboard exposes the retained values with their unverified status;
-it does not relabel them as normalized prices or exact volume.
+The upload path requires an exact JSE symbol mapping, explicit operator
+acceptance of the interpretation and a bounded CSV. The import preserves raw
+response bytes by hash and exposes normalized bars with their convention and
+lineage.
+
+## Normalization continuation — 12 November 2026
+
+The retained MTN daily closes around R230 agree in scale with the CSV values
+around 23,000 and the ViewPoint display, supporting a 100:1 cents-to-rand
+conversion. Integer volumes are treated as shares as exported. UTC timestamps
+advance at five-minute intervals and align to the JSE session; the operator
+accepts them as interval starts. These assumptions are now explicit in
+`OPERATOR_ACCEPTED_VIEWPOINT_CSV_CONVENTION_V1`.
+
+The cache now contains eight normalized 5-minute bars (09:20–09:55 SAST),
+with prices converted to rand. The raw-only earlier records remain persisted,
+but the read/merge view deduplicates them against normalized records for the
+same CSV hash. The last bar ends at 10:00 SAST and the original import was
+received at 10:14:23 SAST; ordinary freshness checks therefore keep it from
+appearing as a current five-minute observation. The source hash and raw bytes
+did not change.
 
 ## Save-step and session observations
 
@@ -44,10 +67,11 @@ policy before considering any persistence behavior.
 
 ## Verification
 
-The focused `test_strategy_radar_intraday_integration.py` file passed 10 tests
+The focused `test_strategy_radar_intraday_integration.py` file passed 11 tests
 with the repository virtual environment. Tests verify CSV shape and symbol
-validation, raw-only handling, chronological output for reversed input rows,
-and exclusion from scoring. `node --check static/js/strategy-radar.js` and
+validation, operator-accepted normalization, chronological output for reversed
+input rows, duplicate raw-record suppression and shadow eligibility.
+`node --check static/js/strategy-radar.js` and
 `git diff --check` passed.
 
 See the [Strategy Radar M10 milestone](../strategy-radar/milestones/M10.md),
