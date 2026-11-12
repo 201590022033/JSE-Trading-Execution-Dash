@@ -1,3 +1,14 @@
+## Owner-authorized parallel execution — 12 November 2026
+
+Research M5 remains active with its documented scope. Separately, the owner
+asked to continue the narrowly scoped Strategy Radar M10 work in parallel; the
+six-choice UI and archived-rank audit are implemented and verified locally.
+This is a one-time sequencing exception. It does not complete, replace or
+change the status of research M5. The supplied IRESS CSV is retained as
+raw-only evidence; units, bar boundaries and unattended-use permission remain
+unverified. See [Strategy Radar M10](../strategy-radar/milestones/M10.md)
+and the [M10 checkpoint](../strategy-radar/CHECKPOINT.md).
+
 ## Strategy Radar M6 — completed locally, 11 November 2026
 
 After a normal dashboard restart, health and PostgreSQL were available and the
@@ -26,8 +37,10 @@ The Strategy Radar M-series is separate from the UIM/research redesign.
 Strategy Radar M6 was completed locally and committed/pushed as `bfec6fc`;
 its post-restart dashboard verification is recorded in the M6 brief below.
 Older entries saying M6 is pending are dated snapshots, not current status.
-Strategy Radar M7, M8 and M9 are now completed locally and documented below;
-no next Strategy Radar coding milestone is active.
+Strategy Radar M7, M8 and M9 are completed locally. M10 is now active under
+the owner's one-time parallel authorization; its six-choice view and raw-only
+ViewPoint CSV import are verified, while scoring and unattended-use
+qualification remain blocked on source evidence. See [M10](../strategy-radar/milestones/M10.md).
 No UIM6/UIM7/UIM8 briefs are implied by these M-series labels.
 
 ## Strategy Radar M7/M8 completed locally — 11 November 2026
@@ -141,7 +154,7 @@ Separate Strategy Radar series: inactive responsive shell, collapsible import pa
 
 ## Strategy Radar roadmap — prepared 6 November 2026
 
-The user-approved radar, product-aware manual trade plan, data lifecycle and alerts are planned in [Strategy Radar roadmap](../strategy-radar/README.md), with [hierarchy](../strategy-radar/HIERARCHY.md) and [M1 start brief](../strategy-radar/milestones/M1.md). These are a new named M-series; earlier research M5–M7, R12 and P1 remain as recorded below. No Strategy Radar implementation milestone is active until the user says “go M1”. Preserve existing uncommitted work and prior evidence.
+The user-approved radar, product-aware manual trade plan, data lifecycle and alerts are tracked in the separate [Strategy Radar roadmap](../strategy-radar/README.md), with [hierarchy](../strategy-radar/HIERARCHY.md). Strategy Radar M1–M9 are complete; the owner authorized M10 on 12 November 2026 for the six-choice view and IRESS intraday qualification. The owner also requested this bounded M10 work alongside research M5; that one-time exception leaves research M5's scope unchanged. Earlier research M5–M7, R12 and P1 retain their recorded status. Preserve existing uncommitted work and prior evidence.
 
 ## Research redesign: M6/M7 continuation — 6 November 2026
 

@@ -1,5 +1,6 @@
 """Local Strategy Radar API. Reads do not call providers; no broker access."""
 import sqlite3
+from hashlib import sha256
 from urllib.parse import urlsplit
 from flask import Blueprint, current_app, jsonify, request
 
@@ -10,8 +11,8 @@ def create_radar_blueprint(factory):
     def local():
         return request.remote_addr in ('127.0.0.1', '::1')
 
-    def mutation_allowed():
-        if not local() or not request.is_json:
+    def mutation_allowed(*, require_json=True):
+        if not local() or (require_json and not request.is_json):
             return False
         origin = request.headers.get('Origin')
         if origin:
@@ -254,6 +255,50 @@ def create_radar_blueprint(factory):
             digests = retain(cache,records,evidence=True)
             return jsonify(saved=len(digests), clock_semantics='UNKNOWN',
                            invalid_fields=invalid_fields,source='IRESS_VIEWPOINT_MANUAL', live_execution=False), 201
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            return jsonify(error=str(exc)), 422
+
+    @bp.post('/api/v1/strategy-radar/intraday/viewpoint-csv')
+    def import_viewpoint_csv():
+        if not mutation_allowed(require_json=False) or request.mimetype != 'multipart/form-data':
+            return jsonify(error='Local same-origin file upload required'), 403
+        from datetime import datetime, timezone
+        from application.opportunities.zebra_instruments import mappings
+        from .intraday_store import IntradayCache
+        from .intraday_adapters import viewpoint_table_csv
+        try:
+            if request.content_length is not None and request.content_length > 2_600_000:
+                raise ValueError('CSV upload exceeds the 2.5 MB import limit')
+            if request.form.get('confirm_raw_only') != 'yes':
+                raise ValueError('confirm raw-only research retention')
+            upload = request.files.get('file')
+            if upload is None or not upload.filename:
+                raise ValueError('select a ViewPoint CSV file')
+            raw = upload.stream.read(2_500_001)
+            if len(raw) > 2_500_000:
+                raise ValueError('CSV exceeds the 2.5 MB import limit')
+            instrument = request.form['instrument'].strip().upper()
+            symbol = request.form['symbol'].strip().upper()
+            service = factory()
+            if mappings(service.root / 'runtime/local-swing-data/radar-public-prices').get(instrument) != symbol.removesuffix('.JSE'):
+                raise ValueError('instrument and exact JSE chart symbol do not match')
+            interval = int(request.form['interval_minutes'])
+            modified_at_text = request.form.get('file_modified_at', '').strip()
+            modified_at = datetime.fromisoformat(modified_at_text.replace('Z', '+00:00')) if modified_at_text else None
+            received_at = service.clock()
+            records = viewpoint_table_csv(
+                raw, instrument, symbol, received_at, file_name=upload.filename,
+                file_modified_at=modified_at, interval_minutes=interval,
+            )
+            digests = IntradayCache(service.folder / 'intraday.sqlite3').put_batch(
+                records, raw, evidence=True,
+            )
+            return jsonify(
+                saved=len(digests), instrument=instrument, source='IRESS_VIEWPOINT_TABLE_CSV',
+                source_raw_sha256=sha256(raw).hexdigest(), clock_semantics='UNKNOWN',
+                qualification='RAW_EVIDENCE_ONLY', use_for_scoring=False,
+                live_execution=False,
+            ), 201
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             return jsonify(error=str(exc)), 422
 

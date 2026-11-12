@@ -25,6 +25,20 @@ The other configured source was Africa API, added on 4 November. An explicit two
 
 The one-time `check-eodhd-intraday-access` automation was deleted after the check.
 
+## ViewPoint chart-table CSV — 12 November 2026
+
+The user supplied `MTN.JSE (20261112095500000 _ 20261112092000000).csv`.
+The 823-byte file is retained in the local intraday cache with source SHA-256
+`D64F5286D80D81995F75343EF48BCEFF96FF137D2C278EE8F63CDD4236A4BCD3`.
+Its eight `Date` values range from 07:20 to 07:55 UTC and are five minutes
+apart; this identifies the source timestamp strings and chart interval, not
+whether each timestamp labels a bar start or end. The CSV's OHLC and Volume
+strings remain in raw payloads. Price scale, exact volume semantics and bar
+boundary are unknown, so normalized fields are null and no aligned bars or
+scoring inputs are produced. Owner authorization covers manual local research
+only; automated-use permission remains unverified. See the
+[M10 CSV/session change note](../changes/2026-11-12-viewpoint-csv-import-and-session-review.md).
+
 
 ## Additional source review — 9 November 2026
 

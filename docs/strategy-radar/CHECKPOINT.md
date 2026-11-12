@@ -1,6 +1,44 @@
 # Strategy Radar checkpoint
 
-Prepared 2026-11-06; updated 2026-11-11. M1–M9 completed locally with evidence limitations; no next Strategy Radar coding milestone is active. This Strategy Radar M-series is distinct from UIM/research milestones; no UIM6–UIM8 briefs are present. The old dated M6/M7/M8 entries below are historical snapshots, superseded by the later completion entries. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve the separately ongoing research M5/M6/M7 and R12/P1 records. Before each implementation milestone refresh this checkpoint from actual repo status; after completion include commit state, tests, source availability, residual work and a concise handoff.
+Prepared 2026-11-06; updated 2026-11-12. M1–M9 completed locally; M10 is active with source limitations recorded. At the owner's request, bounded Radar M10 work proceeds alongside the existing research M5; M5 remains unchanged. This is a one-time sequencing exception, not a general parallel-work policy. This Strategy Radar M-series is distinct from UIM/research milestones; no UIM6–UIM8 briefs are present. The old dated M6/M7/M8 entries below are historical snapshots, superseded by the later completion entries. Reference: [roadmap](README.md), [hierarchy](HIERARCHY.md), [M1](milestones/M1.md). Preserve R12/P1 and the separately ongoing research M5/M6/M7 records.
+
+## Strategy Radar M10 — six-choice radar and churn audit, 12 November 2026
+
+The visible UI now limits active radar choices to the current Top 5 plus at
+most one manual pin. Other non-archived watches remain retained in a collapsed,
+non-selectable history section. Pinning a second watch is rejected at both
+contender selection and pin-update boundaries; the existing pin is not silently
+replaced. The previous multiple-pin case remains inspectable and can be
+released. No grace, monitor or event history is deleted.
+
+The 75 archived Zebra screen snapshots (5–11 November) contain eight distinct
+chronological rank/score/input states, seven distinct Top-5 sets and six
+membership transitions. On 6 November NPN first retained 3 November inputs
+(rank 14, score 53.1538), then updated to 5 November inputs (rank 1, 89.4459),
+then to 6 November inputs (rank 6, 73.2194). It returned to rank 5 on 9
+November with the same 6 November inputs as competing ranks changed; newer
+inputs then moved it to rank 6 on 10 November (77.8324) and rank 5 on 11
+November (80.0091). This separates stale/new-input changes from relative
+ranking churn. The descriptive score and weights were not changed.
+
+The owner-supplied MTN.JSE five-minute chart-table CSV was imported into the
+local Radar intraday cache. Its 823 raw bytes are retained under SHA-256
+`D64F5286D80D81995F75343EF48BCEFF96FF137D2C278EE8F63CDD4236A4BCD3`,
+with eight source rows from 07:20 to 07:55 UTC. File modification and import
+receipt clocks remain distinct. All normalized OHLCV fields are null; the
+records remain unknown-clock, unverified-unit evidence and are excluded from
+canonical bars, shadow evaluation and daily Zebra ranking. Manual local
+research use was authorized; unattended collection rights remain unverified.
+
+The focused intraday integration file passed 10 tests, including chronological
+ordering of reversed CSV rows. JavaScript syntax and `git diff --check` passed.
+At approximately 10:07 SAST both OST and ViewPoint pages were accessible, but
+there was no known login start or controlled idle interval, so no timeout
+duration is established. The Save dialog was not exposed to the browser tool;
+the downloaded CSV appeared in Downloads after manual Save and the pause's
+cause remains unknown. No browser setting, polling or keepalive was changed.
+See [M10](milestones/M10.md), the [CSV/session change note](../changes/2026-11-12-viewpoint-csv-import-and-session-review.md)
+and [churn change note](../changes/2026-11-12-strategy-radar-m10-six-choice-churn.md).
 
 ## M1 completed locally — 6 November 2026
 

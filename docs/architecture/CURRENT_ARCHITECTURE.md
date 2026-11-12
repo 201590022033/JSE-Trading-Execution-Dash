@@ -1,3 +1,15 @@
+## M10 manual ViewPoint CSV evidence — 12 November 2026
+
+The local Radar upload accepts a manually supplied ViewPoint chart-table CSV,
+retains its bytes by SHA-256, and stores the original row values as
+unknown-clock, unverified-unit research evidence. The 12 November MTN.JSE
+sample has eight rows and a UTC `Date` column, but no verified price scale,
+volume meaning or bar-start/end convention. It therefore contributes no
+canonical bars or scoring inputs. Manual local research is authorized;
+automated collection permission and browser session timeout behavior remain
+unverified. No keepalive or polling was added. See the [M10 CSV/session change
+note](../changes/2026-11-12-viewpoint-csv-import-and-session-review.md).
+
 ## M5 research context — 5 November 2026
 
 The component research lane can read optional, source-clocked SENS, Hermes and calendar evidence into training-only proposer context. Reconstructed Brent and USD/ZAR captures provide a separately labelled descriptive overlay; price-only studies do not depend on them. Read-only dashboard routes expose saved coverage and comparisons. No model or broker operation is triggered by reads. See ADR0094 and `docs/changes/2026-11-05-m5-macro-proxy-cycle.md`.

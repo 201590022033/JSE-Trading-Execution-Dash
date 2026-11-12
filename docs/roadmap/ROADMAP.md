@@ -1,10 +1,21 @@
 ## Strategy Radar roadmap — prepared 6 November 2026
 
-The user-approved radar, product-aware manual trade plan, data lifecycle and alerts are planned in [Strategy Radar roadmap](../strategy-radar/README.md), with [hierarchy](../strategy-radar/HIERARCHY.md) and [M1 start brief](../strategy-radar/milestones/M1.md). These are a new named M-series; earlier research M5–M7, R12 and P1 remain as recorded below. No Strategy Radar implementation milestone is active until the user says “go M1”. Preserve existing uncommitted work and prior evidence.
+The user-approved radar, product-aware manual trade plan, data lifecycle and alerts are tracked in the separate [Strategy Radar roadmap](../strategy-radar/README.md), with [hierarchy](../strategy-radar/HIERARCHY.md). Strategy Radar M1–M9 are complete; the owner authorized M10 on 12 November 2026 to implement the six-choice view and qualify IRESS intraday CSV evidence. The owner also requested this bounded M10 work alongside research M5; that one-time exception leaves research M5's scope unchanged. Earlier research M5–M7, R12 and P1 retain their recorded status. Preserve existing uncommitted work and prior evidence.
 
 ## M5 macro and context research — 5 November 2026
 
 M5 is active within the existing research redesign: source-clocked optional SENS, news and calendar context and labelled Brent/FX descriptive comparisons are available. The first matched subset is tiny; genuine context-dependent replay, structured fundamental evidence and prospective outcomes remain open. See ADR0094 and `docs/changes/2026-11-05-m5-macro-proxy-cycle.md`.
+
+## Owner-authorized parallel Strategy Radar M10 — 12 November 2026
+
+At the owner's request, the narrowly bounded Strategy Radar M10 six-choice UI
+and churn audit proceeded alongside research M5. M5 remains active and
+unchanged; M10 is separately tracked in the Strategy Radar series. This is a
+one-time owner-directed sequencing exception. A supplied ViewPoint CSV is
+retained as raw-only evidence; units, bar boundaries and unattended-use rights
+remain unverified. Credentials, browser keepalive and unapproved polling are
+out of scope. See
+`../strategy-radar/milestones/M10.md`.
 
 ## Daily public SENS discovery — 28 October 2026
 

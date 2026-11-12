@@ -54,6 +54,23 @@ class RadarWatchLifecycleTests(unittest.TestCase):
         self.assertEqual(store.get('FSR')['state'],'ARCHIVED')
         self.assertEqual(store.get('FSR')['sector'],'Banks')
 
+    def test_only_one_manual_pin_and_release_preserves_history(self):
+        store = self.store
+        store.select({'instrument':'FSR'},clock('2026-11-02'))
+        store.reconcile([{'instrument':'BTI'}],clock('2026-11-03'))
+        with self.assertRaisesRegex(ValueError,'FSR is already pinned'):
+            store.select({'instrument':'BTI'},clock('2026-11-03',13))
+        with self.assertRaisesRegex(ValueError,'FSR is already pinned'):
+            store.set_flag('BTI','pinned',True,clock('2026-11-03',13))
+        self.assertTrue(store.get('FSR')['pinned'])
+        self.assertFalse(store.get('BTI')['pinned'])
+        self.assertEqual(len(store.history('FSR')),1)
+        store.set_flag('FSR','pinned',False,clock('2026-11-03',14))
+        store.set_flag('BTI','pinned',True,clock('2026-11-03',15))
+        self.assertFalse(store.get('FSR')['pinned'])
+        self.assertTrue(store.get('BTI')['pinned'])
+        self.assertEqual(len(store.history('FSR')),2)
+
     def test_zero_grace_archives_on_departure(self):
         from datetime import datetime, timezone, timedelta
         with tempfile.TemporaryDirectory() as folder:

@@ -60,5 +60,13 @@ class RadarIntegrationTests(unittest.TestCase):
             self.assertEqual(client.post(path, json={'pinned':True}, headers={'Origin':'https://elsewhere.example'}).status_code, 403)
             self.assertEqual(client.post(path, json={'pinned':True}).status_code, 200)
             self.assertTrue(service.store.get('SASOL')['pinned'])
+            service.store.reconcile([{'instrument':'BTI'}],NOW.replace(minute=1))
+            blocked = client.post('/api/v1/strategy-radar/watches/BTI/pin',json={'pinned':True})
+            self.assertEqual(blocked.status_code,422)
+            self.assertIn('SASOL is already pinned',blocked.json['error'])
+            self.assertTrue(service.store.get('SASOL')['pinned'])
+            self.assertFalse(service.store.get('BTI')['pinned'])
+            self.assertEqual(client.post(path,json={'pinned':False}).status_code,200)
+            self.assertEqual(client.post('/api/v1/strategy-radar/watches/BTI/pin',json={'pinned':True}).status_code,200)
 
 if __name__ == '__main__': unittest.main()

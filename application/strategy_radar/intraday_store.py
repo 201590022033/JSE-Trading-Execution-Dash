@@ -65,7 +65,7 @@ def normalize_bar(record):
     if semantics not in ('START', 'END', 'UNKNOWN'):
         raise ValueError('source clock semantics required')
     availability, unit = record['availability'], record['unit']
-    if availability not in AVAILABILITY or unit not in ('ZAR', 'ZAR_CENTS'):
+    if availability not in AVAILABILITY or unit not in ('ZAR', 'ZAR_CENTS', 'UNVERIFIED'):
         raise ValueError('explicit availability and price unit required')
     source_at = _time(record['source_timestamp']) if record.get('source_timestamp') is not None else None
     received = _time(record['received_at'])
@@ -91,7 +91,9 @@ def normalize_bar(record):
     data = record.get('fields')
     if not isinstance(data, dict):
         raise ValueError('field map required')
-    fields = {f: _value(data.get(f), f, unit) for f in FIELDS}
+    if unit == 'UNVERIFIED' and any(data.get(field) is not None for field in FIELDS):
+        raise ValueError('unverified units cannot have normalized field values')
+    fields = {f: None if unit == 'UNVERIFIED' else _value(data.get(f), f, unit) for f in FIELDS}
     invalid = [f for f in FIELDS if data.get(f) is not None and fields[f] is None]
     # A defective high or low must not make an otherwise observed close vanish.
     values = {k: Decimal(fields[k]) if fields[k] is not None else None for k in ('open','high','low','close')}
@@ -103,7 +105,8 @@ def normalize_bar(record):
             'bar_start': start.isoformat() if start else None, 'bar_end': end.isoformat() if end else None,
             'source_timestamp': source_at.isoformat() if source_at else None, 'received_at': received.isoformat(),
             'clock_semantics': semantics, 'interval_verified': verified, 'availability': availability,
-            'unit': 'ZAR', 'original_unit': unit, 'volume_unit': 'shares', 'fields': fields,
+            'unit': 'UNVERIFIED' if unit == 'UNVERIFIED' else 'ZAR',
+            'original_unit': unit, 'volume_unit': 'unverified' if unit == 'UNVERIFIED' else 'shares', 'fields': fields,
             'invalid_fields': invalid, 'provisional': bool(record.get('provisional', False) or (end and end > received)),
             'raw_payload': record.get('raw_payload'),
             'source_timestamp_basis':record.get('source_timestamp_basis'),
@@ -153,6 +156,9 @@ def merge_bars(records):
         output.append({'instrument': instrument, 'interval_minutes': interval, 'bar_start': start,
                        'bar_end': end, 'fields': fields, 'provisional': any(v['selected'] and v['selected']['provisional'] for v in fields.values()),
                        'research_only': True})
+    unknown.sort(key=lambda item: (
+        item['source_timestamp'] or '', item['received_at'], item['source'],
+    ))
     return {'bars': output, 'unknown_clock_records': unknown, 'research_only': True}
 
 
@@ -214,9 +220,9 @@ class IntradayCache:
                        (digest, item['instrument'], session, raw, int(bool(pinned)), int(bool(evidence))))
         return digest
 
-    def put_batch(self, records, raw):
+    def put_batch(self, records, raw, *, evidence=False):
         """Atomically retain raw provider bytes and normalized-record inputs."""
-        if not isinstance(raw,bytes): raise ValueError('raw bytes required')
+        if not isinstance(raw,bytes) or type(evidence) is not bool: raise ValueError('raw bytes and evidence flag required')
         digest = sha256(raw).hexdigest()
         prepared=[]
         for original in records:
@@ -226,7 +232,7 @@ class IntradayCache:
             identity=sha256(payload.encode('utf-8')).hexdigest()
             retention_clock=item['bar_start'] if item['interval_verified'] else item['received_at']
             session=_time(retention_clock).astimezone(SAST).date().isoformat()
-            prepared.append((identity,item['instrument'],session,payload,0,0))
+            prepared.append((identity,item['instrument'],session,payload,0,int(evidence)))
         if not prepared: return []
         with closing(sqlite3.connect(self.path,timeout=15)) as db, db:
             db.execute('BEGIN IMMEDIATE')

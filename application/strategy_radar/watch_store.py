@@ -155,6 +155,11 @@ class WatchStore:
         with self._connect() as db:
             db.execute('BEGIN IMMEDIATE')
             old = db.execute('SELECT * FROM radar_watch WHERE instrument=?',(instrument,)).fetchone()
+            if not (old and old['pinned']):
+                other = db.execute('SELECT instrument FROM radar_watch WHERE pinned=1 AND instrument!=? LIMIT 1',
+                                   (instrument,)).fetchone()
+                if other:
+                    raise ValueError(f"{other['instrument']} is already pinned; unpin it before selecting another contender")
             if old is None:
                 db.execute('''INSERT INTO radar_watch(instrument,strategy_id,strategy_version,sector,benchmark,pinned,state,created_at,updated_at)
                     VALUES(?,?,?,?,?,1,'WATCHING',?,?)''', (instrument, record['strategy_id'], record['strategy_version'], record['sector'], record['benchmark'],ts,ts))
@@ -176,6 +181,11 @@ class WatchStore:
             old = db.execute('SELECT * FROM radar_watch WHERE instrument=?',(instrument,)).fetchone()
             if old is None:
                 raise KeyError(instrument)
+            if flag == 'pinned' and value and not old['pinned']:
+                other = db.execute('SELECT instrument FROM radar_watch WHERE pinned=1 AND instrument!=? LIMIT 1',
+                                   (instrument,)).fetchone()
+                if other:
+                    raise ValueError(f"{other['instrument']} is already pinned; unpin it before pinning another watch")
             if old[flag] != value:
                 # On release, keep a grace state until a ranking reconciliation evaluates expiry.
                 pinned = value if flag == 'pinned' else old['pinned']

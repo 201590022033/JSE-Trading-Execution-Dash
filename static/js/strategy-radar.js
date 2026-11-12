@@ -24,6 +24,7 @@ function mergeEntryRules(rules) {
   const sectorCache = new Map();
   let selectedWatch = null, currentWatches = [], radarGeneration = 0, radarView = 'swing';
   let selectionGeneration = 0, lastPlan = null;
+  let pinSlotStatus = document.getElementById('strategy-watch-pin-slot-status');
   let restoreSelection = window.uimSelection?.get() || null;
   let restoredExpected = null;
   if (!status || !list || !form) return;
@@ -50,6 +51,20 @@ function mergeEntryRules(rules) {
   function line(parent, tag, text) {
     const node = document.createElement(tag); node.textContent = text; parent.append(node); return node;
   }
+  function visibleRadarWatches(watches) {
+    const topFive = watches.filter(watch => watch.in_top5).slice(0, 5);
+    const included = new Set(topFive.map(watch => watch.instrument));
+    const pinned = watches.filter(watch => watch.pinned && !included.has(watch.instrument))
+      .sort((a, b) => a.instrument.localeCompare(b.instrument))[0];
+    return pinned ? [...topFive, pinned] : topFive;
+  }
+  if (!pinSlotStatus) {
+    pinSlotStatus = document.createElement('p');
+    pinSlotStatus.id = 'strategy-watch-pin-slot-status';
+    pinSlotStatus.className = 'muted';
+    pinSlotStatus.setAttribute('role', 'status');
+    form.append(pinSlotStatus);
+  }
   function showSelectionError(message) {
     document.getElementById('radar-selected-context').textContent=message;
     const badge=document.getElementById('radar-selected-badge'); if (badge) badge.textContent=message;
@@ -60,7 +75,18 @@ function mergeEntryRules(rules) {
     try {
       const data = await json('/api/v1/strategy-radar/watches');
       list.replaceChildren();
-      currentWatches = data.watches;
+      currentWatches = visibleRadarWatches(data.watches);
+      const visibleKeys = new Set(currentWatches.map(watch => watch.instrument));
+      const retainedWatches = data.watches.filter(watch => !visibleKeys.has(watch.instrument));
+      const pins = data.watches.filter(watch => watch.pinned);
+      const addPinButton = form.querySelector('button[type="submit"]');
+      select.disabled = pins.length > 0;
+      if (addPinButton) addPinButton.disabled = pins.length > 0;
+      pinSlotStatus.textContent = pins.length === 0
+        ? 'One manual pin is available.'
+        : pins.length === 1
+          ? `Manual pin occupied by ${pins[0].instrument}; unpin it before selecting a replacement.`
+          : `${pins.length} retained pins exceed the one-pin limit; release extras in retained records before adding another.`;
       if (restoreSelection) {
         const saved=restoreSelection; restoreSelection=null;
         const product=document.getElementById('plan-product');
@@ -91,10 +117,10 @@ function mergeEntryRules(rules) {
         renderPlanSummary();
       }
       if (!document.getElementById('radar-points').contains(document.activeElement)) renderRadar();
-      refreshRadar(data.watches);
-      state.textContent = `${data.watches.length} daily watch${data.watches.length === 1 ? '' : 'es'} · no automatic price feed`;
-      status.textContent = data.watches.length ? `Historical coverage shown below; ranking generated ${data.ranking_receipt?.source_generated_at || 'time unavailable'}. Provider acquisition times are retained per source.` : 'No daily watches yet. A successful Top 5 screen or a pin starts one.';
-      for (const watch of data.watches) {
+      refreshRadar(currentWatches);
+      state.textContent = `${currentWatches.length} visible radar choice${currentWatches.length === 1 ? '' : 's'} (max 6) · ${retainedWatches.length} retained outside radar · no automatic price feed`;
+      status.textContent = data.watches.length ? `Showing Top 5 plus at most one manual pin. Other watch records remain retained below; ranking generated ${data.ranking_receipt?.source_generated_at || 'time unavailable'}. Provider acquisition times are retained per source.` : 'No daily watches yet. A successful Top 5 screen or a pin starts one.';
+      for (const watch of currentWatches) {
         const card = document.createElement('article'); card.className = 'radar-watch';
         const selectWatch = line(card, 'button', 'Select on radar'); selectWatch.type='button'; selectWatch.onclick=() => selectRadarWatch(watch.instrument);
         line(card, 'strong', `${watch.instrument} · ${watch.in_top5 ? 'Top 5' : watch.pinned ? 'Pinned' : watch.state}`);
@@ -107,6 +133,8 @@ function mergeEntryRules(rules) {
         const attempts = refresh.receipt?.sources || {};
         line(card, 'p', `Public refresh: ${refresh.state || 'NOT_REQUESTED'}${Object.keys(attempts).length ? ' · ' + Object.entries(attempts).map(([name, value]) => `${name} ${value.state}`).join(' · ') : ''}.`);
         const button = line(card, 'button', watch.pinned ? 'Unpin' : 'Pin'); button.type = 'button';
+        button.disabled = !watch.pinned && pins.some(pin => pin.instrument !== watch.instrument);
+        if (button.disabled) button.title = 'Unpin the current manual choice before pinning another share.';
         button.onclick = async () => {
           try { await json(`/api/v1/strategy-radar/watches/${encodeURIComponent(watch.instrument)}/pin`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pinned:!watch.pinned})}); await load(); }
           catch (error) { status.textContent = error.message; }
@@ -127,8 +155,16 @@ function mergeEntryRules(rules) {
 
             line(evidence, 'p', `${data.bars.length} aligned bars · ${data.unknown_clock_records.length} observations with unverified interval timing.`);
             for (const item of data.unknown_clock_records.slice(-5)) {
-              let label = 'Source time unknown'; try { label = JSON.parse(item.raw_payload).label || label; } catch (_) {}
-              line(evidence, 'p', `${item.source} · ${label} · close ${item.fields.close || 'unknown'} ZAR · recorded ${item.received_at} · not a live quote`);
+              let label = 'Source time unknown', detail = `close ${item.fields.close || 'unknown'} ZAR`;
+              try {
+                const raw = JSON.parse(item.raw_payload);
+                if (raw.format === 'IRESS_VIEWPOINT_TABLE_CSV') {
+                  const values = raw.raw_values || {};
+                  label = `${raw.timestamp || 'UTC timestamp unavailable'} UTC`;
+                  detail = `raw OHLC ${values.Open || '—'}/${values.High || '—'}/${values.Low || '—'}/${values.Close || '—'} · raw volume ${values.Volume || '—'}; units and bar boundary unverified`;
+                } else label = raw.label || label;
+              } catch (_) {}
+              line(evidence, 'p', `${item.source} · ${label} · ${detail} · imported ${item.received_at} · research evidence only`);
             }
           } catch (error) { evidence.textContent = error.message; }
         };
@@ -157,6 +193,22 @@ function mergeEntryRules(rules) {
           };
         }
         list.append(card);
+      }
+      if (retainedWatches.length) {
+        const history = document.createElement('details');
+        const summary = line(history, 'summary', `Other retained watch records (${retainedWatches.length}) · not radar choices`);
+        summary.title = 'These records remain available for history and do not appear in the live radar.';
+        for (const watch of retainedWatches) {
+          const row = line(history, 'p', `${watch.instrument} · ${watch.state}${watch.active ? ' · monitoring state retained' : ''} · excluded from visible radar choices`);
+          if (watch.pinned) {
+            const release = line(row, 'button', 'Unpin'); release.type = 'button';
+            release.onclick = async () => {
+              try { await json(`/api/v1/strategy-radar/watches/${encodeURIComponent(watch.instrument)}/pin`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pinned:false})}); await load(); }
+              catch (error) { status.textContent = error.message; }
+            };
+          }
+        }
+        list.append(history);
       }
     } catch (error) {
       state.textContent = 'Daily watches unavailable'; status.textContent = error.message;
@@ -579,10 +631,31 @@ function mergeEntryRules(rules) {
   async function loadCatalog() {
     try {
       const data = await json('/api/v1/strategy-radar/catalog');
-      for (const instrument of data.instruments) { const option = document.createElement('option'); option.value = option.textContent = instrument; select.append(option); document.getElementById('intraday-instrument')?.append(option.cloneNode(true)); document.getElementById('quote-instrument')?.append(option.cloneNode(true)); document.getElementById('plan-instrument')?.append(option.cloneNode(true)); }
+      for (const instrument of data.instruments) { const option = document.createElement('option'); option.value = option.textContent = instrument; select.append(option); document.getElementById('intraday-instrument')?.append(option.cloneNode(true)); document.getElementById('quote-instrument')?.append(option.cloneNode(true)); document.getElementById('plan-instrument')?.append(option.cloneNode(true)); document.getElementById('viewpoint-csv-instrument')?.append(option.cloneNode(true)); }
       if (selectedWatch && [...document.getElementById('plan-instrument').options].some(option=>option.value===selectedWatch)) document.getElementById('plan-instrument').value=selectedWatch;
     } catch (error) { status.textContent = error.message; }
   }
+  document.getElementById('viewpoint-csv-instrument')?.addEventListener('change', event => {
+    const symbol = document.getElementById('viewpoint-csv-symbol');
+    if (symbol && event.target.value) symbol.value = `${event.target.value}.JSE`;
+  });
+  document.getElementById('viewpoint-csv-form')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const target = document.getElementById('viewpoint-csv-status');
+    const file = document.getElementById('viewpoint-csv-file')?.files?.[0];
+    if (!file) { target.textContent = 'Select a ViewPoint CSV file.'; return; }
+    const payload = new FormData(form);
+    payload.set('file_modified_at', file.lastModified ? new Date(file.lastModified).toISOString() : '');
+    target.textContent = 'Retaining raw CSV evidence…';
+    try {
+      const response = await fetch('/api/v1/strategy-radar/intraday/viewpoint-csv', {method:'POST', body:payload});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'CSV import failed');
+      target.textContent = `Saved ${result.saved} raw rows for ${result.instrument} · SHA-256 ${result.source_raw_sha256} · units, volume and candle boundaries unverified; excluded from scoring.`;
+      form.reset();
+    } catch (error) { target.textContent = error.message; }
+  });
   form.addEventListener('submit', async event => {
     event.preventDefault();
     try { await json('/api/v1/strategy-radar/watches', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instrument:select.value})}); await load(); }
