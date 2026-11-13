@@ -13,7 +13,9 @@
   const controls = {};
   const freshnessAreas = {};
   let freshnessSnapshot = null;
-  let freshnessLoading = false;
+  let freshnessRequest = null;
+  let refreshAfterRequest = false;
+  const downloadMessages = new Map();
   const externalActions = {
     'open-ost': 'https://securities.standardbank.co.za/ost/',
     'open-viewpoint': 'https://viewpoint.iress.co.za/st/'
@@ -57,6 +59,7 @@
     for (const source of sources) {
       const row = document.createElement('div');
       row.className = 'freshness-item';
+      row.dataset.sourceId = source.id;
       const name = document.createElement('span');
       name.className = 'freshness-label';
       name.textContent = `${source.label}${source.instrument ? ` · ${source.instrument}` : ''}`;
@@ -68,7 +71,7 @@
       state.textContent = source.state.replaceAll('_', ' ');
       row.dataset.state = source.state.toLowerCase();
       const detail = document.createElement('small');
-      detail.textContent = source.note || source.expiry_basis || '';
+      detail.textContent = downloadMessages.get(source.id) || source.note || source.expiry_basis || '';
       row.append(name, state, clock);
       if (source.action) {
         const action = document.createElement('button');
@@ -77,10 +80,30 @@
         action.textContent = source.action.startsWith('refresh-') ? 'Refresh' :
           externalActions[source.action] ? 'Open source' :
           source.action === 'manual-quote' || source.action === 'manual-source' ? 'Import / enter' : 'Open';
-        action.addEventListener('click', () => runAction(source.action));
+        if (source.action === 'manual-source' && source.id?.startsWith('viewpoint-5m:')) {
+          action.textContent = 'Refresh ViewPoint';
+          action.addEventListener('click', async () => {
+            action.disabled = true;
+            try {
+              const response = await fetch('/api/v1/strategy-radar/intraday/import-download/' +
+                encodeURIComponent(source.instrument), {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+              const result = await response.json();
+              if (!response.ok) throw Error(result.error || 'Import failed');
+              downloadMessages.set(source.id, result.imported
+                ? `Imported ${result.imported} ViewPoint bars from local files.`
+                : result.rejected_files ? 'Some exports could not be imported. Check the file and interval.'
+                  : `No new bars. ViewPoint: ${(result.collection?.instruments?.[source.instrument] ||
+                    result.collection?.state || 'unavailable').replaceAll('_', ' ').toLowerCase()}.`);
+              await loadFreshness({afterCurrent: true});
+            } catch (error) { detail.textContent = error.message; }
+            finally { action.disabled = false; }
+          });
+        } else {
+          action.addEventListener('click', () => runAction(source.action));
+        }
         row.append(action);
       }
-      if (detail.textContent) row.append(detail);
+      if (detail.textContent || source.id?.startsWith('viewpoint-5m:')) row.append(detail);
       if (source.expires_at) clock.dataset.expiresAt = source.expires_at;
       updateClock(row, source);
       host.append(row);
@@ -114,17 +137,25 @@
     return days ? `${days}d ${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}` :
       `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}`;
   }
-  async function loadFreshness() {
-    if (freshnessLoading) return;
-    freshnessLoading = true;
-    try {
-      const response = await fetch('/api/v1/data-freshness', {cache:'no-store', signal:AbortSignal.timeout(20000)});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      freshnessSnapshot = await response.json();
-      for (const area of Object.keys(freshnessAreas)) renderFreshness(area);
-    } catch (error) {
-      for (const host of Object.values(freshnessAreas)) host.textContent = `Freshness status unavailable: ${error.message}`;
-    } finally { freshnessLoading = false; }
+  function loadFreshness({afterCurrent = false} = {}) {
+    if (freshnessRequest) {
+      refreshAfterRequest ||= afterCurrent;
+      return freshnessRequest;
+    }
+    freshnessRequest = (async () => {
+      do {
+        refreshAfterRequest = false;
+        try {
+          const response = await fetch('/api/v1/data-freshness', {cache:'no-store', signal:AbortSignal.timeout(20000)});
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          freshnessSnapshot = await response.json();
+          for (const area of Object.keys(freshnessAreas)) renderFreshness(area);
+        } catch (error) {
+          for (const host of Object.values(freshnessAreas)) host.textContent = `Freshness status unavailable: ${error.message}`;
+        }
+      } while (refreshAfterRequest);
+    })().finally(() => { freshnessRequest = null; });
+    return freshnessRequest;
   }
   function show(id, state, message) {
     const c = controls[id];
@@ -196,12 +227,15 @@
   });
   loadFreshness();
   setInterval(() => { if (!document.hidden) loadFreshness(); }, 60000);
+  document.addEventListener?.('visibilitychange', () => {
+    if (!document.hidden) loadFreshness({afterCurrent: true});
+  });
   setInterval(() => {
     if (!freshnessSnapshot || document.hidden) return;
     for (const [area, host] of Object.entries(freshnessAreas)) {
       for (const row of host.querySelectorAll('.freshness-item')) {
         const source = (freshnessSnapshot.areas?.[area] || []).find(item =>
-          `${item.label}${item.instrument ? ` · ${item.instrument}` : ''}` === row.querySelector('.freshness-label')?.textContent);
+          item.id === row.dataset.sourceId);
         if (source) updateClock(row, source);
       }
     }

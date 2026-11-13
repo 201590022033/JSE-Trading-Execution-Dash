@@ -1,3 +1,98 @@
+## ViewPoint browser collector
+
+The Radar refresh button and open-market monitor now call the same local
+Edge collector before checking the download inbox. It verifies the exact JSE
+ticker in the chart, table and native filename, enables the Volume column
+and imports the CSV using the existing evidence store. The monitor API exposes
+the last collection attempt separately from the evaluation result.
+
+Setup requires Playwright in the project environment and a signed-in ViewPoint
+chart in the dedicated Edge profile. Start Edge with the following argument,
+sign in normally, open a chart, and close that Edge window so the collector
+can open the profile. The profile lives under ignored runtime storage.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install playwright
+.\scripts\setup_viewpoint_collector.ps1
+```
+
+Live browser acceptance is pending. The collector uses the normal download
+control. Session expiry requires signing back in through the dedicated profile.
+The SENS and Backtester roster lanes remain separate follow-up work.
+
+## Proposed five-minute work roster — 13 November 2026
+
+Use a five-minute dispatcher tick for eligible queued work. Keep the existing
+Radar market-session and SENS source schedules. The dispatcher should claim
+ready work and let each lane finish independently.
+
+| Lane | Trigger | Work |
+| --- | --- | --- |
+| ViewPoint | Explicit refresh or five-minute market-session tick | Export for the requested Radar choice or current choices and configured benchmarks, then pass the native files to the existing importer. Requires a browser collector that can reliably select the exact chart symbol. |
+| SENS | Retained items ready for processing | Process queued items using the existing calendar and source pipeline. Source retrieval keeps its existing cadence. |
+| Backtester | Explicit submitted request | Claim one queued request at a time and run it separately from the market-data lane. |
+
+Use a deduplication key, recorded status and bounded retries per job. The
+dashboard should show queued, running, completed or failed. A ViewPoint
+refresh completes only after the requested instrument and interval are
+verified in Radar. The current Import download button imports local files.
+The browser export and shared dispatcher are pending.
+
+## Open-session ViewPoint test — 13 November 2026
+
+The 09:30–10:00 SAST computer-use run exported all five original Radar
+choices and picked up GPL after the ranking changed. MTN and VOD produced
+advancing five-minute exports with volume and real worker evaluations.
+TFG advanced with gaps. NTU had one early bar and ADR/GPL provided historical
+data only. STX40 was retained but did not provide all four matching intervals.
+Late symbol switching timed out while the open chart still exported.
+
+The inbox now loads configured benchmark exports with the watches. Whole-share
+decimal display is normalized, closing/post-close prints stay in the raw CSV,
+and provisional candles no longer hide the completed window. The worker was
+restarted with these changes and reported PARTIAL_SOURCE during the test.
+Browser export was driven by this active session. Continuous unattended
+collection is still open.
+
+## ViewPoint MTN closing export — 13 November 2026
+
+ViewPoint's Data Table switch **Show Additional Columns** includes exact
+per-bar volume in the native CSV. The 12 November MTN regular five-minute
+rows ended at 16:45 SAST, followed by a separate 17:00 row with close R230.76
+and volume 905,927 shares. The importer preserves the 17:00 row in the raw
+export and leaves it outside regular-session bars. The downloaded file
+contributed 122 regular five-minute rows and 19 complete derived 30-minute
+bars across 11–12 November. There was no complete final 30-minute bucket
+on 12 November.
+
+## Five-minute Radar export loading
+
+The monitor checks the five ranked shares and at most one additional
+manual pin. During the JSE session, its five-minute profile loads native
+five-minute ViewPoint CSV exports from the local
+`runtime/local-swing-data/strategy-radar/viewpoint-inbox/5m` folder before
+evaluating the selected shares. Preserve the original ViewPoint filenames.
+The worker validates the instrument, retains original CSV bytes, skips
+previously imported content, and continues past individual invalid files.
+Exports must be placed in the folder by the operator or an entitled data
+source. This is a local intake and evaluation schedule.
+
+A controlled regression loaded and evaluated all six choices and skipped a
+retained grace watch. Live sign-off still requires an open-session run with
+current exports for the displayed choices and four contiguous five-minute
+bars per share. Per-bar volume is required for the intraday volume rule.
+
+## MTN OST and ViewPoint evidence
+
+Strategy Radar pairs retained OST daily closes and session volume with
+intraday evidence by JSE trading date. The latest completed OST session
+also displays when the dates differ. ViewPoint OHLC-only exports are retained
+with missing volume and can contribute completed 30-minute price bars.
+The 12 November MTN export retained 16 five-minute bars. The latest OST
+daily record at import was 11 November, R229.90 and 6,077,065 shares.
+Daily volume is session context. Intraday volume-dependent rules still
+require volume for the relevant interval.
+
 ## Dashboard and milestone audit — 12 November 2026
 
 - **Swing volume.** Radar 1.1.2 and Backtest Lab 1.3.1 use the latest completed

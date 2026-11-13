@@ -203,6 +203,15 @@ class WatchStore:
             row = db.execute('SELECT * FROM radar_watch WHERE instrument=?',(instrument,)).fetchone()
             return dict(row) if row else None
 
+    def radar_choices(self):
+        watches = self.list_watches()
+        ranked = [watch for watch in watches if watch['in_top5']][:5]
+        included = {watch['instrument'] for watch in ranked}
+        pinned = sorted((watch for watch in watches if watch['pinned']
+                         and watch['instrument'] not in included),
+                        key=lambda watch: watch['instrument'])
+        return ranked + pinned[:1]
+
     def list_watches(self, include_archived=False):
         with self._connect() as db:
             rows = db.execute("SELECT * FROM radar_watch" + ('' if include_archived else " WHERE state!='ARCHIVED'") + ' ORDER BY in_top5 DESC,rank,instrument').fetchall()

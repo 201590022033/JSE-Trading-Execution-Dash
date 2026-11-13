@@ -46,6 +46,9 @@ class IntradayEvaluationTests(unittest.TestCase):
         unknown=self.run_eval(data[:-1]+[provisional])
         self.assertEqual(unknown['state'],'UNKNOWN')
         self.assertEqual(unknown['unknown'],5)
+        developing = {**bars(values=(100,101,102,104,105), volumes=(100,100,100,125,10))[-1],
+                      'provisional': True, 'received_at': (BASE+timedelta(minutes=22)).isoformat()}
+        self.assertEqual(self.run_eval(data+[developing]), self.run_eval(data))
         gap=self.run_eval([data[0],data[1],data[3]])
         self.assertEqual(gap['state'],'UNKNOWN')
         stale=evaluate_intraday('intraday_5m_research_v1','SOL',data,BASE+timedelta(hours=1))

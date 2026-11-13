@@ -10,6 +10,9 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from application.strategy_radar.monitor import MonitorStore,check_once
 from application.strategy_radar.service import RadarService
+from application.strategy_radar.viewpoint_inbox import ViewPointInbox
+from application.strategy_radar.viewpoint_collector import ViewPointCollector
+from application.strategy_radar.monitor import market_status
 
 
 def windows_notification(instrument,state):
@@ -40,15 +43,27 @@ def main():
     service=RadarService(root=data_root); store=MonitorStore(service.folder/'monitor.sqlite3');owner=uuid.uuid4().hex
     now=lambda:datetime.now(timezone.utc)
     if not store.claim(owner,now()): return
-    next_check=0.0; last_profile=None
+    inbox = ViewPointInbox(service)
+    collector = ViewPointCollector(service)
+    next_check=0.0; last_settings=None
     try:
         while store.config()['enabled']:
             if not store.claim(owner,now()): break
             settings=store.config()
-            if settings['profile']!=last_profile: next_check=0.0; last_profile=settings['profile']
+            schedule = settings['profile'], settings['interval_seconds']
+            if schedule != last_settings:
+                next_check = 0.0
+                last_settings = schedule
             current=time.monotonic()
             if current>=next_check:
-                check_once(store,service,now(),notifier=windows_notification)
+                if market_status(now()) == 'OPEN':
+                    collection = collector.collect(service.store.radar_choices())
+                    from application.opportunities.ost_data import atomic_json
+                    atomic_json(service.folder / 'viewpoint-collection.json',
+                                {**collection, 'checked_at': now().isoformat()})
+                if not store.claim(owner,now()):
+                    break
+                check_once(store,service,now(),notifier=windows_notification,load_exports=inbox.load)
                 next_check=time.monotonic()+store.config()['interval_seconds']
             time.sleep(15)
     finally: store.release(owner)

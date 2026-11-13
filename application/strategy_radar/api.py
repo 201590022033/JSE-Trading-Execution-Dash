@@ -229,15 +229,45 @@ def create_radar_blueprint(factory):
             return jsonify(error='ShareData quote evidence could not be retained'), 500
         return jsonify(**result, live_execution=False)
 
+    @bp.post('/api/v1/strategy-radar/intraday/import-download/<instrument>')
+    def import_viewpoint_download(instrument):
+        if not mutation_allowed():
+            return jsonify(error='Local same-origin JSON required'), 403
+        from .intraday_store import IntradayCache
+        from .viewpoint_inbox import ViewPointInbox
+        service = factory()
+        choices = {watch['instrument']: watch for watch in service.store.radar_choices()}
+        if instrument not in choices:
+            return jsonify(error='Instrument is outside the current Radar choices'), 404
+        cache = IntradayCache(service.folder / 'intraday.sqlite3')
+        before = len(cache.read(instrument))
+        from .viewpoint_collector import ViewPointCollector
+        collection = ViewPointCollector(service).collect([choices[instrument]])
+        try:
+            errors = ViewPointInbox(service).load([choices[instrument]], service.clock())
+        except OSError:
+            return jsonify(error='Could not read the ViewPoint download folder'), 503
+        return jsonify(imported=max(0, len(cache.read(instrument)) - before),
+                       rejected_files=errors, collection=collection, live_execution=False)
+
     @bp.get('/api/v1/strategy-radar/intraday/<instrument>')
     def intraday(instrument):
         if not local(): return jsonify(error='Local dashboard only'), 403
-        from .intraday_store import IntradayCache, merge_bars
+        from datetime import datetime
+        from application.opportunities.prospective_prices import ost_daily_context
+        from .intraday_aggregation import derive_30m_records
+        from .intraday_store import IntradayCache, SAST, merge_bars
         service = factory()
         cache = IntradayCache(service.folder / 'intraday.sqlite3')
         try:
-            data = merge_bars(cache.read(instrument))
-            return jsonify(**data, source_status='MANUAL_OR_IMPORTED_ONLY', live_execution=False)
+            now = service.clock()
+            records = cache.read(instrument)
+            derived = derive_30m_records(records, as_of=now)
+            data = merge_bars(records + derived)
+            sessions = {datetime.fromisoformat(bar['bar_start']).astimezone(SAST).date().isoformat()
+                        for bar in data['bars']}
+            daily = ost_daily_context(service.folder.parent, instrument, sessions, as_of=now)
+            return jsonify(**data, ost_daily=daily, source_status='MANUAL_OR_IMPORTED_ONLY', live_execution=False)
         except (ValueError, TypeError):
             return jsonify(error='Intraday data unavailable'), 422
 
@@ -307,11 +337,13 @@ def create_radar_blueprint(factory):
             except Exception as exc:
                 current_app.logger.exception('ViewPoint CSV imported but local context preparation failed')
                 prepared = {'state': 'UNAVAILABLE', 'error_type': type(exc).__name__}
+            missing_volume = sum(row['fields']['volume'] is None for row in records)
             return jsonify(
                 saved=len(digests), instrument=instrument, source='IRESS_VIEWPOINT_TABLE_CSV',
+                rows_without_volume=missing_volume,
                 source_raw_sha256=sha256(raw).hexdigest(),
                 qualification='OPERATOR_ACCEPTED_CONVENTION', normalization_basis='OPERATOR_ACCEPTED_VIEWPOINT_CSV_CONVENTION_V1',
-                price_unit='ZAR_CENTS', volume_unit='SHARES_AS_EXPORTED',
+                price_unit='ZAR_CENTS', volume_unit='SHARES_AS_EXPORTED' if missing_volume < len(records) else None,
                 clock_semantics='START', use_for_scoring=True, prepared_context=prepared,
                 live_execution=False,
             ), 201
@@ -418,10 +450,16 @@ def create_radar_blueprint(factory):
         if not local(): return jsonify(error='Local dashboard only'),403
         from .monitor import MonitorStore
         from datetime import datetime, timezone
-        store=MonitorStore(factory().folder/'monitor.sqlite3'); config=store.config()
+        import json
+        folder = factory().folder
+        store=MonitorStore(folder/'monitor.sqlite3'); config=store.config()
+        try:
+            collection = json.loads((folder / 'viewpoint-collection.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            collection = None
         try: running=bool(config['enabled'] and config['lease_owner'] and datetime.fromisoformat(config['lease_until'])>datetime.now(timezone.utc))
         except (TypeError,ValueError): running=False
-        return jsonify(config=config,worker_running=running,events=store.events(),source='LOCAL_RETAINED_EVIDENCE_ONLY',live_execution=False)
+        return jsonify(config=config,worker_running=running,events=store.events(),viewpoint_collection=collection,source='LOCAL_RETAINED_EVIDENCE_ONLY',live_execution=False)
 
     @bp.post('/api/v1/strategy-radar/monitor')
     def monitor_control():

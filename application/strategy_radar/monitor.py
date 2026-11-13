@@ -69,7 +69,7 @@ class MonitorStore:
             return [dict(row,trace=json.loads(row['trace'])) for row in db.execute('SELECT * FROM monitor_events ORDER BY id DESC LIMIT ?', (limit,))]
 
 
-def check_once(store,service,now,*,evaluator=None,notifier=None):
+def check_once(store,service,now,*,evaluator=None,notifier=None,load_exports=None):
     configuration=store.config()
     if not configuration['enabled']:
         store.status(now,'PAUSED'); return 'PAUSED'
@@ -80,8 +80,9 @@ def check_once(store,service,now,*,evaluator=None,notifier=None):
         from .shadow_service import evaluate_watch
         evaluator=lambda instrument: evaluate_watch(service,instrument,profile,now=now)
     try:
-        watches=service.store.list_watches()
+        watches=service.store.radar_choices()
         if not watches: store.status(now,'EMPTY_WATCHLIST'); return 'EMPTY_WATCHLIST'
+        import_errors = load_exports(watches, now) if load_exports is not None else 0
         unknown=0; errors=0
         for watch in watches:
             if not store.config()['enabled']:
@@ -108,6 +109,9 @@ def check_once(store,service,now,*,evaluator=None,notifier=None):
                     except Exception: result='WINDOWS_NOTIFICATION_FAILED'
                     store.mark_desktop(event_id,result)
         state='ERROR' if errors==len(watches) else 'SOURCE_UNAVAILABLE' if unknown==len(watches) else 'PARTIAL_SOURCE' if unknown or errors else 'CHECKED'
-        store.status(now,state,'WATCH_EVALUATION_FAILED' if errors else None); return state
+        error = 'WATCH_EVALUATION_FAILED' if errors else None
+        if import_errors:
+            error = 'VIEWPOINT_EXPORT_IMPORT_FAILED' if error is None else error + ';VIEWPOINT_EXPORT_IMPORT_FAILED'
+        store.status(now,state,error); return state
     except Exception as exc:
         store.status(now,'ERROR',type(exc).__name__); return 'ERROR'

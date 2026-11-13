@@ -145,18 +145,27 @@ function mergeEntryRules(rules) {
           try {
             const [data, quote] = await Promise.all([
               json(`/api/v1/strategy-radar/intraday/${encodeURIComponent(watch.instrument)}`),
-              json(`/api/v1/strategy-radar/quotes/${encodeURIComponent(watch.instrument)}`)
+              json(`/api/v1/strategy-radar/quotes/${encodeURIComponent(watch.instrument)}`).catch(() => null)
             ]);
             evidence.replaceChildren();
             for (const field of ['bid','ask','last']) {
-              const value = quote.fields[field].selected;
+              const value = quote?.fields?.[field]?.selected;
               line(evidence, 'p', value ? `${field}: R${value.value} · ${value.kind} · source ${value.provider} · source time ${value.source_time || 'unknown'} · received ${value.received_at} (${Math.floor(value.receipt_age_seconds / 60)} minutes ago)` : `${field}: unavailable`);
             }
 
+            const paired = data.ost_daily?.paired_sessions || [];
+            const latest = data.ost_daily?.latest;
+            const dailyRows = paired.slice(-5);
+            if (latest && !dailyRows.some(row => row.session === latest.session)) dailyRows.push(latest);
+            for (const daily of dailyRows) {
+              const close = Number(daily.close_zar).toFixed(2);
+              const volume = Number(daily.volume_shares).toLocaleString('en-ZA');
+              line(evidence, 'p', `OST daily · ${daily.session} · close R${close} · session volume ${volume} shares`);
+            }
             line(evidence, 'p', `${data.bars.length} aligned bars · ${data.unknown_clock_records.length} observations awaiting an interval convention.`);
-            for (const bar of data.bars.filter(item => Object.values(item.fields).some(field => field.selected?.normalization_basis === 'OPERATOR_ACCEPTED_VIEWPOINT_CSV_CONVENTION_V1')).slice(-10)) {
+            for (const bar of data.bars.filter(item => Object.values(item.fields).some(field => /^(?:DERIVED_5M:)?IRESS_VIEWPOINT_TABLE_CSV$/.test(field.selected?.source || ''))).slice(-10)) {
               const value = field => bar.fields[field].selected?.value || '—';
-              line(evidence, 'p', `IRESS ViewPoint · ${bar.bar_start} UTC start · R${value('open')}/${value('high')}/${value('low')}/${value('close')} · ${value('volume')} shares · owner-accepted CSV convention (cents→rand, UTC Date as interval start)`);
+              line(evidence, 'p', `IRESS ViewPoint · ${bar.interval_minutes} min · ${bar.bar_start} UTC start · R${value('open')}/${value('high')}/${value('low')}/${value('close')} · ${bar.fields.volume.selected ? value('volume') + ' shares' : 'bar volume unknown'}`);
             }
             for (const item of data.unknown_clock_records.slice(-5)) {
               let label = 'Source time unknown', detail = `close ${item.fields.close || 'unknown'} ZAR`;
@@ -662,7 +671,10 @@ function mergeEntryRules(rules) {
       const response = await fetch('/api/v1/strategy-radar/intraday/viewpoint-csv', {method:'POST', body:payload});
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'CSV import failed');
-      target.textContent = `Normalized ${result.saved} rows for ${result.instrument} · prices cents→rand · volume shares · UTC timestamps treated as interval starts · SHA-256 ${result.source_raw_sha256} · available to research shadow only.`;
+      const volumeStatus = result.rows_without_volume
+        ? `${result.rows_without_volume} rows missing volume`
+        : 'volume shares';
+      target.textContent = `Normalized ${result.saved} rows for ${result.instrument} · prices cents→rand · ${volumeStatus} · UTC timestamps treated as interval starts · SHA-256 ${result.source_raw_sha256} · available to research shadow only.`;
       form.reset();
     } catch (error) { target.textContent = error.message; }
   });

@@ -26,6 +26,16 @@ class IntradayIntegrationTests(unittest.TestCase):
   self.assertIsNone(parsed['fields']['high'])
   self.assertEqual(parsed['fields']['close'],'100')
   self.assertIn('high',parsed['invalid_fields'])
+ def test_viewpoint_closing_print_does_not_discard_regular_bars(self):
+  raw=(b'Date,Open,High,Low,Close,Volume\n'
+       b'2026-11-05T14:45:00.000Z,23032,23051,22999,23039,35438.00\n'
+       b'2026-11-05T15:00:00.000Z,23076,23076,23076,23076,905927\n')
+  rows=viewpoint_table_csv(raw,'MTN','MTN.JSE',NOW,file_name='MTN.JSE.csv',
+                          accept_operator_conventions=True)
+  self.assertEqual(len(rows),1)
+  self.assertEqual(rows[0]['bar_start'],'2026-11-05T14:45:00+00:00')
+  self.assertEqual(rows[0]['fields']['volume'],'35438')
+
  def test_viewpoint_csv_normalizes_using_owner_accepted_conventions(self):
   raw=(b'"Date","Open","High","Low","Close","% Change","% Change vs Average","Volume"\n'
        b'"2026-11-06T08:00:00.000Z","23032.00","23051.00","22999.00","23039.00","0.03","0.02","19,944"\n')
@@ -173,6 +183,34 @@ class IntradayIntegrationTests(unittest.TestCase):
    with patch('application.opportunities.zebra_instruments.mappings',return_value={'MTN':'MTN'}):
     response=client.post('/api/v1/strategy-radar/intraday/viewpoint-csv',data=invalid,content_type='multipart/form-data')
    self.assertEqual(response.status_code,422)
+
+ def test_viewpoint_ohlc_only_csv_import_retains_missing_volume(self):
+  from io import BytesIO
+  from application.opportunities.prospective_prices import record_capture
+  raw=(b'Date,Open,High,Low,Close\n'
+       b'2026-11-05T08:00:00.000Z,23032,23051,22999,23039\n')
+  with tempfile.TemporaryDirectory() as tmp:
+   service=RadarService(tmp,clock=lambda:NOW)
+   app=Flask(__name__); app.register_blueprint(create_radar_blueprint(lambda:service))
+   client=app.test_client()
+   data={'instrument':'MTN','symbol':'MTN.JSE','interval_minutes':'5',
+         'accept_operator_conventions':'yes','file':(BytesIO(raw),'MTN.JSE.csv')}
+   with patch('application.opportunities.zebra_instruments.mappings',return_value={'MTN':'MTN'}), \
+        patch.object(service,'prepare_context',return_value={'state':'PREPARED'}):
+    response=client.post('/api/v1/strategy-radar/intraday/viewpoint-csv',data=data,content_type='multipart/form-data')
+   self.assertEqual(response.status_code,201,response.json)
+   self.assertEqual(response.json['rows_without_volume'],1)
+   self.assertIsNone(response.json['volume_unit'])
+   record_capture(service.folder.parent, 'MTN', 'OST', {'bars': [
+       {'timestamp':'2026-11-04','close':229,'volume':500},
+       {'timestamp':'2026-11-05','close':230.39,'volume':1000},
+   ]}, NOW.isoformat(), 'a'*64)
+   result=client.get('/api/v1/strategy-radar/intraday/MTN').json
+   self.assertEqual([row['session'] for row in result['ost_daily']['paired_sessions']], ['2026-11-05'])
+   self.assertEqual(result['ost_daily']['latest']['volume_shares'],1000)
+   fields=result['bars'][0]['fields']
+   self.assertEqual(fields['close']['selected']['value'],'230.39')
+   self.assertIsNone(fields['volume']['selected'])
 
  def test_swing_quote_freshness_is_explicit_and_preserves_delay(self):
   from application.strategy_radar.quote_store import QuoteStore

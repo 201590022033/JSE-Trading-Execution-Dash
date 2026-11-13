@@ -150,7 +150,7 @@ def evaluate_intraday(profile_id, instrument, raw_records, as_of, *, benchmark_r
     local_now=now.astimezone(SAST)
     session_open=(_session(local_now.date()) is True and local_now.replace(hour=9, minute=0, second=0, microsecond=0)<=local_now<local_now.replace(hour=17, minute=0, second=0, microsecond=0))
     bars=_usable_bars(raw_records,instrument,interval,now)
-    bars=[b for b in bars if _time(b['bar_start'])<=now]
+    bars=[b for b in bars if not b['provisional'] and _time(b['bar_end'])<=now]
     bars.sort(key=lambda b:b['bar_start'])
     selected=bars[-4:]
     reason=None
@@ -160,14 +160,11 @@ def evaluate_intraday(profile_id, instrument, raw_records, as_of, *, benchmark_r
         reason='No verified interval bars available'
     elif now-_time(selected[-1]['bar_end']) > timedelta(minutes=interval*2):
         reason='Latest completed bar is stale at evaluation time'
-    elif selected[-1]['provisional'] or _time(selected[-1]['bar_end'])>now:
-        reason='Latest bar is provisional or not closed'
     elif len(selected)<4:
         reason='Four completed contiguous bars are required'
     else:
         for index,bar in enumerate(selected):
-            if (bar['provisional'] or _time(bar['bar_end'])>now or
-                _time(bar['bar_start']).astimezone(SAST).date()!=_time(selected[-1]['bar_start']).astimezone(SAST).date() or
+            if (_time(bar['bar_start']).astimezone(SAST).date()!=_time(selected[-1]['bar_start']).astimezone(SAST).date() or
                 (index and _time(bar['bar_start'])!=_time(selected[index-1]['bar_end']))):
                 reason='Four completed contiguous bars in one verified session are required'
                 break

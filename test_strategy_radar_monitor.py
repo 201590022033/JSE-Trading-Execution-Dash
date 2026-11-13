@@ -13,8 +13,60 @@ class MonitorTests(unittest.TestCase):
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
   self.path=Path(self.temp.name)/'monitor.sqlite3';self.store=MonitorStore(self.path)
-  self.service=SimpleNamespace(store=SimpleNamespace(list_watches=lambda:[{'instrument':'ABSPJ'}]))
+  self.service=SimpleNamespace(store=SimpleNamespace(radar_choices=lambda:[{'instrument':'ABSPJ'}]))
  def evaluation(self,state): return {'instrument':'ABSPJ','state':state,'passed':4,'applicable':5,'unknown':0,'rules':[{'id':'volume','state':'PASS'}]}
+ def test_five_ranked_and_one_pin_load_before_evaluation(self):
+  from application.strategy_radar.intraday_store import IntradayCache
+  from application.strategy_radar.viewpoint_inbox import ViewPointInbox
+  from application.strategy_radar.watch_store import WatchStore
+
+  service=SimpleNamespace(folder=Path(self.temp.name)/'radar')
+  service.store=WatchStore(service.folder/'watches.sqlite3')
+  ranked=['MTN','VOD','SOL','NPN','BTI']
+  watches=[{'instrument':key,'in_top5':True,'pinned':key=='MTN'} for key in ranked]
+  watches += [{'instrument':'FSR','in_top5':False,'pinned':True},
+              {'instrument':'GFI','in_top5':False,'pinned':False}]
+  inbox=ViewPointInbox(service)
+  inbox.folder.mkdir(parents=True)
+  raw='Date,Open,High,Low,Close\n2026-11-09T08:00:00.000Z,23032,23051,22999,23039\n'
+  for watch in watches:
+   (inbox.folder/f"{watch['instrument']}.JSE (20261109100000000 _ 20261109100000000).csv").write_text(raw)
+  self.store.configure(True,300,False)
+  cache=IntradayCache(service.folder/'intraday.sqlite3')
+  checked=[]
+  def evaluate(instrument):
+   checked.append(instrument)
+   self.assertEqual(len(cache.read(instrument)),1)
+   return self.evaluation('WATCHING')
+  with patch.object(service.store,'list_watches',return_value=watches), \
+       patch('application.strategy_radar.viewpoint_inbox.mappings',return_value={row['instrument']:row['instrument'] for row in watches}):
+   for _ in range(2):
+    self.assertEqual(check_once(self.store,service,OPEN,evaluator=evaluate,load_exports=lambda watches, now: inbox.load(watches, now, include_downloads=False)),'CHECKED')
+  self.assertEqual(checked,(ranked+['FSR'])*2)
+  self.assertEqual(cache.read('GFI'),[])
+
+ def test_download_import_requires_five_minute_cadence(self):
+  from application.strategy_radar.intraday_store import IntradayCache
+  from application.strategy_radar.viewpoint_inbox import ViewPointInbox
+  root=Path(self.temp.name)
+  service=SimpleNamespace(folder=root/'radar', clock=lambda:OPEN,
+                          store=SimpleNamespace(radar_choices=lambda:[{'instrument':'MTN'}]))
+  downloads=root/'Downloads'
+  downloads.mkdir()
+  header='Date,Open,High,Low,Close\n'
+  rows='2026-11-09T08:00:00Z,23000,23010,22990,23001\n'
+  end='2026-11-09T08:{}:00Z,23001,23010,22990,23002\n'
+  (downloads/'MTN.JSE (20261109103000000 _ 20261109100000000).csv').write_text(header+rows+end.format('30'))
+  (downloads/'MTN.JSE (20261109100500000 _ 20261109100000000).csv').write_text(header+rows+end.format('05'))
+  app=Flask(__name__); app.register_blueprint(create_radar_blueprint(lambda:service))
+  with patch('application.strategy_radar.viewpoint_inbox.Path.home',return_value=root), \
+       patch('application.strategy_radar.viewpoint_inbox.mappings',return_value={'MTN':'MTN'}):
+   client=app.test_client()
+   url='/api/v1/strategy-radar/intraday/import-download/MTN'
+   self.assertEqual(client.post(url,json={}).json['imported'],2)
+   self.assertEqual(client.post(url,json={}).json['imported'],0)
+  self.assertEqual(len(IntradayCache(service.folder/'intraday.sqlite3').read('MTN')),2)
+
  def test_market_calendar(self):
   self.assertEqual(market_status(OPEN),'OPEN');self.assertEqual(market_status(datetime(2026,11,8,10,tzinfo=timezone.utc)),'CLOSED')
   self.assertEqual(market_status(datetime(2026,11,4,10,tzinfo=timezone.utc)),'CLOSED')
@@ -33,7 +85,7 @@ class MonitorTests(unittest.TestCase):
   self.assertEqual(check_once(self.store,self.service,OPEN,evaluator=evaluator),'PAUSED')
   self.store.configure(True,300,False)
   self.assertEqual(check_once(self.store,self.service,datetime(2026,11,8,10,tzinfo=timezone.utc),evaluator=evaluator),'CLOSED')
-  self.service.store.list_watches=lambda:[]
+  self.service.store.radar_choices=lambda:[]
   self.assertEqual(check_once(self.store,self.service,OPEN,evaluator=evaluator),'EMPTY_WATCHLIST')
  def test_lease_and_validation(self):
   self.store.configure(True,300,False)
@@ -53,7 +105,7 @@ class MonitorTests(unittest.TestCase):
   from datetime import timedelta
   service=SimpleNamespace(folder=Path(self.temp.name),store=SimpleNamespace(
     get=lambda key:{'instrument':key,'state':'WATCHING','benchmark':'ETF_STX40'},
-    list_watches=lambda:[{'instrument':'SOL'}]))
+    radar_choices=lambda:[{'instrument':'SOL'}]))
   cache=IntradayCache(service.folder/'intraday.sqlite3')
   for bar in bars()+bars('ETF_STX40',values=(100,100,100,101)):cache.put(bar,evidence=True)
   self.store.configure(True,300,False)
@@ -74,7 +126,7 @@ class MonitorTests(unittest.TestCase):
 
  def test_one_failed_watch_does_not_block_another(self):
   self.store.configure(True,300,False)
-  self.service.store.list_watches=lambda:[{'instrument':'BAD'},{'instrument':'ABSPJ'}]
+  self.service.store.radar_choices=lambda:[{'instrument':'BAD'},{'instrument':'ABSPJ'}]
   def evaluate(key):
    if key=='BAD': raise OSError('source unavailable')
    return self.evaluation('DEVELOPING')

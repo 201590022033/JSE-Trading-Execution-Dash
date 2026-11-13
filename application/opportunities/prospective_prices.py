@@ -27,6 +27,38 @@ def record_capture(folder, instrument_id, provider, chart, acquired_at, source_s
     return path
 
 
+def ost_daily_context(folder, instrument, sessions, *, as_of):
+    """Read the latest retained OST daily snapshot and pair requested sessions by date."""
+    import re
+    if not re.fullmatch(r'[A-Z0-9_]{2,16}', instrument):
+        return {'latest': None, 'paired_sessions': []}
+    source = folder / 'prospective-price-captures' / instrument / 'OST'
+    for path in sorted(source.glob('*.json'), reverse=True):
+        try:
+            capture = json.loads(path.read_text(encoding='utf-8'))
+            acquired = timestamp(capture['acquired_at'])
+            digest = capture['source_sha256']
+            if (capture['schema'] != 'prospective-price-capture-v1'
+                or capture['instrument_id'] != instrument or capture['provider'] != 'OST'
+                or acquired > as_of or not re.fullmatch(r'[0-9a-f]{64}', digest)
+                or not path.stem.endswith('-' + digest)):
+                continue
+            from .public_research import _available_at
+            rows = []
+            for bar in capture['bars']:
+                session = bar['timestamp']
+                if _available_at(session) <= acquired and bar.get('close') is not None and bar.get('volume') is not None:
+                    rows.append({'session': session, 'close_zar': bar['close'],
+                                 'volume_shares': bar['volume'], 'source': 'OST',
+                                 'acquired_at': acquired.isoformat(), 'source_sha256': digest})
+            if rows:
+                return {'latest': max(rows, key=lambda row: row['session']),
+                        'paired_sessions': [row for row in rows if row['session'] in sessions]}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError):
+            continue
+    return {'latest': None, 'paired_sessions': []}
+
+
 def capture_summary(folder):
     """Read source-local receipts, count later observed revisions and forward sessions."""
     root = folder / 'prospective-price-captures'

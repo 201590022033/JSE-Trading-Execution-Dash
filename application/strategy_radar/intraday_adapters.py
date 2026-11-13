@@ -5,7 +5,7 @@ import csv
 import io
 import json
 import re
-from .intraday_store import IntradayCache, normalize_bar
+from .intraday_store import IntradayCache, SAST, normalize_bar
 
 
 def manual_viewpoint_rows(instrument, raw_rows, received_at, *, unit='ZAR_CENTS', interval_minutes=30):
@@ -57,9 +57,9 @@ def viewpoint_table_csv(raw, instrument, symbol, received_at, *, file_name, file
 
     try:
         reader = csv.DictReader(io.StringIO(raw.decode('utf-8-sig')))
-        required = {'Date', 'Open', 'High', 'Low', 'Close', 'Volume'}
+        required = {'Date', 'Open', 'High', 'Low', 'Close'}
         if not required.issubset(set(reader.fieldnames or ())):
-            raise ValueError('ViewPoint Date/OHLCV columns required')
+            raise ValueError('ViewPoint Date and OHLC columns required')
         records, seen = [], set()
         for index, row in enumerate(reader):
             if index >= 2000:
@@ -71,16 +71,24 @@ def viewpoint_table_csv(raw, instrument, symbol, received_at, *, file_name, file
             if source_time in seen:
                 raise ValueError('duplicate chart timestamp')
             seen.add(source_time)
+            # Native exports may include closing and post-close prints.
+            # Preserve them in the raw CSV without mapping it to a regular-session bar.
+            local_time = source_time.astimezone(SAST)
+            if local_time.hour >= 17:
+                continue
             raw_fields = {}
             for field in ('Open', 'High', 'Low', 'Close'):
                 value = Decimal(row[field].replace(',', ''))
                 if not value.is_finite() or value <= 0:
                     raise ValueError('positive numeric OHLC values required')
                 raw_fields[field.lower()] = str(value)
-            volume = row['Volume']
-            if not re.fullmatch(r'(?:\d+|\d{1,3}(?:,\d{3})+)', volume or ''):
-                raise ValueError('numeric Volume column required')
-            raw_fields['volume'] = volume.replace(',', '')
+            volume = (row.get('Volume') or '').strip()
+            if volume:
+                if not re.fullmatch(r'(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.0+)?', volume):
+                    raise ValueError('Volume must be a share count when supplied')
+                raw_fields['volume'] = volume.split('.', 1)[0].replace(',', '')
+            else:
+                raw_fields['volume'] = None
             raw_row = {key: value for key, value in row.items() if key is not None}
             bar_end = source_time + timedelta(minutes=interval_minutes)
             record = {
@@ -103,7 +111,7 @@ def viewpoint_table_csv(raw, instrument, symbol, received_at, *, file_name, file
                     'qualification': {
                         'state': 'OPERATOR_ACCEPTED_CONVENTION',
                         'price_unit': 'ZAR_CENTS',
-                        'volume_unit': 'SHARES_AS_EXPORTED',
+                        'volume_unit': 'SHARES_AS_EXPORTED' if volume else None,
                         'bar_boundary': 'START',
                         'use_for_scoring': True,
                         'basis': 'Price magnitude matches retained JSE daily rand scale; UTC timestamps advance at the selected chart interval.',
