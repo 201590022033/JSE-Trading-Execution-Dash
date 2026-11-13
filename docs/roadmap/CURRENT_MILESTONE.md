@@ -6,19 +6,20 @@ ticker in the chart, table and native filename, enables the Volume column
 and imports the CSV using the existing evidence store. The monitor API exposes
 the last collection attempt separately from the evaluation result.
 
-Setup requires Playwright in the project environment and a signed-in ViewPoint
-chart in the dedicated Edge profile. Start Edge with the following argument,
-sign in normally, open a chart, and close that Edge window so the collector
-can open the profile. The profile lives under ignored runtime storage.
+Setup opens Standard Bank OST in the dedicated Edge profile. Sign in to OST
+as usual. The script clicks the ViewPoint link when it appears and waits for
+an Iress chart in the popup or current tab. Open a chart if needed. The script
+closes the dedicated profile after verification so the collector can reuse it.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install playwright
 .\scripts\setup_viewpoint_collector.ps1
 ```
 
-Live browser acceptance is pending. The collector uses the normal download
-control. Session expiry requires signing back in through the dedicated profile.
-The SENS and Backtester roster lanes remain separate follow-up work.
+When a saved ViewPoint session is unavailable, the collector can try the normal
+launcher if OST is still signed in. If both sessions expire, rerun setup.
+The authenticated OST handoff still needs a live check. The SENS and Backtester
+roster lanes remain separate follow-up work.
 
 ## Proposed five-minute work roster — 13 November 2026
 

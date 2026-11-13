@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from hashlib import sha256
 import re
+from time import monotonic
 from urllib.parse import urlsplit
 
 from application.opportunities.zebra_instruments import mappings
@@ -11,6 +12,42 @@ from .intraday_store import IntradayCache
 from .viewpoint_inbox import _EXPORT, _MAX_BYTES
 
 VIEWPOINT = 'https://viewpoint.iress.co.za/st/'
+
+OST = 'https://securities.standardbank.co.za/ost/sp/frontofficesecure/legacy/newframes.asp'
+
+
+def _viewpoint_chart(context):
+    for page in context.pages:
+        if urlsplit(page.url).hostname == 'viewpoint.iress.co.za':
+            if page.get_by_role('button', name='Table View', exact=True).first.is_visible():
+                return page
+    return None
+
+
+def _wait_for_ost_launch(context, ost_page, *, timeout_seconds):
+    """Follow the normal OST launcher and detect either a popup or same-tab chart."""
+    deadline = monotonic() + timeout_seconds
+    launched = False
+    while monotonic() < deadline:
+        chart = _viewpoint_chart(context)
+        if chart:
+            return chart
+        if not launched and not ost_page.is_closed():
+            for frame in ost_page.frames:
+                if urlsplit(frame.url).hostname != 'securities.standardbank.co.za':
+                    continue
+                link = frame.get_by_role('link', name='ViewPoint', exact=True)
+                if link.count() == 1 and link.is_visible():
+                    link.click(timeout=2000, no_wait_after=True)
+                    launched = True
+                    break
+        pages = context.pages
+        if not pages:
+            break
+        # Pump browser events while waiting for the OST sign-in or its popup.
+        pages[0].wait_for_timeout(500)
+    return None
+
 
 
 def _export(page, symbol):
@@ -69,12 +106,14 @@ class ViewPointCollector:
                     page = context.pages[0] if context.pages else context.new_page()
                     page.set_default_timeout(2500)
                     page.goto(VIEWPOINT, wait_until='domcontentloaded', timeout=10000)
-                    if urlsplit(page.url).hostname != 'viewpoint.iress.co.za':
-                        return {'state': 'SIGN_IN_REQUIRED', 'instruments': {}}
                     try:
-                        page.get_by_role('button', name='Table View', exact=True).wait_for(state='visible', timeout=12000)
+                        page.get_by_role('button', name='Table View', exact=True).first.wait_for(state='visible', timeout=5000)
                     except Error:
-                        return {'state': 'SIGN_IN_OR_CHART_SETUP_REQUIRED', 'instruments': {}}
+                        page.goto(OST, wait_until='domcontentloaded', timeout=10000)
+                        page = _wait_for_ost_launch(context, page, timeout_seconds=12)
+                        if page is None:
+                            return {'state': 'OST_SIGN_IN_OR_CHART_SETUP_REQUIRED', 'instruments': {}}
+                        page.set_default_timeout(2500)
                     charts = page.get_by_role('img', name=re.compile('5 minute candle chart'))
                     if not charts.count():
                         page.get_by_role('button', name='Periodicity', exact=True).click()
@@ -104,3 +143,34 @@ class ViewPointCollector:
         except (Error, OSError):
             return {'state': 'BROWSER_UNAVAILABLE', 'instruments': result}
         return {'state': 'CHECKED', 'instruments': result}
+
+
+def setup():
+    from playwright.sync_api import Error, sync_playwright
+    from .service import RadarService
+
+    collector = ViewPointCollector(RadarService())
+    try:
+        with process_lock(collector.service.folder / 'viewpoint-collector.lock'), sync_playwright() as browser:
+            context = browser.chromium.launch_persistent_context(
+                str(collector.profile), channel='msedge', headless=False)
+            try:
+                page = context.pages[0] if context.pages else context.new_page()
+                page.goto(OST, wait_until='domcontentloaded')
+                print('Sign in to Standard Bank OST in this Edge window. '
+                      'The script will open ViewPoint when the launcher appears. '
+                      'Open a chart in ViewPoint if needed.', flush=True)
+                if _wait_for_ost_launch(context, page, timeout_seconds=300):
+                    print('ViewPoint chart verified. Collector profile is ready.')
+                    return 0
+                print('No ViewPoint chart appeared. Run setup again to retry.')
+                return 1
+            finally:
+                context.close()
+    except (Error, OSError):
+        print('Could not complete OST setup. Close any dedicated collector Edge windows and retry.')
+        return 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(setup())
