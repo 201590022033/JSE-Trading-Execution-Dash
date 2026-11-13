@@ -8,16 +8,16 @@ the last collection attempt separately from the evaluation result.
 
 Setup opens Standard Bank OST in the dedicated Edge profile. Sign in to OST
 as usual. The script clicks the ViewPoint link when it appears and waits for
-an Iress chart in the popup or current tab. Open a chart if needed. The script
-closes the dedicated profile after verification so the collector can reuse it.
+an Iress chart in the popup or current tab. Open a chart if needed. Leave the Edge window and setup terminal open after verification. Radar sends
+export requests to that running browser session.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install playwright
 .\scripts\setup_viewpoint_collector.ps1
 ```
 
-When a saved ViewPoint session is unavailable, the collector can try the normal
-launcher if OST is still signed in. If both sessions expire, rerun setup.
+A live check showed both sign-ins were lost when Edge closed. If the
+ViewPoint session expires, rerun setup through OST.
 The authenticated OST handoff still needs a live check. The SENS and Backtester
 roster lanes remain separate follow-up work.
 

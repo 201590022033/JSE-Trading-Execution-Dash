@@ -2,9 +2,12 @@
 from datetime import datetime, timezone
 from hashlib import sha256
 import re
-from time import monotonic
+from time import monotonic, sleep
+import json
+from uuid import uuid4
 from urllib.parse import urlsplit
 
+from application.opportunities.ost_data import atomic_json
 from application.opportunities.zebra_instruments import mappings
 from scripts.local_runtime import process_lock
 from .intraday_adapters import viewpoint_table_csv
@@ -90,59 +93,92 @@ class ViewPointCollector:
         if not (self.profile / 'Local State').is_file():
             return {'state': 'BROWSER_SETUP_REQUIRED', 'instruments': {}}
         try:
-            from playwright.sync_api import Error, sync_playwright
+            import playwright.sync_api
         except ImportError:
             return {'state': 'PLAYWRIGHT_REQUIRED', 'instruments': {}}
+        queue = self.service.folder / 'viewpoint-requests'
+        try:
+            if not 0 <= monotonic() - float((queue / 'heartbeat').read_text()) <= 120:
+                raise ValueError('collector heartbeat expired')
+        except (OSError, ValueError):
+            return {'state': 'START_OST_SETUP', 'instruments': {}}
+        request = queue / f'{uuid4().hex}.json'
+        response = request.with_suffix('.result')
+        atomic_json(request, {'watches': watches})
+        try:
+            deadline = monotonic() + 90
+            while monotonic() < deadline:
+                if response.exists():
+                    return json.loads(response.read_text(encoding='utf-8'))
+                sleep(0.25)
+            return {'state': 'COLLECTOR_TIMEOUT', 'instruments': {}}
+        finally:
+            request.unlink(missing_ok=True)
+            response.unlink(missing_ok=True)
+
+    def export_watches(self, page, watches):
+        from playwright.sync_api import Error
+
+        page.set_default_timeout(2500)
         registered = mappings(self.service.folder.parent / 'radar-public-prices')
         instruments = dict.fromkeys(w['instrument'] for w in watches)
         instruments.update(dict.fromkeys(w.get('benchmark') for w in watches if w.get('benchmark')))
         result = {}
         cache = IntradayCache(self.service.folder / 'intraday.sqlite3')
         try:
-            with process_lock(self.service.folder / 'viewpoint-collector.lock'), sync_playwright() as browser:
-                context = browser.chromium.launch_persistent_context(
-                    str(self.profile), channel='msedge', headless=False, accept_downloads=True, timeout=12000)
+            charts = page.get_by_role('img', name=re.compile('5 minute candle chart'))
+            if not charts.count():
+                page.get_by_role('button', name='Periodicity', exact=True).click()
+                page.get_by_role('menuitem', name='5 Min', exact=True).click()
+                charts.wait_for(state='visible')
+            for instrument in instruments:
+                code = registered.get(instrument)
+                if not code:
+                    result[instrument] = 'MAPPING_UNAVAILABLE'
+                    continue
                 try:
-                    page = context.pages[0] if context.pages else context.new_page()
-                    page.set_default_timeout(2500)
-                    page.goto(VIEWPOINT, wait_until='domcontentloaded', timeout=10000)
-                    try:
-                        page.get_by_role('button', name='Table View', exact=True).first.wait_for(state='visible', timeout=5000)
-                    except Error:
-                        page.goto(OST, wait_until='domcontentloaded', timeout=10000)
-                        page = _wait_for_ost_launch(context, page, timeout_seconds=12)
-                        if page is None:
-                            return {'state': 'OST_SIGN_IN_OR_CHART_SETUP_REQUIRED', 'instruments': {}}
-                        page.set_default_timeout(2500)
-                    charts = page.get_by_role('img', name=re.compile('5 minute candle chart'))
-                    if not charts.count():
-                        page.get_by_role('button', name='Periodicity', exact=True).click()
-                        page.get_by_role('menuitem', name='5 Min', exact=True).click()
-                        charts.wait_for(state='visible')
-                    for instrument in instruments:
-                        code = registered.get(instrument)
-                        if not code:
-                            result[instrument] = 'MAPPING_UNAVAILABLE'
-                            continue
-                        try:
-                            symbol = f'{code}.JSE'
-                            name, raw = _export(page, symbol)
-                            now = datetime.now(timezone.utc)
-                            records = viewpoint_table_csv(raw, instrument, symbol, now, file_name=name,
-                                                         accept_operator_conventions=True)
-                            digest = sha256(raw).hexdigest()
-                            old = [row for row in cache.read(instrument) if row.get('source_raw_sha256') == digest]
-                            if not old or (any(row['provisional'] for row in old)
-                                           and not any(row['provisional'] for row in records)):
-                                cache.put_batch(records, raw, evidence=True)
-                            result[instrument] = 'IMPORTED' if not old else 'ALREADY_RETAINED'
-                        except (Error, OSError, ValueError):
-                            result[instrument] = 'EXPORT_UNAVAILABLE'
-                finally:
-                    context.close()
+                    symbol = f'{code}.JSE'
+                    name, raw = _export(page, symbol)
+                    now = datetime.now(timezone.utc)
+                    records = viewpoint_table_csv(raw, instrument, symbol, now, file_name=name,
+                                                 accept_operator_conventions=True)
+                    digest = sha256(raw).hexdigest()
+                    old = [row for row in cache.read(instrument) if row.get('source_raw_sha256') == digest]
+                    if not old or (any(row['provisional'] for row in old)
+                                   and not any(row['provisional'] for row in records)):
+                        cache.put_batch(records, raw, evidence=True)
+                    result[instrument] = 'IMPORTED' if not old else 'ALREADY_RETAINED'
+                except (Error, OSError, ValueError):
+                    result[instrument] = 'EXPORT_UNAVAILABLE'
         except (Error, OSError):
             return {'state': 'BROWSER_UNAVAILABLE', 'instruments': result}
         return {'state': 'CHECKED', 'instruments': result}
+
+    def serve(self, context):
+        queue = self.service.folder / 'viewpoint-requests'
+        queue.mkdir(parents=True, exist_ok=True)
+        heartbeat = queue / 'heartbeat'
+        try:
+            while context.pages:
+                heartbeat.write_text(str(monotonic()), encoding='utf-8')
+                for request in sorted(queue.glob('*.json')):
+                    if not re.fullmatch(r'[0-9a-f]{32}', request.stem):
+                        continue
+                    response = request.with_suffix('.result')
+                    if response.exists():
+                        continue
+                    try:
+                        watches = json.loads(request.read_text(encoding='utf-8'))['watches']
+                    except (OSError, ValueError, KeyError):
+                        continue
+                    chart = _viewpoint_chart(context)
+                    result = (self.export_watches(chart, watches) if chart else
+                              {'state': 'OST_SIGN_IN_OR_CHART_SETUP_REQUIRED', 'instruments': {}})
+                    if request.exists():
+                        atomic_json(response, result)
+                context.pages[0].wait_for_timeout(500)
+        finally:
+            heartbeat.unlink(missing_ok=True)
 
 
 def setup():
@@ -161,7 +197,8 @@ def setup():
                       'The script will open ViewPoint when the launcher appears. '
                       'Open a chart in ViewPoint if needed.', flush=True)
                 if _wait_for_ost_launch(context, page, timeout_seconds=300):
-                    print('ViewPoint chart verified. Collector profile is ready.')
+                    print('ViewPoint chart verified. Leave this Edge window and terminal open for Radar.', flush=True)
+                    collector.serve(context)
                     return 0
                 print('No ViewPoint chart appeared. Run setup again to retry.')
                 return 1
