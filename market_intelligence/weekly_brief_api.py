@@ -38,7 +38,18 @@ def create_weekly_brief_blueprint(factory):
             from application.opportunities.research_data_requests import status as data_status
             now = datetime.now(timezone.utc)
             operations = data_status(repository, now)
-            return jsonify(**calendar_status(repository, now), routine_tasks=[{
+            calendar = calendar_status(repository, now)
+            from .macro_calendar import records as macro_confirmations
+            sidecars = {item['event_id']: item for item in macro_confirmations(repository, now)}
+            for group in ('events', 'upcoming', 'past', 'proposals'):
+                for event in calendar.get(group, []):
+                    sidecar = sidecars.get(event['record_id'])
+                    if sidecar:
+                        event['macro_confirmation'] = sidecar
+                        event['confirmation'] = {**event['confirmation'],
+                            'review_origin': 'Automated official-schedule sync',
+                            'source_body_sha256': sidecar['source_body_sha256']}
+            return jsonify(**calendar, routine_tasks=[{
                 "title": "Daily OST / IRESS data import", **operations["daily_reminder"]}])
         finally:
             repository.close()
