@@ -584,6 +584,16 @@ if ($('#calendar-expectation-prepare')) $('#calendar-expectation-prepare').onsub
 };
 async function refreshWeeklyBrief() {
   try {
+    let strip=document.getElementById('macro-health-strip');
+    if (!strip) { strip=document.createElement('section');strip.id='macro-health-strip';$('#weekly-brief-status').before(strip); }
+    const macro=await api('/api/market-intelligence/macro-health');
+    strip.replaceChildren();
+    const heading=document.createElement('h3');heading.textContent=`Macro events registered for the next 7 days: ${macro.next_7_days}`;strip.append(heading);
+    macro.warnings.forEach(message=>{const warning=document.createElement('p');warning.setAttribute('role','alert');warning.style.color='#b42318';warning.textContent=message;strip.append(warning);});
+    macro.sources.forEach(source=>{const row=document.createElement('p');row.textContent=`${source.source_url} · ${source.state} · captured ${source.received_at}`;strip.append(row);});
+    macro.events.forEach(event=>{const row=document.createElement('p');const link=document.createElement('a');link.href=event.source_url;link.textContent=`${event.title} · ${event.event_date} · ${event.instrument_ids.join(', ')} · ${Math.floor(event.countdown_seconds/3600)}h until date anchor`;row.append(link);const attribution=document.createElement('small');attribution.textContent=` · ${event.confirmation_label} · SHA256 ${event.confirmation_source_hash}`;row.append(attribution);strip.append(row);});
+  } catch(error) { $('#weekly-brief-status').textContent=`Macro health unavailable: ${error.message}`; }
+  try {
     const data = await api('/api/market-intelligence/weekly-brief');
     $('#weekly-brief-status').textContent = `${data.enabled ? 'Research source enabled · local Ollama scans daily after data upload' : 'Research source paused · automatic weekly scans stopped'} · future brief delivery requires import · trading weight 0`;
     if (data.scans?.length) $('#weekly-brief-status').textContent += ` · latest local scan: ${data.scans[0].state.replaceAll('_',' ')} (${when(data.scans[0].received_at)})`;

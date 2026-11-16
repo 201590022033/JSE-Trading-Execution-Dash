@@ -16,6 +16,13 @@ def create_weekly_brief_blueprint(factory):
         supplied = request.headers.get("Authorization", "").removeprefix("Bearer ")
         return has_access() or bool(expected and hmac.compare_digest(expected.encode(), supplied.encode()))
 
+    @bp.get('/api/market-intelligence/macro-health')
+    def macro_health():
+        from .macro_health import status as macro_status
+        repository=factory()
+        try:return jsonify(macro_status(repository,datetime.now(timezone.utc)))
+        finally:repository.close()
+
     @bp.get("/api/market-intelligence/weekly-brief")
     def read():
         repository = factory()
