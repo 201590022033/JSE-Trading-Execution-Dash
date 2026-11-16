@@ -109,6 +109,15 @@ def create_weekly_brief_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get("/api/market-intelligence/macro-expectations")
+    def read_macro_expectations():
+        from .macro_expectations import status
+        repository = factory()
+        try:
+            return jsonify(status(repository, datetime.now(timezone.utc)))
+        finally:
+            repository.close()
+
     @bp.get("/api/market-intelligence/calendar-expectations")
     def read_expectations():
         from .calendar_expectations import status as expectation_status

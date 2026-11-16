@@ -1024,3 +1024,5 @@ Required to unblock: verified exchange/session/action evidence; explicit reconst
 Optional Windows sign-in startup was subsequently added as an explicit opt-in. The control registers a named logon task when checked and requests removal on pause; mocked tests cover success and failure. It is not enabled by default and was not actually installed or verified through a Windows sign-out/sign-in in this check. Earlier statements in this document that no startup option exists describe the preceding state.
 
 SENS runtime connection repaired: see docs/changes/2026-11-16-sens-runtime-bridge.md. Retained SENS now reaches trading through the existing roster lane; no collector/task settings changed.
+
+PRIMARY macro expectation enrichment: separate advisory path; see docs/changes/2026-11-16-macro-expectations.md. Production model generation remains resource-gated; no frozen module or scheduled task changed.

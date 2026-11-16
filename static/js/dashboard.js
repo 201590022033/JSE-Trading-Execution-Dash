@@ -535,6 +535,10 @@ async function refreshCalendarExpectations() {
   if (!$('#calendar-expectation-status')) return;
   try {
     const data = await api('/api/market-intelligence/calendar-expectations');
+    const macro = await api('/api/market-intelligence/macro-expectations');
+    let panel = $('#macro-expectations-panel');
+    if (!panel) { panel=document.createElement('section');panel.id='macro-expectations-panel';$('#calendar-expectation-status').before(panel); }
+    panel.innerHTML=`<h3>South African macro expectations</h3><p>${macro.eligible_count} eligible events ? ${esc(macro.label)} ? ${macro.free_gib ?? 'unknown'} GiB free (7 GiB required) ? idle ${Math.floor(macro.idle_seconds ?? 0)}s (600s required)</p>`+macro.events.map(e=>`<p>${esc(e.event_key)} ? ${esc(e.state)}</p>`).join('')+`<p>Last attempt: ${esc(macro.latest_result?.reason || macro.latest_attempt?.reason || 'No attempt; '+macro.readiness_state)}</p>`+(macro.latest_result?.output ? `<p>${esc(macro.latest_result.output.expectation || 'ABSTAIN')}</p><pre>${esc(JSON.stringify(macro.latest_result.output.citations))}</pre>` : '');
     const r = data.runner;
     $('#calendar-expectation-status').textContent = `${data.runs} model responses · ${data.frozen} frozen research plans · ${data.abstained} abstentions · ${data.rejected} blocked drafts · ${r.due_events} events in the seven-day window · ${r.total_reservations} request reservations · ${r.readiness_state.replaceAll('_',' ').toLowerCase()} · ${r.available_physical_ram_gib ?? 'unknown'} GiB free RAM (${r.minimum_start_free_ram_gib} GiB required)`;
     const latest = (r.latest_states || []).map(s => `<p class="muted">Worker: ${esc(s.state.replaceAll('_',' ').toLowerCase())} · ${esc(when(s.received_at))}</p>`).join('');

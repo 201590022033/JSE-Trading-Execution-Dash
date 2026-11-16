@@ -25,5 +25,8 @@ def main():
                 result=sync(source,target,datetime.now(timezone.utc))
             print(json.dumps(result))
         finally:source.close();target.close()
-if __name__=='__main__':main()
+if __name__=='__main__':
+    main()
+    if '--bridge-only' not in sys.argv:
+        subprocess.run([sys.executable,str(ROOT/'scripts/macro_expectations.py'),'--run'],cwd=ROOT,check=False)
 
