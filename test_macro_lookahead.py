@@ -21,5 +21,5 @@ class LookaheadTests(unittest.TestCase):
         now=datetime(2026,11,16,4,tzinfo=timezone.utc)
         repo.create_paper_account(ACCOUNT,{'mode':'PAPER'})
         repo.save_paper_record('failed-source',ACCOUNT,'macro-browser-result',now.isoformat(),
-            {'source_url':'https://www.bls.gov/schedule/2026/','state':'PARSE_FAILED','received_at':now.isoformat()})
+            {'source_url':'https://www.statssa.gov.za/?page_id=1874','state':'PARSE_FAILED','received_at':now.isoformat()})
         self.assertTrue(any('PARSE_FAILED' in s for s in status(repo,now)['warnings']))

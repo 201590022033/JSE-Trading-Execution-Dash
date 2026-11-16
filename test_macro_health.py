@@ -10,4 +10,4 @@ class MacroHealthTests(unittest.TestCase):
         self.assertEqual(result['next_7_days'],0)
         self.assertEqual(set(result['scope']),{'USDZAR','ZAR_RATES','DXY'})
         self.assertIn('No confirmed macro events are registered for the next 7 days.',result['warnings'])
-        self.assertEqual(len([w for w in result['warnings'] if w.startswith('Official schedule capture missing:')]),4)
+        self.assertEqual(len([w for w in result['warnings'] if w.startswith('Official schedule capture missing:')]),2)

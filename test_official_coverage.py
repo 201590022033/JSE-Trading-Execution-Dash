@@ -7,15 +7,9 @@ class CoverageTests(unittest.TestCase):
     def text(self,key):return (Path('tests/fixtures/macro')/(key+'.txt')).read_text(encoding='utf-8')
     def test_real_future_schedules(self):
         self.assertIn(('SARB_MPC',date(2027,1,28)),[(f,d) for f,d,q,r in parse('SARB_FULL',self.text('SARB_FULL'))])
-        self.assertIn(('FOMC',date(2027,4,28)),[(f,d) for f,d,q,r in parse('FOMC_FULL',self.text('FOMC_FULL'))])
-        rows=parse('BLS_2027',self.text('BLS_2027'))
-        self.assertIn(('US_NFP',date(2027,4,2)),[(f,d) for f,d,q,r in rows])
-        self.assertNotIn(('US_NFP',date(2027,4,6)),[(f,d) for f,d,q,r in rows])
-        for f,d,q,r in rows:self.assertIn(q,self.text('BLS_2027'))
 
-    def test_unrelated_and_strategy_dates_not_rate_decisions(self):
-        self.assertEqual(parse('BLS_2027','Tuesday, April 06, 2027\n10:00 AM\nEmployment Situation of Veterans for Annual 2026'),[])
-        self.assertEqual(parse('FOMC_FULL','2027 FOMC Meetings\nOctober\n26-27\nMonetary Policy Strategy Meeting\nLast Update:'),[])
+    def test_unrelated_date_not_sa_release(self):
+        self.assertEqual(parse('ZA_CPI','18 November 2026\nUnrelated release'),[])
 
     def test_real_fixture_registration_is_idempotent(self):
         from datetime import datetime,timezone
@@ -37,8 +31,8 @@ class CoverageTests(unittest.TestCase):
             self.assertGreater(sync(repo,now)['new_records'],0)
             self.assertEqual(sync(repo,now)['new_records'],0)
         events=cal.status(repo,now)['upcoming']
-        self.assertTrue(any(e['event_key']=='US_NFP_2027-04' and e['event_date']=='2027-04-02' for e in events))
-        self.assertFalse(any(e['event_key'].startswith('US_NFP') and e['event_date']=='2027-04-06' for e in events))
+        self.assertTrue(any(e['event_key']=='ZA_CPI_2026-11' for e in events))
+        self.assertFalse(any(e['event_key'].startswith(('US_','FOMC')) for e in events))
         sidecars=macro.records(repo,now)
         for event in events:self.assertEqual(sum(s['event_id']==event['record_id'] for s in sidecars),1)
         revised[0]=True

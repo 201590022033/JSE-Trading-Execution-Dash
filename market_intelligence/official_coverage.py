@@ -53,7 +53,8 @@ def sync(repo,now,*,refresh=False):
             for account,kind in [(cal.ACCOUNT,k) for k in cal.KINDS.values()]+[(macro.ACCOUNT,'macro-confirmation'),(macro.ACCOUNT,'macro-discrepancy')])
     before=total()
     results=[];new=0
-    for key,url in SOURCES.items():
+    # Owner scope correction: existing US records remain read-only; no US fetch.
+    for key,url in ((k,v) for k,v in SOURCES.items() if k in ('ZA_CPI','SARB_FULL')):
         captures=repo.paper_records(macro.ACCOUNT,'macro-browser-result',as_of=now.isoformat(),limit=2000)
         prior=sorted((c for c in captures if c['source_url']==url),key=lambda c:c['received_at'])
         capture=prior[-1] if prior and not refresh and now-datetime.fromisoformat(prior[-1]['received_at'])<timedelta(days=7) else macro.browser_capture(repo,key,url,now,refresh=refresh)
