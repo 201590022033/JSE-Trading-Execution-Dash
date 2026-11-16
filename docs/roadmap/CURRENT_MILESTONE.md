@@ -1,3 +1,32 @@
+## ViewPoint collector recovery patch — 16 November 2026
+
+The collector now treats the download event as export evidence even if a
+click wait times out, and uses normal keyboard activation after bounded
+pointer failures. It brings the existing chart forward and verifies a
+visible five-minute chart, exact table/native filename symbol and Volume.
+Per-instrument results include safe failure stages or retained file/hash/row
+and clock evidence; a database failure cannot terminate the other exports.
+See [recovery validation](../changes/2026-11-16-viewpoint-collector-recovery.md).
+
+After the owner authorized a controlled restart, the patched collector
+imported 175 MTN five-minute records with volume and retained raw bytes/hash
+through the actual signed-in browser. These are historical Friday bars,
+received Monday at 08:59 SAST before the open; live freshness is not established.
+The initial ETF_STX40 failure was later isolated to a chart rendering delay:
+the chart finished loading after the 2.5-second wait and its subsequent export
+imported 179 records. Exact-symbol waits are now 15 seconds; bounded queue-side
+recovery also works with the older running collector. A real MTN timeout then
+recovery imported 175 records at 09:07 SAST, including a still-provisional
+current candle. All attempts and source clocks remain distinct. The collector
+and authenticated session remain open.
+
+The restarted dashboard API subsequently imported MTN (175 records) and
+ETF_STX40 (179 records) together, with no final errors, preserving the initial
+benchmark timeout and successful targeted retry. Browser and collector were
+not restarted for this recovery check. The 09:10–09:15 candles were provisional
+at receipt. 53 focused checks pass; broader unattended reliability remains
+separate from this successful explicit refresh.
+
 ## ViewPoint browser collector
 
 The Radar refresh button and open-market monitor now call the same local
