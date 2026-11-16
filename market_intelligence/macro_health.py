@@ -13,8 +13,15 @@ MEMBERS={'USDZAR':{'name':'USD/ZAR','kind':'MACRO_FX_RATE'},
 def status(repo,now):
     from .macro_lookahead import latest
     lookahead=latest(repo,now)
+    from .official_coverage import coverage
+    family_coverage=coverage(repo,now)
     calendar=cal.status(repo,now)
     sidecars={r['event_id']:r for r in records(repo,now)}
+    discrepancies=[]
+    for item in repo.paper_records(ACCOUNT,'macro-discrepancy',as_of=now.isoformat(),limit=2000):
+        old=sidecars.get(item['previous_event_id'],{});new=sidecars.get(item['event_id'],{})
+        kind='PARSER_CORRECTION' if old.get('source_body_sha256')==new.get('source_body_sha256') else 'DISCREPANCY'
+        discrepancies.append({**item,'classification':kind})
     events=[]
     for event in calendar['upcoming']:
         sidecar=sidecars.get(event['record_id'])
@@ -43,10 +50,10 @@ def status(repo,now):
             else:warnings.append('Official schedule capture missing: '+url)
     if now.astimezone(ZoneInfo('Africa/Johannesburg')).weekday()<5 and not count:
         warnings.append('No confirmed macro events are registered for the next 7 days.')
-    if not latest or any(now-datetime.fromisoformat(c['received_at'])>timedelta(hours=26) for c in latest.values()):
-        warnings.append('Official macro schedule capture is missing or older than 26 hours.')
+    if not latest or any(now-datetime.fromisoformat(c['received_at'])>timedelta(days=7) for c in latest.values()):
+        warnings.append('Official macro schedule capture is missing or older than 7 days.')
     for url,capture in latest.items():
         if capture['state']!='CAPTURED':warnings.append(url+': '+capture['state'])
     return {'scope':MEMBERS,'catalog_sha256':sha256(json.dumps(MEMBERS,sort_keys=True).encode()).hexdigest(),
-        'events':events,'next_7_days':count,'sources':list(latest.values()),'warnings':warnings,'lookahead':lookahead,
+        'events':events,'next_7_days':count,'sources':list(latest.values()),'warnings':warnings,'lookahead':lookahead,'family_coverage':family_coverage,'discrepancies':discrepancies,
         'live_execution':False,'trading_weight':0}

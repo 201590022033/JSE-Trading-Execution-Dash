@@ -20,8 +20,8 @@ def run(repo,now,*,force=False,refresh=False,syncer=None):
         if syncer:
             sync=syncer(repo,now)
         else:
-            for key,url in macro.OFFICIAL_SCHEDULES.items():macro.browser_capture(repo,key,url,now,refresh=refresh)
-            sync={'sarb':macro.sync(repo,now),'registration':macro.register_captured(repo,now)}
+            from .official_coverage import sync as official_sync
+            sync=official_sync(repo,now,refresh=refresh)
         calendar=cal.status(repo,now)
         events=[e for e in calendar['upcoming'] if set(e['instrument_ids'])&{'USDZAR','ZAR_RATES','DXY'} and datetime.fromisoformat(e['anchor_at'])<=now+timedelta(days=14)]
         counts={}

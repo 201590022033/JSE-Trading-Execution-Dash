@@ -592,6 +592,8 @@ async function refreshWeeklyBrief() {
     macro.warnings.forEach(message=>{const warning=document.createElement('p');warning.setAttribute('role','alert');warning.style.color='#b42318';warning.textContent=message;strip.append(warning);});
     macro.sources.forEach(source=>{const row=document.createElement('p');row.textContent=`${source.source_url} · ${source.state} · captured ${source.received_at}`;strip.append(row);});
     const lookahead=document.createElement('p');lookahead.textContent=macro.lookahead?`Last macro look-ahead: ${macro.lookahead.received_at} · ${macro.lookahead.state}`:'No macro look-ahead receipt recorded.';strip.append(lookahead);
+    Object.entries(macro.family_coverage || {}).forEach(([family,coverage])=>{const row=document.createElement('p');row.textContent=`${family}: covered ${coverage.months_covered.join(', ') || 'none'} · next unverified ${coverage.next_unverified_month || 'beyond window'}`;strip.append(row);});
+    (macro.discrepancies || []).forEach(item=>{const row=document.createElement('p');row.textContent=`${item.classification}: ${item.previous_date} → ${item.new_date} · retained revision history`;if(item.classification==='DISCREPANCY')row.setAttribute('role','alert');strip.append(row);});
     macro.events.forEach(event=>{const row=document.createElement('p');const link=document.createElement('a');link.href=event.source_url;link.textContent=`${event.title} · ${event.event_date} · ${event.instrument_ids.join(', ')} · ${Math.floor(event.countdown_seconds/3600)}h until date anchor`;row.append(link);const attribution=document.createElement('small');attribution.textContent=` · ${event.confirmation_label} · SHA256 ${event.confirmation_source_hash}`;row.append(attribution);strip.append(row);});
   } catch(error) { $('#weekly-brief-status').textContent=`Macro health unavailable: ${error.message}`; }
   try {
@@ -901,7 +903,7 @@ async function refreshAnticipatoryRadar() {
     if (!plot) { plot=document.createElement('section');plot.id='macro-calendar-markers';$('#anticipatory-radar-items').before(plot); }
     plot.replaceChildren();
     const heading=document.createElement('h3');heading.textContent='Macro calendar radar · USD/ZAR';plot.append(heading);
-    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 800 240');svg.setAttribute('role','img');svg.setAttribute('aria-label','Confirmed macro events ordered by time until their date anchor');
+    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox',`0 0 800 ${Math.max(240,65+macro.events.length*40)}`);svg.setAttribute('role','img');svg.setAttribute('aria-label','Confirmed macro events ordered by time until their date anchor');
     const axis=document.createElementNS(ns,'line');axis.setAttribute('x1','30');axis.setAttribute('x2','770');axis.setAttribute('y1','30');axis.setAttribute('y2','30');axis.setAttribute('stroke','currentColor');svg.append(axis);
     const horizon=Math.max(86400,...macro.events.map(e=>e.countdown_seconds));
     macro.events.forEach((event,index)=>{
