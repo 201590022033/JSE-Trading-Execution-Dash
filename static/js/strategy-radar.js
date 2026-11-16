@@ -801,7 +801,40 @@ function mergeEntryRules(rules) {
     if (details) details.open=true;
   });
   let monitorInitialized=false;
+  async function loadRoster() {
+    const monitor=document.getElementById('radar-monitor-status');
+    if (!monitor) return;
+    let panel=document.getElementById('radar-work-roster');
+    if (!panel) {
+      panel=document.createElement('section'); panel.id='radar-work-roster';
+      const title=document.createElement('h4'); title.textContent='Work roster'; panel.append(title);
+      const refresh=document.createElement('button'); refresh.type='button'; refresh.textContent='Refresh job status';
+      refresh.addEventListener('click',loadRoster); panel.append(refresh);
+      const sens=document.createElement('button'); sens.type='button'; sens.textContent='Process retained SENS'; panel.append(sens);
+      const label=document.createElement('label'); label.textContent='Backtester instrument ';
+      const instrument=document.createElement('input'); instrument.maxLength=16; instrument.placeholder='MTN'; label.append(instrument); panel.append(label);
+      const backtest=document.createElement('button'); backtest.type='button'; backtest.textContent='Queue one deterministic research cycle'; panel.append(backtest);
+      const submit=async(lane)=>{
+        const button=lane==='sens'?sens:backtest; button.disabled=true;
+        try {
+          await json('/api/v1/strategy-radar/work-roster',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lane,...(lane==='backtester'?{instrument:instrument.value.trim().toUpperCase(),request_id:crypto.randomUUID()}: {})})});
+          await loadRoster();
+        } catch(error) { document.getElementById('radar-work-roster-jobs').textContent=error.message; }
+        finally { button.disabled=false; }
+      };
+      sens.addEventListener('click',()=>submit('sens')); backtest.addEventListener('click',()=>submit('backtester'));
+      const output=document.createElement('div'); output.id='radar-work-roster-jobs'; output.setAttribute('role','status'); panel.append(output);
+      monitor.after(panel);
+    }
+    const output=document.getElementById('radar-work-roster-jobs');
+    try {
+      const result=await json('/api/v1/strategy-radar/work-roster'); output.replaceChildren();
+      if (!result.jobs.length) line(output,'p','No roster jobs recorded yet.');
+      result.jobs.forEach(job=>line(output,'p',`${job.state} · attempt ${job.attempt} · ${job.updated}`));
+    } catch(error) { output.textContent=`Work roster unavailable: ${error.message}`; }
+  }
   async function loadMonitor() {
+    loadRoster();
     const output=document.getElementById('radar-monitor-status'), history=document.getElementById('radar-monitor-history');
     try {
       const result=await json('/api/v1/strategy-radar/monitor'); const c=result.config;

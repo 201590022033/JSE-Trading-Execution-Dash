@@ -26,6 +26,26 @@ def create_radar_blueprint(factory):
         response.headers['Cache-Control'] = 'no-store'
         return response
 
+    @bp.get('/api/v1/strategy-radar/work-roster')
+    def work_roster_status():
+        if not local(): return jsonify(error='Local dashboard only'),403
+        from .roster import status
+        return jsonify(**status(factory()), live_execution=False)
+
+    @bp.post('/api/v1/strategy-radar/work-roster')
+    def submit_roster():
+        if not mutation_allowed(): return jsonify(error='Local same-origin JSON required'),403
+        from .roster import enqueue, start_lane
+        body=request.get_json(silent=True)
+        if not isinstance(body,dict) or set(body)-{'lane','instrument','request_id'}:
+            return jsonify(error='Invalid job request'),422
+        try:
+            service=factory()
+            identity=enqueue(service,body.get('lane'),instrument=body.get('instrument'),request_id=body.get('request_id'))
+            start_lane(service,body['lane'])
+            return jsonify(job_id=identity,state='QUEUED',live_execution=False),202
+        except ValueError: return jsonify(error='Invalid job request'),422
+
     @bp.post('/api/v1/strategy-radar/tool-research/connect')
     def connect_tool_research():
         if not mutation_allowed(): return jsonify(error='Local same-origin JSON required'),403

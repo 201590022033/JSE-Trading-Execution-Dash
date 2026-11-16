@@ -56,8 +56,13 @@ def main():
                 last_settings = schedule
             current=time.monotonic()
             if current>=next_check:
+                from application.strategy_radar.roster import enqueue, start_lane
+                enqueue(service, 'sens')
+                for lane in ('sens', 'backtester'):
+                    start_lane(service, lane)
                 if market_status(now()) == 'OPEN':
-                    collection = collector.collect(service.store.radar_choices())
+                    from application.strategy_radar.roster import collect_due
+                    collection = collect_due(service, collector, now())
                     from application.opportunities.ost_data import atomic_json
                     atomic_json(service.folder / 'viewpoint-collection.json',
                                 {**collection, 'checked_at': now().isoformat()})

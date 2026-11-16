@@ -23,6 +23,34 @@ class LearningJournal:
           CREATE TABLE IF NOT EXISTS holdout_windows (
           window_id TEXT PRIMARY KEY, instrument TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL);''')
     def close(self):self.db.close()
+    def claim_next(self, lane, *, max_attempts=3):
+        """Atomically claim one eligible roster job without disturbing legacy jobs.
+
+        Roster specs carry an explicit lane. Running jobs are never reclaimed
+        implicitly, and retries stop at the supplied attempt limit.
+        """
+        if lane not in ('viewpoint', 'sens', 'backtester'):
+            raise ValueError('unknown roster lane')
+        if type(max_attempts) is not int or not 1 <= max_attempts <= 3:
+            raise ValueError('one to three attempts required')
+        self.db.execute('BEGIN IMMEDIATE')
+        try:
+            rows=self.db.execute("SELECT id,spec FROM jobs WHERE state IN ('QUEUED','FAILED') AND attempt<? ORDER BY updated,id",(max_attempts,)).fetchall()
+            selected=next(((identity,json.loads(spec)) for identity,spec in rows
+                           if json.loads(spec).get('lane')==lane),None)
+            if selected is None:
+                self.db.execute('COMMIT')
+                return None
+            identity,spec=selected
+            now=self._time()
+            self.db.execute("UPDATE jobs SET state='RUNNING',attempt=attempt+1,updated=? WHERE id=?",(now,identity))
+            self.db.execute('INSERT INTO events(job_id,state,recorded,detail) VALUES(?,?,?,?)',
+                            (identity,'RUNNING',now,_canonical({'lane':lane})))
+            self.db.execute('COMMIT')
+            return {'id':identity,'spec':spec}
+        except BaseException:
+            self.db.execute('ROLLBACK')
+            raise
     def _time(self):return datetime.now(timezone.utc).isoformat()
     def enqueue(self,spec):
         body=_canonical(spec); identity=sha256(body.encode()).hexdigest(); now=self._time()

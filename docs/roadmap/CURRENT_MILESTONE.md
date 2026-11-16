@@ -1,3 +1,16 @@
+## Five-minute roster integration started — 16 November 2026
+
+The existing LearningJournal now supports atomic lane-specific claiming for
+ViewPoint, retained SENS processing and explicit Backtester requests. Claims
+preserve legacy jobs, exclude running jobs and bound retries to three attempts.
+Queue tests verify deduplication, exclusive claims, independent lanes and
+completed-work suppression. The existing ViewPoint monitor now records
+five-minute-slot jobs, bounds failed attempts and requires share/benchmark
+success before completion. A local read-only work-roster status API exposes
+recent jobs. These changes require a monitor/dashboard reload; no process or
+authenticated browser was restarted. SENS/Backtester adapters and dashboard
+controls remain pending.
+
 ## ViewPoint collector recovery patch — 16 November 2026
 
 The collector now treats the download event as export evidence even if a
