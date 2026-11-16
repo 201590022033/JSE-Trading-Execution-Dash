@@ -591,6 +591,7 @@ async function refreshWeeklyBrief() {
     const heading=document.createElement('h3');heading.textContent=`Macro events registered for the next 7 days: ${macro.next_7_days}`;strip.append(heading);
     macro.warnings.forEach(message=>{const warning=document.createElement('p');warning.setAttribute('role','alert');warning.style.color='#b42318';warning.textContent=message;strip.append(warning);});
     macro.sources.forEach(source=>{const row=document.createElement('p');row.textContent=`${source.source_url} · ${source.state} · captured ${source.received_at}`;strip.append(row);});
+    const lookahead=document.createElement('p');lookahead.textContent=macro.lookahead?`Last macro look-ahead: ${macro.lookahead.received_at} · ${macro.lookahead.state}`:'No macro look-ahead receipt recorded.';strip.append(lookahead);
     macro.events.forEach(event=>{const row=document.createElement('p');const link=document.createElement('a');link.href=event.source_url;link.textContent=`${event.title} · ${event.event_date} · ${event.instrument_ids.join(', ')} · ${Math.floor(event.countdown_seconds/3600)}h until date anchor`;row.append(link);const attribution=document.createElement('small');attribution.textContent=` · ${event.confirmation_label} · SHA256 ${event.confirmation_source_hash}`;row.append(attribution);strip.append(row);});
   } catch(error) { $('#weekly-brief-status').textContent=`Macro health unavailable: ${error.message}`; }
   try {

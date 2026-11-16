@@ -20,6 +20,8 @@ def main():
         repo=runtime_repository()
         try:
             result=cal.tick(repo,now);radar.tick(repo,now)
+            from market_intelligence.macro_prep import prepare
+            prepare(repo,now)
             report={'checked_at':now.isoformat(),'state':result['state'],'new_receipts':result['new_receipts']}
         finally:repo.close()
     path=ROOT/'runtime/macro-calendar-clock.json';path.write_text(json.dumps(report),encoding='utf-8')

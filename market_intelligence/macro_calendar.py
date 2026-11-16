@@ -150,8 +150,8 @@ def parse_schedule(key, body):
                 found.append((day,body[heading.start():m.end()],'HEADING_PLUS_DAY'))
     return found
 
-def register_captured(repo,now):
-    """Register only source-linked parsed rows within the next sixty days."""
+def register_captured(repo,now,*,horizon_days=60):
+    """Register parsed future rows; None admits all captured future dates."""
     from datetime import timedelta
     result=[];counts={'source':0,'event':0,'confirmation':0,'sidecar':0}
     for key,url in OFFICIAL_SCHEDULES.items():
@@ -161,7 +161,7 @@ def register_captured(repo,now):
         original=repo.paper_record(capture['source_receipt_id'])
         parsed=parse_schedule(key,original['body'])
         for day,quote,derivation in parsed:
-            if not now.date()<=day<=now.date()+timedelta(days=60):continue
+            if day<now.date() or (horizon_days is not None and day>now.date()+timedelta(days=horizon_days)):continue
             event_key=key+'_'+day.strftime('%Y-%m')
             with repo.transaction():
                 prior=next((r for r in records(repo,now) if r.get('event_key')==event_key and r.get('event_date')==day.isoformat()),None)

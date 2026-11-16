@@ -332,3 +332,17 @@ The baseline safe suite passed 869 tests. This documentation reconciliation chan
 B1–B4 now have an isolated local `domain.backtest` implementation: immutable data contracts, completed-close replay/accounting, independent FX/gold/listed-gold adapters and bounded chronological indicator trials. The [operating guide](research/LOCAL_BACKTEST_OPERATING_GUIDE.md) and [milestone evidence](research/LOCAL_BACKTEST_IMPLEMENTATION.md) distinguish completed synthetic verification from B5 external-data acceptance blockers. No running dashboard/Railway/paper/default strategy integration occurred. Real-market fills and profitability remain unverified.
 
 The [resumed full B5 provider attempt](research/LOCAL_BACKTEST_REAL_DATA_ACCEPTANCE.md) now preserves fresh Yahoo SOL daily/30-minute observations, Alpha coverage/budget findings, IG configuration absence and public cost sensitivity. Final safe verification is 906 tests, seven killed defects and 54 protected artifacts. Calendar/actions and complete execution/product evidence still block real-market acceptance and the following integration milestone.
+
+## Macro calendar operating evidence — 16 November 2026
+
+The local trading runtime has confirmed SARB, ZA CPI, US CPI and FOMC events
+with separate automated-source attribution. A daily-gated 14-day look-ahead
+receipt ran on trading; its second run reused the receipt. S4U five-minute
+and Monday 06:00 look-ahead tasks are installed; a scheduled five-minute run
+returned zero. News/SENS DOM verifies markers, attribution, latest receipt
+and isolated stale/failure warnings. Real SARB preparation is retained as a
+late 168-hour packet with no USDZAR five-minute history or prior analogues.
+Annual schedule coverage, genuine intraday analogue statistics, future Monday
+trigger and future warning firing remain unproven. See
+docs/changes/2026-11-16-macro-lookahead-preparation.md. The frozen calendar
+implementation and legacy Sasol definition are unchanged.

@@ -11,6 +11,8 @@ MEMBERS={'USDZAR':{'name':'USD/ZAR','kind':'MACRO_FX_RATE'},
          'DXY':{'name':'US dollar index','kind':'MACRO_FX_RATE'}}
 
 def status(repo,now):
+    from .macro_lookahead import latest
+    lookahead=latest(repo,now)
     calendar=cal.status(repo,now)
     sidecars={r['event_id']:r for r in records(repo,now)}
     events=[]
@@ -30,6 +32,8 @@ def status(repo,now):
     latest={}
     for capture in sorted(captures,key=lambda c:c['received_at']):latest[capture['source_url']]=capture
     warnings=[]
+    if lookahead and now-datetime.fromisoformat(lookahead['received_at'])>timedelta(hours=26):
+        warnings.append('Last macro look-ahead sync is older than 26 hours.')
     for url in list(OFFICIAL_SCHEDULES.values())+[SARB_URL]:
         if url not in latest:
             source=next((s for s in sidecars.values() if s['source_url']==url),None)
@@ -44,5 +48,5 @@ def status(repo,now):
     for url,capture in latest.items():
         if capture['state']!='CAPTURED':warnings.append(url+': '+capture['state'])
     return {'scope':MEMBERS,'catalog_sha256':sha256(json.dumps(MEMBERS,sort_keys=True).encode()).hexdigest(),
-        'events':events,'next_7_days':count,'sources':list(latest.values()),'warnings':warnings,
+        'events':events,'next_7_days':count,'sources':list(latest.values()),'warnings':warnings,'lookahead':lookahead,
         'live_execution':False,'trading_weight':0}
