@@ -26,6 +26,7 @@ class LaneTests(unittest.TestCase):
             enqueue(service,'sens')
             self.assertEqual(run_lane(service,'sens',invoke=invoke)['state'],'FAILED')
             self.assertEqual(calls[0][-1],'tick')
+            self.assertEqual(Path(calls[0][1]).name,'sens_runtime_bridge.py')
             enqueue(service,'backtester',instrument='MTN',request_id='failed')
             self.assertEqual(run_lane(service,'backtester',invoke=invoke)['state'],'FAILED')
             self.assertEqual(run_lane(service,'backtester',invoke=invoke)['state'],'IDLE')

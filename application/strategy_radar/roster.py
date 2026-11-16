@@ -36,7 +36,7 @@ def run_lane(service, lane, *, invoke=None):
         try:
             job = journal.claim_next(lane, max_attempts=1 if lane == 'backtester' else 3)
             if job is None: return {'state': 'IDLE'}
-            command = ([sys.executable, str(root/'scripts/anticipatory_radar.py'), 'tick'] if lane == 'sens' else
+            command = ([sys.executable, str(root/'scripts/sens_runtime_bridge.py'), 'tick'] if lane == 'sens' else
                        [sys.executable, str(root/'scripts/run_component_learning.py'),
                         '--instrument', job['spec']['instrument'], '--cycles', '1'])
             try:
