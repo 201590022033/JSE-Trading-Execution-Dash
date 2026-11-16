@@ -895,6 +895,20 @@ async function refreshAnticipatoryRadar() {
     $('#anticipatory-radar-items').innerHTML = calendarCards + windows.map(w => `<article><h3>${esc(w.title)} · ${w.hours}h preparation</h3><p>${esc(w.instrument_ids.join(', ') || 'Market context')} · ${esc(readable(w.model_state))}</p><p>${esc(w.source_quote)}</p><p class="muted">Saved ${esc(when(w.observed_at))} · actual lead ${num(w.lead_hours)} hours · ${esc(readable(w.time_precision))}</p><a href="${esc(w.source_url)}" target="_blank" rel="noopener noreferrer">Event source ↗</a></article>`).join('') + d.watches.slice(0,40).map(renderRadarWatch).join('') + sensState + sensCards + sourceCards || '<p>No recent source leads or upcoming calendar events. Source collection continues on its saved schedule.</p>';
     const m=d.metrics;
     $('#anticipatory-radar-metrics').textContent = `${m.frozen_watch_count} saved watches (${m.event_component_count || 0} individual events from ${m.split_parent_count || 0} combined ${m.split_parent_count===1 ? 'source' : 'sources'}) · ${m.assistant_source_review_count || 0} assistant source reviews · ${m.reviewed_watch_count} human observations · ${m.occurred} human-confirmed occurrences · ${m.not_observed} not observed · ${m.incorrect_links} incorrect links · ${m.expired_unreviewed} expired awaiting human review · ${m.missed_windows} missed windows. Forecast accuracy is not established.`;
+    const macro=await api('/api/market-intelligence/macro-health');
+    let plot=document.getElementById('macro-calendar-markers');
+    if (!plot) { plot=document.createElement('section');plot.id='macro-calendar-markers';$('#anticipatory-radar-items').before(plot); }
+    plot.replaceChildren();
+    const heading=document.createElement('h3');heading.textContent='Macro calendar radar · USD/ZAR';plot.append(heading);
+    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 800 240');svg.setAttribute('role','img');svg.setAttribute('aria-label','Confirmed macro events ordered by time until their date anchor');
+    const axis=document.createElementNS(ns,'line');axis.setAttribute('x1','30');axis.setAttribute('x2','770');axis.setAttribute('y1','30');axis.setAttribute('y2','30');axis.setAttribute('stroke','currentColor');svg.append(axis);
+    const horizon=Math.max(86400,...macro.events.map(e=>e.countdown_seconds));
+    macro.events.forEach((event,index)=>{
+      const x=30+740*Math.max(0,event.countdown_seconds)/horizon;
+      const dot=document.createElementNS(ns,'circle');dot.setAttribute('cx',String(x));dot.setAttribute('cy','30');dot.setAttribute('r','7');dot.setAttribute('fill','#2563eb');svg.append(dot);
+      const label=document.createElementNS(ns,'text');label.setAttribute('x','30');label.setAttribute('y',String(65+index*40));label.setAttribute('fill','currentColor');label.setAttribute('font-size','13');label.textContent=`${event.title} · ${event.event_date} · ${Math.floor(event.countdown_seconds/3600)}h · ${event.instrument_ids.join(', ')}`;svg.append(label);
+      const attribution=document.createElement('p');attribution.textContent=`${event.title}: ${event.confirmation_label} · SHA256 ${event.confirmation_source_hash}`;plot.append(attribution);
+    });plot.prepend(svg);
     document.querySelectorAll('[data-radar-calendar]').forEach(b => b.onclick = async () => {
       try { await api('/api/market-intelligence/weekly-brief/radar-calendar-propose',{method:'POST',body:JSON.stringify({watch_id:b.dataset.radarCalendar})}); await refreshResearchCalendar(); b.textContent='Proposal saved; check and confirm date below'; b.disabled=true; }
       catch(e) { $('#anticipatory-radar-status').textContent=e.message; }
