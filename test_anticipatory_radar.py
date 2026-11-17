@@ -29,6 +29,25 @@ class RadarTests(unittest.TestCase):
         self.anchor=cal._at(self.event['anchor_at'])
         self.p=radar.packet(self.repo,NOW)
 
+    def test_sens_source_keeps_assessment_and_actual_model_attribution(self):
+        sens=radar.save(self.repo,'sens-source','sens-test',{
+            'body':'Naspers schedules results\nNaspers will release results',
+            'source_url':'https://example.test/sens','published_at':None,
+            'sens_provenance':{'publication':{'precision':'unknown'}}},NOW)
+        contract=radar.save(self.repo,'event-extraction-contract','test-contract',{
+            'scope':'DAILY','model':'qwen-fixture','model_digest':'fixture-digest',
+            'maximum_generation_calls':1},NOW)
+        radar.save(self.repo,'model-result','test-result',{
+            'event_contract_id':contract['record_id'],'source_id':sens['record_id'],
+            'state':'EVENT_RESPONSE_RECORDED','model_digest':'fixture-digest',
+            'parsed':{'has_future_event':False}},NOW)
+        item=next(s for s in radar.status(self.repo,NOW)['sens_discovery']['sources']
+                  if s['source_id']==sens['record_id'])
+        self.assertEqual(item['source_receipt_id'],sens['record_id'])
+        self.assertEqual(item['event_assessment']['model'],'qwen-fixture')
+        self.assertEqual(item['event_assessment']['model_digest'],'fixture-digest')
+        self.assertEqual(item['event_assessment']['received_at'],NOW.isoformat())
+
     def output(self,**changes):
         item={'kind':'DATED_CANDIDATE','source_id':self.source['record_id'],'quote':self.body,
             'instrument_ids':['NPN'],'event_date':'2026-10-30','reason':'Watch the scheduled results release'}

@@ -854,7 +854,21 @@ async function refreshAnticipatoryRadar() {
   if (!$('#anticipatory-radar-status')) return;
   try {
     const d = await api('/api/market-intelligence/anticipatory-radar');
+    const sourceLink = (value, label='Read source ↗') => {
+      try {
+        const url = new URL(value);
+        return ['http:', 'https:'].includes(url.protocol)
+          ? `<a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`
+          : 'Source link unavailable';
+      } catch (_) { return 'Source link unavailable'; }
+    };
     const members = d.scope?.members || {};
+    const sourceProvider = value => { try { return new URL(value).hostname || 'Provider unknown'; } catch (_) { return 'Provider unknown'; } };
+    const sourceActions = s => {
+      const details = `<button type="button" data-source-detail="${esc(s.source_id)}" data-source-receipt="${esc(s.source_receipt_id || '')}">View retained source</button>`;
+      const instruments = (s.instrument_ids || []).filter(id => members[id]).map(id => `<button type="button" data-source-instrument="${esc(id)}">Inspect ${esc(id)} research</button>`).join(' ');
+      return `${details} ${instruments}`;
+    };
     const readable = s => (s || 'not run').replaceAll('_',' ').toLowerCase();
     const correction=d.model.corrective_contract;
     const modelState=(d.model.qualification ? `${correction ? correction.passed_probes+'/'+correction.maximum_generation_calls+' ' : ''}narrow event checks passed; forecast accuracy remains unvalidated` : null) || (correction ? `${correction.passed_probes}/${correction.maximum_generation_calls} corrective checks passed${correction.failed_probes ? '; failed check needs review' : '; awaiting eligible check'}` : d.model.latest_result?.state || 'waiting for first idle qualification');
@@ -877,12 +891,12 @@ async function refreshAnticipatoryRadar() {
         const published=f.published_at ? ` · published ${esc(when(f.published_at))} ${new Date(f.published_at)<new Date(w.frozen_at) ? '(before the watch)' : new Date(f.published_at)>new Date(w.frozen_at) ? '(after the watch)' : '(at the watch time)'}` : ' · publication time unknown';
         const capture=f.source_captured_at && new Date(f.source_captured_at)<=new Date(w.frozen_at) ? ' · captured at or before the watch' : '';
         const dateButton=!w.component_watch_ids?.length && w.reason.startsWith('Source mentions: ') ? ` <button data-radar-date-watch="${esc(w.record_id)}" data-radar-date-source="${esc(f.source_id)}">Review date in source</button>` : '';
-        return `<p>Related source recorded ${num(f.elapsed_hours)} hours after the watch: <a href="${esc(f.source_url)}" target="_blank" rel="noopener noreferrer">${esc(f.matched_phrase)} ↗</a> · ${esc(method)}${published}${capture}${f.context_state==='ISSUER_NOT_REPEATED_REVIEW_REQUIRED' ? '; issuer not repeated' : f.context_state==='TOPIC_NOT_REPEATED_REVIEW_REQUIRED' ? '; topic not repeated' : ''}. Review whether it confirms an outcome.${dateButton}</p>`;
+        return `<p>Related source recorded ${num(f.elapsed_hours)} hours after the watch: ${sourceLink(f.source_url, f.matched_phrase + ' ↗')} · ${esc(method)}${published}${capture}${f.context_state==='ISSUER_NOT_REPEATED_REVIEW_REQUIRED' ? '; issuer not repeated' : f.context_state==='TOPIC_NOT_REPEATED_REVIEW_REQUIRED' ? '; topic not repeated' : ''}. Review whether it confirms an outcome.${dateButton}</p>`;
       }).join('');
-      const sourceReviews=(w.source_reviews || []).map(r => `<p>Assistant source review ${esc(when(r.received_at))}: ${esc(r.explanation)} ${(r.citations || []).map(c => `<a href="${esc(c.source_url)}" target="_blank" rel="noopener noreferrer">Source ↗</a>`).join(' · ')}</p>`).join('');
+      const sourceReviews=(w.source_reviews || []).map(r => `<p>Assistant source review ${esc(when(r.received_at))}: ${esc(r.explanation)} ${(r.citations || []).map(c => `${sourceLink(c.source_url, 'Source ↗')}`).join(' · ')}</p>`).join('');
       const zone=w.event_timezone==='Etc/GMT+12' ? 'timezone unknown; the full date is retained across timezones' : w.event_timezone ? `event date timezone ${w.event_timezone}` : '';
       const date=w.event_date ? `Tentative date: ${esc(w.event_date)}; event time unknown. ${esc(zone)}.` : 'Conditional watch; no confirmed announcement date';
-      const timing=w.timing ? `<p>${w.timing.origin==='HOST_LITERAL_DATE_CANDIDATE' ? 'A source suggests this date; check the event and date link.' : w.timing.origin==='LOCAL_OPERATOR_SOURCE_DATE_REVIEW' ? 'Locally reviewed date evidence.' : 'Assistant-reviewed date evidence; check the event and date link.'} ${esc(w.timing.explanation)} ${(w.timing.citations || []).map(c => `<a href="${esc(c.source_url)}" target="_blank" rel="noopener noreferrer">Date source ↗</a> (published ${c.published_at ? esc(when(c.published_at)) : 'time unknown'}, received ${esc(when(c.available_at))}) <button data-radar-date-watch="${esc(w.record_id)}" data-radar-date-source="${esc(c.source_id)}">Review this date source</button>`).join(' · ')} · Date link saved ${esc(when(w.timing.received_at))}.</p>` : '';
+      const timing=w.timing ? `<p>${w.timing.origin==='HOST_LITERAL_DATE_CANDIDATE' ? 'A source suggests this date; check the event and date link.' : w.timing.origin==='LOCAL_OPERATOR_SOURCE_DATE_REVIEW' ? 'Locally reviewed date evidence.' : 'Assistant-reviewed date evidence; check the event and date link.'} ${esc(w.timing.explanation)} ${(w.timing.citations || []).map(c => `${sourceLink(c.source_url, 'Date source ↗')} (published ${c.published_at ? esc(when(c.published_at)) : 'time unknown'}, received ${esc(when(c.available_at))}) <button data-radar-date-watch="${esc(w.record_id)}" data-radar-date-source="${esc(c.source_id)}">Review this date source</button>`).join(' · ')} · Date link saved ${esc(when(w.timing.received_at))}.</p>` : '';
       const conflicts=(w.timing_conflicts || []).length ? `<p>Sources mention conflicting dates (${esc(w.timing_conflicts[w.timing_conflicts.length-1].candidate_dates.join(', '))}). The watch stays visible through the latest candidate date while you review.</p>` : '';
       const split=w.parent_watch_id ? '<p>Individual event suggestion split from a combined source; the name is assembled from cited source words and needs review.</p>' : w.component_watch_ids?.length ? `<p>Combined source retained; ${w.component_watch_ids.length} individual event watches appear separately.</p>` : '';
       const suggestion=w.reason.startsWith('Source mentions: ') ? (w.suggestion_origin==='SOURCE_WORDING' ? '<p>Literal source wording flagged a possible event; Qwen did not identify it. Verify the source.</p>' : '<p>Experimental Qwen suggestion; verify the event and timing in the source.</p>') : '';
@@ -895,35 +909,105 @@ async function refreshAnticipatoryRadar() {
       const priceContext=!context ? '' : context.state==='REFERENCE_UNAVAILABLE' ? '<p>Saved price reference is unavailable; check the local capture archive.</p>' : `<p>Descriptive IRESS price reference from ${esc(context.baseline.SASOL.session)}: Sasol R${num(context.baseline.SASOL.close_zar)}; Satrix 40 R${num(context.baseline.ETF_STX40.close_zar)}. Source definitions require review.</p>${context.results.map(r => `<p>${r.paired_observation}${r.paired_observation===1 ? 'st' : 'rd'} later paired observation: ${r.session ? `${esc(r.session)}, relative movement ${num(r.excess_return_pct_points)} percentage points${r.state==='SOURCE_REVISION_REVIEW_REQUIRED' ? ' (source revision requires review)' : ''}` : 'waiting for completed captures'}. These are observed captures, not a verified complete trading calendar.</p>`).join('')}<p>No numerical event forecast is saved; price movements alone do not measure model skill or prove the event caused them.</p>`;
       const reviewButton=w.component_watch_ids?.length ? '' : `<button data-radar-review="${esc(w.record_id)}">Record observation</button>`;
       const originalDateButton=!w.component_watch_ids?.length && w.reason.startsWith('Source mentions: ') ? `<button data-radar-date-watch="${esc(w.record_id)}" data-radar-date-source="${esc(w.source_id)}">Review date in original source</button>` : '';
-      return `<article><h3>${esc(w.reason)}</h3><p><strong>${esc(watchState)}</strong> · ${esc(w.instrument_ids.join(', ') || 'Macro context only')} · ${esc(w.sectors.join(', '))}</p><p>${esc(w.quote)}</p><p>${date}</p>${split}${suggestion}${warnings}${lead}${timing}${conflicts}<p class="muted">Watch saved ${esc(when(w.frozen_at))} · evidence cutoff ${esc(when(w.causal_cutoff))} · expires ${esc(when(w.expires_at))}</p>${followups}${sourceReviews}${priceContext}${review}<p>${esc(w.failure_condition)}</p><a href="${esc(w.source_url)}" target="_blank" rel="noopener noreferrer">Retained source ↗</a> ${originalDateButton} ${calendarButton}${reviewButton}</article>`;
+      return `<article><h3>${esc(w.reason)}</h3><p><strong>${esc(watchState)}</strong> · ${esc(w.instrument_ids.join(', ') || 'Macro context only')} · ${esc(w.sectors.join(', '))}</p><p>${esc(w.quote)}</p><p>${date}</p>${split}${suggestion}${warnings}${lead}${timing}${conflicts}<p class="muted">Watch saved ${esc(when(w.frozen_at))} · evidence cutoff ${esc(when(w.causal_cutoff))} · expires ${esc(when(w.expires_at))}</p>${followups}${sourceReviews}${priceContext}${review}<p>${esc(w.failure_condition)}</p>${sourceLink(w.source_url, 'Retained source ↗')} ${sourceActions(w)} ${originalDateButton} ${calendarButton}${reviewButton}</article>`;
     };
-    const calendarCards=(d.calendar_upcoming || []).map(e => {
+    const renderCalendarCard=e => {
       const companies=e.instrument_ids.map(id => members[id] ? `${members[id].name} (${id}; ${members[id].sector})` : id).join(', ');
-      return `<article><h3>${esc(e.title)}</h3><p><strong>Confirmed calendar date</strong> · ${esc(e.event_date)} · ${esc(companies || 'Market context')}</p><p>${esc(e.source_quote)}</p><p class="muted">Date only; release time unknown. Source received ${e.source_available_at ? esc(when(e.source_available_at)) : 'time unknown'}. 48-hour and 24-hour preparation uses this saved calendar date. This is a sourced schedule, not a Qwen prediction. ${esc(assessmentText(e.screening_assessment))}</p><a href="${esc(e.source_url)}" target="_blank" rel="noopener noreferrer">Calendar source ↗</a></article>`;
-    }).join('');
-    const sourceCards=(d.source_leads || []).map(s => {
+      const timing=e.time_precision === 'EXACT_SOURCE_TIME' && e.anchor_at ? `Scheduled ${when(e.anchor_at)}.` : 'Date only; release time unknown.';
+      const attribution=e.confirmation_label ? `<p>${esc(e.confirmation_label)} · SHA256 ${esc(e.confirmation_source_hash)}</p>` : '';
+      return `<article><h3>${esc(e.title)}</h3><p><strong>Confirmed calendar date</strong> · ${esc(e.event_date)} · ${esc(companies || 'Market context')}</p><p>${esc(e.source_quote)}</p>${attribution}<p class="muted">${esc(timing)} Source received ${e.source_available_at ? esc(when(e.source_available_at)) : 'time unknown'}. 48-hour and 24-hour preparation uses the saved calendar event. ${esc(assessmentText(e.screening_assessment))}</p>${sourceLink(e.source_url, 'Calendar source ↗')} ${sourceActions({source_id:e.source_receipt_id, source_receipt_id:e.source_receipt_id, instrument_ids:e.instrument_ids})}</article>`;
+    };
+    const isSecondary=e => /^(US_|FOMC_)/.test(e.event_key || '');
+    const calendarCards=(d.calendar_upcoming || []).filter(e => !isSecondary(e)).map(renderCalendarCard).join('');
+    const secondaryCards=(d.calendar_upcoming || []).filter(isSecondary).map(renderCalendarCard).join('');
+    const sens=d.sens_discovery || {};
+    const displayedSens = new Set((sens.sources || []).map(s => s.source_id));
+    const sourceLeads = new Map((d.source_leads || []).map(s => [s.source_id, s]));
+    const sourceCards=(d.source_leads || []).filter(s => !displayedSens.has(s.source_id)).map(s => {
       const details=s.event_details || {};
       const companies=(details.direct_issuers || []).map(i => `${i.name} (${i.instrument_id}; ${i.sector})`).join(', ');
       const topics=(details.topic_sectors || s.topic_sectors || []).join(', ');
-      return `<article><h3>${esc(details.headline || s.quote?.split('\n')[0] || 'Source lead')}</h3><p><strong>${esc(readable(s.source_kind))}</strong> · ${esc(readable(s.source_detail))}</p>${companies ? `<p>Named companies: ${esc(companies)}</p>` : (s.instrument_ids?.length ? `<p>Named companies: ${esc(s.instrument_ids.join(', '))}</p>` : '')}${topics ? `<p>Topic navigation: ${esc(topics)}</p>` : ''}${details.excerpt ? `<p>${esc(details.excerpt)}</p>` : (!s.event_details ? `<p>${esc(s.quote)}</p>` : '')}${s.mentioned_future_dates?.length ? `<p>Future date mentioned: ${esc(s.mentioned_future_dates.join(', '))}. Its link to an event has not been confirmed.</p>` : '<p>No future date is stated in the retained excerpt.</p>'}${details.forward_looking_wording?.length ? `<p>Source wording to investigate: ${esc(details.forward_looking_wording.join(', '))}; the event and timing need review.</p>` : ''}<p>${esc(eventText(s.event_assessment))}</p><p class="muted">First received ${esc(when(s.available_at))} · published ${s.published_at ? esc(when(s.published_at)) : 'time unknown'} · lead expires ${esc(when(s.expires_at))}. ${esc(assessmentText(s.screening_assessment))}</p><a href="${esc(s.source_url)}" target="_blank" rel="noopener noreferrer">Read source ↗</a></article>`;
+      const ai=s.event_assessment;
+      const aiAttribution=ai ? `<p class="muted">Model: ${esc(ai.model || 'unknown')} · recorded ${ai.received_at ? esc(when(ai.received_at)) : 'time unknown'} · model-generated, advisory</p>` : '';
+      return `<article><h3>${esc(details.headline || s.quote?.split('\n')[0] || 'Source lead')}</h3><p><strong>${esc(readable(s.source_kind))}</strong> · ${esc(sourceProvider(s.source_url))} · ${esc(readable(s.source_detail))}</p>${companies ? `<p>Named companies: ${esc(companies)}</p>` : (s.instrument_ids?.length ? `<p>Named companies: ${esc(s.instrument_ids.join(', '))}</p>` : '')}${topics ? `<p>Topic navigation: ${esc(topics)}</p>` : ''}${details.excerpt ? `<p>${esc(details.excerpt)}</p>` : (!s.event_details ? `<p>${esc(s.quote)}</p>` : '')}${s.mentioned_future_dates?.length ? `<p>Future date mentioned: ${esc(s.mentioned_future_dates.join(', '))}. Its link to an event has not been confirmed.</p>` : '<p>No future date is stated in the retained excerpt.</p>'}${details.forward_looking_wording?.length ? `<p>Source wording to investigate: ${esc(details.forward_looking_wording.join(', '))}; the event and timing need review.</p>` : ''}<p>${esc(eventText(s.event_assessment))}</p>${aiAttribution}<p class="muted">First received ${esc(when(s.available_at))} · published ${s.published_at ? esc(when(s.published_at)) : 'time unknown'} · lead expires ${esc(when(s.expires_at))}. ${esc(assessmentText(s.screening_assessment))}</p>${sourceLink(s.source_url)} ${sourceActions(s)}</article>`;
     }).join('');
-    const sens=d.sens_discovery || {};
     const sensRun=sens.latest_run;
     const sensState=sensRun ? `<article><h3>Public SENS collection</h3><p>${esc(readable(sensRun.state))} · ${num(sensRun.source_count || 0)} retained leads</p><p class="muted">${esc(Object.entries(sensRun.provider_states || {}).map(([k,v]) => `${k}: ${readable(v.state)}`).join(' · ') || 'Provider results unavailable')} · checked ${esc(when(sensRun.received_at))}. Sources may be incomplete; this is not a prediction.</p></article>` : '';
     const sensCards=(sens.sources || []).map(s => {
       const p=s.provenance || {}, publication=p.publication || {};
       const date=publication.precision==='date' ? `Publication date ${esc(publication.value)}; exact time unknown` : 'Publication time unknown';
-      return `<article><h3>${esc(s.headline)}</h3><p><strong>Public SENS source</strong> · ${esc(readable(p.detail_state || 'listing only'))}${s.current ? '' : ' · older or future-dated; not current news'}${p.share_code ? ` · reported share code ${esc(p.share_code)}` : ''}</p><p class="muted">${date} · source acquired ${esc(when(p.detail_acquired_at || p.listing_acquired_at))} · dashboard received ${esc(when(s.available_at))}. Check the source; the event has not been independently confirmed.</p><a href="${esc(s.source_url)}" target="_blank" rel="noopener noreferrer">Read source ↗</a></article>`;
+      const lead=sourceLeads.get(s.source_id), details=lead?.event_details || {};
+      const excerpt=details.excerpt || lead?.quote || '';
+      const dates=lead?.mentioned_future_dates || [];
+      const topics=details.topic_sectors || lead?.topic_sectors || [];
+      return `<article><h3>${esc(s.headline)}</h3><p><strong>Public SENS source</strong> · ${esc(sourceProvider(s.source_url))} · ${esc(readable(p.detail_state || 'listing only'))}${s.current ? '' : ' · older or future-dated; not current news'}${p.share_code ? ` · reported share code ${esc(p.share_code)}` : ''}</p><p>${esc((s.instrument_ids || []).join(', ') || 'Instrument not mapped')}</p>${excerpt ? `<p>${esc(excerpt)}</p>` : ''}${topics.length ? `<p>Topic navigation: ${esc(topics.join(', '))}</p>` : ''}${dates.length ? `<p>Future date mentioned: ${esc(dates.join(', '))}. Its link to an event has not been confirmed.</p>` : ''}${details.forward_looking_wording?.length ? `<p>Source wording to investigate: ${esc(details.forward_looking_wording.join(', '))}; the event and timing need review.</p>` : ''}<p>${esc(eventText(s.event_assessment))} ${esc(assessmentText(s.screening_assessment))}</p>${s.event_assessment ? `<p class="muted">Model: ${esc(s.event_assessment.model || 'unknown')} · recorded ${esc(when(s.event_assessment.received_at))} · model-generated, advisory</p>` : ''}<p class="muted">${date} · source acquired ${esc(when(p.detail_acquired_at || p.listing_acquired_at))} · dashboard received ${esc(when(s.available_at))}. Check the source; the event has not been independently confirmed.</p>${sourceLink(s.source_url)} ${sourceActions(s)}</article>`;
     }).join('');
-    $('#anticipatory-radar-items').innerHTML = calendarCards + windows.map(w => `<article><h3>${esc(w.title)} · ${w.hours}h preparation</h3><p>${esc(w.instrument_ids.join(', ') || 'Market context')} · ${esc(readable(w.model_state))}</p><p>${esc(w.source_quote)}</p><p class="muted">Saved ${esc(when(w.observed_at))} · actual lead ${num(w.lead_hours)} hours · ${esc(readable(w.time_precision))}</p><a href="${esc(w.source_url)}" target="_blank" rel="noopener noreferrer">Event source ↗</a></article>`).join('') + d.watches.slice(0,40).map(renderRadarWatch).join('') + sensState + sensCards + sourceCards || '<p>No recent source leads or upcoming calendar events. Source collection continues on its saved schedule.</p>';
+    $('#anticipatory-radar-items').innerHTML = calendarCards + (secondaryCards ? `<details><summary>Secondary US events</summary>${secondaryCards}</details>` : '') + windows.map(w => `<article><h3>${esc(w.title)} · ${w.hours}h preparation</h3><p>${esc(w.instrument_ids.join(', ') || 'Market context')} · ${esc(readable(w.model_state))}</p><p>${esc(w.source_quote)}</p><p class="muted">Saved ${esc(when(w.observed_at))} · actual lead ${num(w.lead_hours)} hours · ${esc(readable(w.time_precision))}</p>${sourceLink(w.source_url, 'Event source ↗')}</article>`).join('') + d.watches.slice(0,40).map(renderRadarWatch).join('') + sensState + sensCards + sourceCards || '<p>No recent source leads or upcoming calendar events. Source collection continues on its saved schedule.</p>';
+    const sourcePanel = $('#anticipatory-radar-items');
+    const showRetainedSource = async button => {
+      const card = button.closest('article');
+      let output = card.querySelector('.retained-source-detail');
+      if (output) { output.remove(); button.textContent = 'View retained source'; return; }
+      if (!output) { output = document.createElement('pre'); output.className = 'retained-source-detail'; output.style.whiteSpace = 'pre-wrap'; card.append(output); }
+      button.textContent = 'Close retained source';
+      output.textContent = 'Loading retained source…';
+      try {
+        const receipt = button.dataset.sourceReceipt;
+        const suffix = receipt ? '?receipt_id=' + encodeURIComponent(receipt) : '';
+        const source = await api('/api/market-intelligence/radar-sources/' + encodeURIComponent(button.dataset.sourceDetail) + suffix);
+        output.textContent = source.body;
+      } catch (error) { output.textContent = error.message; }
+    };
+    sourcePanel.querySelectorAll('[data-source-detail]').forEach(button => button.onclick = () => showRetainedSource(button));
+    sourcePanel.querySelectorAll('[data-source-instrument]').forEach(button => button.onclick = () => {
+      const instrument = button.dataset.sourceInstrument;
+      document.querySelector('nav button[data-tab="backtest-lab"]')?.click();
+      const selector = document.getElementById('bl-research-instrument');
+      const message = document.getElementById('bl-research-choice');
+      const found = selector && [...selector.options].some(option => option.value === instrument);
+      if (found) { selector.value = instrument; selector.dispatchEvent(new Event('change', {bubbles:true})); }
+      if (message) message.textContent = found ? `${instrument} selected from the retained source. Inspect the saved research.` : `No saved research for ${instrument} is available in the current selection.`;
+    });
+    const history = document.createElement('details'); history.className = 'radar-source-history';
+    const historyTitle = document.createElement('summary');
+    historyTitle.textContent = 'Retained source history';
+    const historyList = document.createElement('div');
+    const historyStatus = document.createElement('p'); historyStatus.setAttribute('role', 'status');
+    const historyButton = document.createElement('button');
+    historyButton.type = 'button'; historyButton.textContent = 'Load retained sources';
+    let cursor = null;
+    historyButton.onclick = async () => {
+      historyButton.disabled = true;
+      try {
+        const query = cursor ? '?' + new URLSearchParams(cursor).toString() : '';
+        const page = await api('/api/market-intelligence/radar-sources' + query);
+        for (const item of page.sources) {
+          const card = document.createElement('article');
+          const heading = document.createElement('h4'); heading.textContent = item.headline || 'Retained source';
+          const meta = document.createElement('p');
+          meta.textContent = `${item.provider || 'Provider unknown'} · received ${when(item.available_at)} · published ${item.published_at ? when(item.published_at) : 'unknown'}`;
+          const excerpt = document.createElement('p'); excerpt.textContent = item.excerpt || '';
+          const view = document.createElement('button'); view.type = 'button'; view.textContent = 'View retained source';
+          view.dataset.sourceDetail = item.source_id; view.dataset.sourceReceipt = item.source_receipt_id || '';
+          view.onclick = () => showRetainedSource(view);
+          card.append(heading, meta, excerpt, view); historyList.append(card);
+        }
+        cursor = page.next_cursor;
+        historyStatus.textContent = page.receipt_window_truncated ? 'This archive page uses a bounded receipt window; some records may require a separate lookup.' : '';
+        historyButton.textContent = cursor ? 'Load older sources' : 'No more sources in this window';
+        historyButton.disabled = !cursor;
+      } catch (error) { historyList.textContent = error.message; historyButton.disabled = false; }
+    };
+    history.append(historyTitle, historyButton, historyStatus, historyList); sourcePanel.append(history);
     const m=d.metrics;
     $('#anticipatory-radar-metrics').textContent = `${m.frozen_watch_count} saved watches (${m.event_component_count || 0} individual events from ${m.split_parent_count || 0} combined ${m.split_parent_count===1 ? 'source' : 'sources'}) · ${m.assistant_source_review_count || 0} assistant source reviews · ${m.reviewed_watch_count} human observations · ${m.occurred} human-confirmed occurrences · ${m.not_observed} not observed · ${m.incorrect_links} incorrect links · ${m.expired_unreviewed} expired awaiting human review · ${m.missed_windows} missed windows. Forecast accuracy is not established.`;
-    const macro=await api('/api/market-intelligence/macro-health');
+    const macro=await api('/api/market-intelligence/macro-health').catch(error => ({events:[], error:error.message}));
     macro.events=macro.events.filter(event=>(event.relevance || (/^(ZA_|SARB_)/.test(event.event_key)?'PRIMARY':'SECONDARY'))==='PRIMARY');
     let plot=document.getElementById('macro-calendar-markers');
     if (!plot) { plot=document.createElement('section');plot.id='macro-calendar-markers';$('#anticipatory-radar-items').before(plot); }
     plot.replaceChildren();
     const heading=document.createElement('h3');heading.textContent='Macro calendar radar · USD/ZAR';plot.append(heading);
+    if (macro.error) { const notice=document.createElement('p'); notice.textContent=`Macro calendar unavailable: ${macro.error}`; plot.append(notice); }
     const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox',`0 0 800 ${Math.max(240,65+macro.events.length*40)}`);svg.setAttribute('role','img');svg.setAttribute('aria-label','Confirmed macro events ordered by time until their date anchor');
     const axis=document.createElementNS(ns,'line');axis.setAttribute('x1','30');axis.setAttribute('x2','770');axis.setAttribute('y1','30');axis.setAttribute('y2','30');axis.setAttribute('stroke','currentColor');svg.append(axis);
     const horizon=Math.max(86400,...macro.events.map(e=>e.countdown_seconds));
@@ -965,4 +1049,7 @@ async function refreshAnticipatoryRadar() {
   } catch(e) { $('#anticipatory-radar-status').textContent=`Radar unavailable: ${e.message}`; }
 }
 if ($('#reload-anticipatory-radar')) $('#reload-anticipatory-radar').onclick=refreshAnticipatoryRadar;
-setInterval(() => { if ($('#market-ai')?.classList.contains('active')) refreshAnticipatoryRadar(); },60000);
+setInterval(() => {
+  if ($('#market-ai')?.classList.contains('active') &&
+      !document.querySelector('#anticipatory-radar-items .retained-source-detail, #anticipatory-radar-items .radar-source-history[open]')) refreshAnticipatoryRadar();
+},60000);

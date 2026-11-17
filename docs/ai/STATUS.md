@@ -8,7 +8,7 @@ planning turn. AI1 is ready for the dedicated implementation task.
 | Prior Llama task profile, commit b90765f | Yes | 124 focused + 25 Sasol checks | Pending unattended verification | Dashboard-path mismatch identified |
 | AI0 roadmap and implementation prompts | Yes | Ten Markdown files and all local links verified | Not applicable | Dedicated AI task created |
 | AI1 runtime integration and reporting | Partial implementation | 97 focused tests passed | Read-only API check passed; no eligible share event | Browser unavailable; activation pending |
-| AI2 source-linked radar cards | Prompt ready | Pending | Pending | Pending |
+| AI2 source-linked radar cards | Implemented | 172 focused checks and JS rendering harness pass | Read-only API check passed | Browser check and main-dashboard activation pending |
 | AI3 event preparation | Prompt ready | Pending | Pending | Pending |
 | AI4 usefulness and outcome review | Prompt ready | Pending | Pending | Pending |
 | AI5 unattended acceptance | Prompt ready | Pending | Pending | Pending |
@@ -60,3 +60,30 @@ concurrent AI supervisors cannot both hold the same dispatch lock. Both pass.
 The collector login window timed out before the owner could access the desktop;
 the Radar monitor remained running. The session recovery steps are documented
 in `docs/strategy-radar/VIEWPOINT_SESSION_HANDOFF.md`.
+
+## AI2 implementation checkpoint — 17 November
+
+Source and SENS cards now expose retained-source details and a paged history,
+actual available assessment/model clocks, catalogued instrument research
+handoffs, safe HTTP(S) source links, and explicit missing data. Duplicate SENS
+cards are suppressed by source ID. Confirmed calendar cards preserve date/time
+precision and macro sidecar attribution. US macro cards are grouped under a
+collapsed secondary section. Retained detail/history endpoints require the
+existing operator access and do not fetch sources or invoke a model.
+
+172 focused Python checks and the source-card JavaScript rendering harness
+passed; all nine frozen implementation hashes matched HEAD. A Flask blueprint
+test against localhost:5433/trading returned HTTP 200: 30 SENS cards, 8 source
+leads, and confirmed retail, CPI and SARB events with sidecar labels and hashes.
+History returned 100 records with a bounded-window indicator; a retained SENS
+detail returned HTTP 200 and zero model calls. The recent history window is
+bounded to 500 receipts per source kind. A batch exceeding that count at the
+same timestamp may require separate lookup and is labelled in the UI.
+
+No accessible Edge or in-app browser was available in this remote session. The
+JavaScript harness verifies cards and unsafe links, but retained-source clicks,
+pagination, instrument handoffs, desktop/narrow rendering and activation in
+the running dashboard remain pending real browser verification.
+The dashboard and collector were not restarted. AI1 unattended verification
+also remains pending. This checkpoint is implemented with UI verification open,
+not a claim of completed live acceptance.

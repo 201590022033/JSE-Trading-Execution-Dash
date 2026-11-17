@@ -93,6 +93,40 @@ def create_weekly_brief_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get('/api/market-intelligence/radar-sources')
+    def read_radar_source_history():
+        if not allowed():
+            return jsonify(error='Unlock Portfolio controls to inspect retained sources'), 401
+        from .radar_source_archive import history
+        repository = factory()
+        try:
+            keys = ('available_at', 'source_id', 'source_receipt_id')
+            values = {key: request.args.get(key) for key in keys}
+            if any(values.values()) and not all(values.values()):
+                return jsonify(error='Complete history cursor required'), 400
+            try:
+                return jsonify(history(repository, datetime.now(timezone.utc),
+                                       before=values if all(values.values()) else None))
+            except ValueError:
+                return jsonify(error='Invalid history cursor'), 400
+        finally:
+            repository.close()
+
+    @bp.get('/api/market-intelligence/radar-sources/<source_id>')
+    def read_radar_source_detail(source_id):
+        if not allowed():
+            return jsonify(error='Unlock Portfolio controls to inspect retained sources'), 401
+        from .radar_source_archive import detail
+        repository = factory()
+        try:
+            try:
+                return jsonify(detail(repository, source_id, datetime.now(timezone.utc),
+                                      receipt_id=request.args.get('receipt_id') or None))
+            except ValueError:
+                return jsonify(error='Retained source is unavailable'), 404
+        finally:
+            repository.close()
+
     @bp.get("/api/market-intelligence/research-data-requests")
     def read_data_requests():
         from application.opportunities.research_data_requests import status as data_status

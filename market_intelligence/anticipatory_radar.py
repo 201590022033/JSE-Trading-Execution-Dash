@@ -616,6 +616,13 @@ def status(repo, now):
     batch_by_event={x['calendar_event_id']:x for x in (latest_batch or {}).get('assessments',[]) if x.get('calendar_event_id')}
     def public_assessment(x):
         return {k:x.get(k) for k in ('state','display_type','type_origin','explanation')} if x else None
+    def event_assessment(source_id):
+        result = event_by_source.get(source_id)
+        if not result:
+            return None
+        return {**{k: result.get(k) for k in ('state','parsed','publication','received_at','model_digest')},
+                'model': event_contract.get('model') if event_contract else None,
+                'fallback': fallback_by_source.get(source_id)}
     previews=[]
     for s in sources(repo,now):
         candidate=news_candidate(s,(scope or {}).get('members',{}))
@@ -626,7 +633,7 @@ def status(repo, now):
         if not candidate or not news_is_current(s,now):continue
         parts=s['body'].splitlines()
         detail='HEADLINE_ONLY' if len(parts)<2 or all(p==parts[0] for p in parts[1:]) else 'HEADLINE_AND_RETAINED_EXCERPT'
-        source_kind='SENS_HEADLINE' if 'sens' in s['url'].lower() else 'NEWS_HEADLINE_OR_EXCERPT'
+        source_kind='SENS_HEADLINE' if s.get('sens_provenance') or 'sens' in s['url'].lower() else 'NEWS_HEADLINE_OR_EXCERPT'
         event_details=source_event_details(candidate['quote'],candidate['instrument_ids'],
             (scope or {}).get('members',{}),now,source_kind)
         previews.append({**candidate,'source_url':s['url'],'source_receipt_id':s['receipt_id'],
@@ -635,9 +642,7 @@ def status(repo, now):
             'source_detail':detail,
             'mentioned_future_dates':explicit_future_dates(candidate['quote'],now),
             'topic_sectors':topic_sectors(candidate['quote']),
-            'event_assessment':{**{k:event_by_source[s['source_id']].get(k) for k in ('state','parsed','publication','received_at')},
-                'fallback':fallback_by_source.get(s['source_id'])}
-                if s['source_id'] in event_by_source else None,
+            'event_assessment':event_assessment(s['source_id']),
             'screening_assessment':public_assessment(batch_by_source.get(s['source_id'])),
             'state':'RETAINED_SOURCE_LEAD_NOT_MODEL_PREDICTION'})
     # Keep live individual events visible even when the retained history grows.
@@ -656,16 +661,24 @@ def status(repo, now):
     sens_sources = [{'source_id':s['source_id'],'source_url':s['url'],
         'headline':s['body'].splitlines()[0], 'available_at':s['available_at'],
         'published_at':s['published_at'], 'provenance':s['sens_provenance'],
+        'source_receipt_id':s['receipt_id'],
+        'instrument_ids':(news_candidate(s,(scope or {}).get('members',{})) or {}).get('instrument_ids',[]),
+        'event_assessment':event_assessment(s['source_id']),
+        'screening_assessment':public_assessment(batch_by_source.get(s['source_id'])),
         'current':news_is_current(s,now)}
         for s in sens_sources[:30]]
     sens_runs = rows(repo,'sens-discovery-result',now)
     latest_sens = max(sens_runs,key=lambda r:r['received_at'],default=None)
+    from .macro_calendar import records as macro_confirmations
+    sidecars = {item['event_id']: item for item in macro_confirmations(repo, now)}
     return {'state':'ADVISORY_ANTICIPATORY_RADAR','checked_at':now.isoformat(),
         'scope':scope, 'watches':public,'source_leads':previews,
         'sens_discovery': {'latest_run':latest_sens,'sources':sens_sources,
             'state':'SOURCE_LEADS_ONLY_NO_AUTOMATIC_EVENT_OR_FORECAST'},
-        'calendar_upcoming':[{**{k:e[k] for k in ('record_id','title','instrument_ids','event_date','anchor_at','source_url','source_quote','time_precision')},
+        'calendar_upcoming':[{**{k:e[k] for k in ('record_id','event_key','title','instrument_ids','event_date','anchor_at','source_url','source_quote','time_precision','source_receipt_id')},
             'source_available_at':(repo.paper_record(e['source_receipt_id']) or {}).get('received_at'),
+            'confirmation_label':'Automated official-schedule sync' if e['record_id'] in sidecars else None,
+            'confirmation_source_hash':sidecars[e['record_id']]['source_body_sha256'] if e['record_id'] in sidecars else None,
             'screening_assessment':public_assessment(batch_by_event.get(e['record_id']))} for e in calendar_view['upcoming']], 'windows':[{**w,'active':w['event_id'] in current and w['state']=='WATCH_READY'} for w in windows],
         'latest_capture':captures[0] if captures else None,
         'source_freshness':'CURRENT_CAPTURE' if captures and captures[0].get('state')=='CAPTURED' and now-cal._at(captures[0]['received_at'])<timedelta(hours=12) else 'STALE_OR_UNAVAILABLE',
