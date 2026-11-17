@@ -1026,3 +1026,5 @@ Optional Windows sign-in startup was subsequently added as an explicit opt-in. T
 SENS runtime connection repaired: see docs/changes/2026-11-16-sens-runtime-bridge.md. Retained SENS now reaches trading through the existing roster lane; no collector/task settings changed.
 
 PRIMARY macro expectation enrichment: separate advisory path; see docs/changes/2026-11-16-macro-expectations.md. Production model generation remains resource-gated; no frozen module or scheduled task changed.
+
+Local AI activity is exposed read-only across the separate databases; see docs/changes/2026-11-17-local-ai-activity.md. Diagnostic status is not a new model qualification.

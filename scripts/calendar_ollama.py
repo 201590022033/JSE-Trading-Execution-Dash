@@ -234,10 +234,27 @@ class ResourcePressure(RuntimeError):
     pass
 
 
+def effective_start_memory():
+    # Only the separately versioned, successful local Llama calibration can
+    # authorize 4 GiB. Small-model profiles retain their own existing gates.
+    if MODEL != "llama3:latest" or MODEL_DIGEST != "365c0bd3c000a25d28ddbf732fe1c6add414de7275464c4e4d1c3b5fcb5d8ad1" or MIN_START_MEMORY != 7*GIB:
+        return MIN_START_MEMORY
+    try:
+        from scripts.llama_memory_calibration import certified, CANDIDATE_START
+        return CANDIDATE_START if certified() else MIN_START_MEMORY
+    except Exception:
+        return MIN_START_MEMORY
+
+
 def due_events(repository, now):
     from market_intelligence.research_calendar import status
+    from application.opportunities.public_research import public_share_catalog
+    catalog = public_share_catalog()
     events = status(repository, now)["upcoming"]
-    return [e for e in events if e["instrument_ids"] == ["SASOL"]
+    # The expectation packet supports catalogued cash shares. Macro and unknown
+    # identifiers use their own paths and cannot enter this share-only worker.
+    return [e for e in events if e["instrument_ids"]
+        and all(instrument in catalog for instrument in e["instrument_ids"])
         and timedelta(0) < datetime.fromisoformat(e["anchor_at"]) - now <= timedelta(days=7)]
 
 
@@ -296,7 +313,7 @@ def generate(packet, prompt, schema, executable, folder, *, idle=windows_idle_se
     if idle() < idle_floor:
         raise InterruptedError("User input returned before model start")
     memory = memory or available_memory_bytes
-    if memory() < MIN_START_MEMORY:
+    if memory() < effective_start_memory():
         raise ResourcePressure("Insufficient free memory before owned model start")
     deadline = clock() + TIMEOUT_SECONDS
     with owner_factory(executable, folder) as owner, session_factory() as session:
@@ -391,7 +408,7 @@ def execute(repository, now, folder, executable, *, idle=windows_idle_seconds, m
     if idle() < IDLE_SECONDS:
         return {"state": "WAITING_FOR_10_MINUTES_IDLE", "model_calls": 0, "trading_weight": 0}
     memory = memory or available_memory_bytes
-    if memory() < MIN_START_MEMORY:
+    if memory() < effective_start_memory():
         return {"state": "WAITING_FOR_MEMORY", "model_calls": 0, "trading_weight": 0}
     events = due_events(repository, now)
     for event in events:
@@ -427,7 +444,7 @@ def execute(repository, now, folder, executable, *, idle=windows_idle_seconds, m
             return _result(repository, reservation, state, utcnow(), model_calls_upper_bound=1,
                 input_archive=archive, response_archive=exc.archive if isinstance(exc, ModelResponseError) else response_archive,
                 error_type=type(exc).__name__)
-    return {"state": "NO_UNRESERVED_DUE_SASOL_EVENT", "model_calls": 0, "trading_weight": 0}
+    return {"state": "NO_UNRESERVED_DUE_SHARE_EVENT", "model_calls": 0, "trading_weight": 0}
 
 
 def runner_status(repository, now, *, idle=None, memory=None):
@@ -441,7 +458,7 @@ def runner_status(repository, now, *, idle=None, memory=None):
     try:
         free = (memory or available_memory_bytes)()
         idle_value = (idle or windows_idle_seconds)()
-        readiness = ("WAITING_FOR_MEMORY" if free < MIN_START_MEMORY else
+        readiness = ("WAITING_FOR_MEMORY" if free < effective_start_memory() else
             "WAITING_FOR_10_MINUTES_IDLE" if idle_value < IDLE_SECONDS else "READY_FOR_IDLE_DRAFT")
     except Exception:
         pass  # Unavailable telemetry never grants inference eligibility.
@@ -450,10 +467,10 @@ def runner_status(repository, now, *, idle=None, memory=None):
         "reserved_today": sum(bool(repository.paper_record(attempt_id(e["event_key"], now))) for e in events),
         "model": MODEL, "model_digest": MODEL_DIGEST, "endpoint": HOST,
         "idle_seconds_required": IDLE_SECONDS, "model_calls_on_read": 0, "trading_weight": 0,
-        "minimum_start_free_ram_bytes": MIN_START_MEMORY, "abort_free_ram_below_bytes": MIN_RUNNING_MEMORY,
+        "minimum_start_free_ram_bytes": effective_start_memory(), "abort_free_ram_below_bytes": MIN_RUNNING_MEMORY,
         "readiness_state": readiness, "resources_ready": readiness == "READY_FOR_IDLE_DRAFT",
         "available_physical_ram_gib": round(free / GIB, 2) if free is not None else None,
-        "minimum_start_free_ram_gib": 7, "observed_idle_seconds": round(idle_value, 1) if idle_value is not None else None,
+        "minimum_start_free_ram_gib": effective_start_memory()/GIB, "observed_idle_seconds": round(idle_value, 1) if idle_value is not None else None,
         "total_reservations": len(attempts), "total_results": len(results),
         "unresolved_reservations": unresolved,
         "completed_generation_calls": sum(r.get("model_calls", 0) for r in results),

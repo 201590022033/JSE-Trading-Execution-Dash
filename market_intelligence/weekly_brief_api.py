@@ -109,14 +109,32 @@ def create_weekly_brief_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get("/api/market-intelligence/local-ai-activity")
+    def read_local_ai_activity():
+        from .local_ai_activity import status as activity_status
+        return jsonify(activity_status())
+
     @bp.get("/api/market-intelligence/macro-expectations")
     def read_macro_expectations():
         from .macro_expectations import status
         repository = factory()
         try:
-            return jsonify(status(repository, datetime.now(timezone.utc)))
+            result = status(repository, datetime.now(timezone.utc))
+            from pathlib import Path
+            import json
+            path = Path(__file__).resolve().parents[1] / 'runtime/macro-expectations-last-check.json'
+            try:
+                result['last_worker_check'] = json.loads(path.read_text(encoding='utf-8')) if path.stat().st_size <= 4096 else None
+            except (OSError, ValueError):
+                result['last_worker_check'] = None
+            return jsonify(result)
         finally:
             repository.close()
+
+    @bp.get("/api/market-intelligence/llama-memory-calibration")
+    def read_llama_memory_calibration():
+        from scripts.llama_memory_calibration import status
+        return jsonify(status())
 
     @bp.get("/api/market-intelligence/calendar-expectations")
     def read_expectations():
@@ -125,7 +143,15 @@ def create_weekly_brief_blueprint(factory):
         repository = factory()
         try:
             now = datetime.now(timezone.utc)
-            return jsonify(**expectation_status(repository, now), runner=runner_status(repository, now))
+            runner = runner_status(repository, now)
+            from pathlib import Path
+            import json
+            path = Path(__file__).resolve().parents[1] / 'runtime/share-expectations-last-check.json'
+            try:
+                runner['last_worker_check'] = json.loads(path.read_text(encoding='utf-8')) if path.stat().st_size <= 4096 else None
+            except (OSError, ValueError):
+                runner['last_worker_check'] = None
+            return jsonify(**expectation_status(repository, now), runner=runner)
         finally:
             repository.close()
 

@@ -21,3 +21,20 @@ class BridgeTests(unittest.TestCase):
   radar.save(target,'sens-source','source',{'body':'conflict'},now)
   with self.assertRaises(ValueError):sync(source,target,now)
   self.assertEqual(radar.rows(target,'sens-bridge',now),[])
+
+class MacroDispatchTests(unittest.TestCase):
+ def test_macro_check_still_runs_after_independent_bridge_failure(self):
+  from scripts.sens_runtime_bridge import run_with_macro
+  calls=[]
+  def bridge(): raise RuntimeError('bridge failed')
+  def invoke(*args,**kwargs): calls.append((args,kwargs))
+  with self.assertRaises(RuntimeError): run_with_macro(bridge,invoke,args=[])
+  self.assertEqual(len(calls),2)
+  self.assertTrue(calls[1][0][0][-2].endswith('share_expectations.py'))
+  self.assertEqual(calls[0][0][0][-1], '--run')
+  self.assertTrue(calls[0][0][0][-2].endswith('scripts\\macro_expectations.py') or calls[0][0][0][-2].endswith('scripts/macro_expectations.py'))
+ def test_bridge_only_does_not_start_macro(self):
+  from scripts.sens_runtime_bridge import run_with_macro
+  calls=[]
+  run_with_macro(lambda:None,lambda *a,**k:calls.append(a),args=['--bridge-only'])
+  self.assertEqual(calls,[])

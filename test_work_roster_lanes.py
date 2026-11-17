@@ -18,6 +18,14 @@ class LaneTests(unittest.TestCase):
             self.assertNotIn('--cloud',calls[0])
             self.assertEqual(calls[0][-2:],['--cycles','1'])
 
+    def test_sens_receipt_does_not_claim_zero_model_calls(self):
+        with tempfile.TemporaryDirectory() as folder:
+            service=SimpleNamespace(folder=Path(folder))
+            enqueue(service,'sens')
+            result=run_lane(service,'sens',invoke=lambda *a,**k:SimpleNamespace(returncode=0))
+            self.assertIsNone(result['model_calls_requested'])
+            self.assertEqual(result['model_call_accounting'],'SEE_MACRO_EXPECTATION_RECEIPTS')
+
     def test_sens_uses_tick_and_failed_backtest_is_not_auto_retried(self):
         with tempfile.TemporaryDirectory() as folder:
             service=SimpleNamespace(folder=Path(folder)); calls=[]

@@ -66,6 +66,40 @@ class CalendarOllamaTests(unittest.TestCase):
         with patch.object(runner, "utcnow", return_value=NOW + timedelta(seconds=1)):
             return runner.execute(self.repo, NOW, self.folder, "existing-ollama.exe", idle=idle, generator=generator)
 
+    def test_due_events_accept_supported_shares_and_exclude_macro_and_unknown(self):
+        anchor = (NOW + timedelta(days=2)).isoformat()
+        events = [dict(instrument_ids=ids, anchor_at=anchor) for ids in
+                  (["SASOL"], ["MTN"], ["MTN", "VOD"], ["USDZAR", "ZAR_RATES"], ["UNKNOWN"], [])]
+        with patch("market_intelligence.research_calendar.status", return_value={"upcoming": events}):
+            due = runner.due_events(self.repo, NOW)
+        self.assertEqual([e["instrument_ids"] for e in due], [["SASOL"], ["MTN"], ["MTN", "VOD"]])
+
+    def test_mtn_event_runs_through_existing_cited_expectation_pipeline(self):
+        source=calendar.import_source(self.repo,{"source_url":"https://example.test/mtn","title":"MTN",
+            "body":"MTN results 23 October 2026","captured_at":NOW.isoformat(),"provenance":"test capture"},NOW)
+        event=calendar.propose_event(self.repo,{"event_key":"mtn-results","title":"MTN results",
+            "instrument_ids":["MTN"],"source_receipt_id":source["record_id"],"source_quote":source["body"],
+            "event_date":"2026-10-23","timezone":"Africa/Johannesburg"},NOW)
+        calendar.confirm_event(self.repo,event["record_id"],"test operator",NOW)
+        event=next(e for e in calendar.status(self.repo,NOW)["upcoming"] if e["event_key"]=="mtn-results")
+        def generate(packet,*args,**kwargs):
+            self.assertEqual(packet["event"]["instrument_ids"],["MTN"])
+            return (b'{"done":true,"response":"{\"proposals\":[]}"}', '{"proposals":[]}',
+                    NOW + timedelta(seconds=1), NOW + timedelta(seconds=1))
+        with patch.object(runner,"due_events",return_value=[event]):
+            result=self.execute(generate)
+        self.assertEqual(result["model_calls"],1)
+        self.assertEqual(result["proposal_ids"],[])
+        self.assertEqual(self.repo.paper_record(runner.attempt_id('mtn-results',NOW))['event_key'],'mtn-results')
+
+    def test_dashboard_share_lane_skips_model_when_no_share_events_are_due(self):
+        from scripts.share_expectations import run_due
+        with patch.object(runner, "due_events", return_value=[]), patch.object(runner, "execute") as call:
+            result = run_due(self.repo, NOW, self.folder, "unused")
+        self.assertEqual(result["state"], "NO_CONFIRMED_SHARE_EVENTS_IN_WINDOW")
+        self.assertEqual(result["model_calls"], 0)
+        call.assert_not_called()
+
     def test_active_pc_never_prepares_reserves_or_calls(self):
         def forbidden(*args, **kwargs): raise AssertionError("generation forbidden")
         result = self.execute(forbidden, idle=lambda: 1)
@@ -74,8 +108,9 @@ class CalendarOllamaTests(unittest.TestCase):
 
     def test_insufficient_memory_does_not_prepare_reserve_or_generate(self):
         def forbidden(*args, **kwargs): raise AssertionError("generation forbidden")
-        result = runner.execute(self.repo, NOW, self.folder, "x", idle=lambda: 601,
-            memory=lambda: 6 * runner.GIB, generator=forbidden)
+        with patch.object(runner, "effective_start_memory", return_value=7 * runner.GIB):
+            result = runner.execute(self.repo, NOW, self.folder, "x", idle=lambda: 601,
+                memory=lambda: 6 * runner.GIB, generator=forbidden)
         self.assertEqual(result["state"], "WAITING_FOR_MEMORY")
         self.assertEqual(runner.runner_status(self.repo, NOW)["total_reservations"], 0)
 

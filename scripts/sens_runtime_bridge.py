@@ -25,8 +25,25 @@ def main():
                 result=sync(source,target,datetime.now(timezone.utc))
             print(json.dumps(result))
         finally:source.close();target.close()
+def run_with_macro(bridge=main, invoke=subprocess.run, args=None):
+    # A legacy bridge failure must not prevent the independent macro check.
+    # The original bridge exception still propagates to its SENS roster job.
+    args = sys.argv if args is None else args
+    try:
+        bridge()
+    finally:
+        if '--bridge-only' not in args:
+            for script in ('macro_expectations.py','share_expectations.py'):
+                try:
+                    invoke([sys.executable,str(ROOT/'scripts'/script),'--run'],
+                           cwd=ROOT,check=False,timeout=240)
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    if script == 'macro_expectations.py':
+                        from scripts.macro_expectations import write_check
+                    else:
+                        from scripts.share_expectations import write_check
+                    write_check({'state':'WORKER_START_OR_TIMEOUT_ERROR','error_type':type(exc).__name__, 'reason':type(exc).__name__})
+
 if __name__=='__main__':
-    main()
-    if '--bridge-only' not in sys.argv:
-        subprocess.run([sys.executable,str(ROOT/'scripts/macro_expectations.py'),'--run'],cwd=ROOT,check=False)
+    run_with_macro()
 

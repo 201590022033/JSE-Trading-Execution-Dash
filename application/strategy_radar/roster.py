@@ -43,7 +43,8 @@ def run_lane(service, lane, *, invoke=None):
                 runner = invoke or subprocess.run
                 completed = runner(command, cwd=root, capture_output=True, timeout=1800,
                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-                result = {'returncode': completed.returncode, 'model_calls_requested': 0}
+                result = {'returncode': completed.returncode, 'model_calls_requested': None if lane == 'sens' else 0}
+                if lane == 'sens': result['model_call_accounting'] = 'SEE_MACRO_EXPECTATION_RECEIPTS'
                 state = 'COMPLETED' if completed.returncode == 0 else 'FAILED'
             except Exception as exc:
                 state, result = 'FAILED', {'error_type': type(exc).__name__}
