@@ -24,7 +24,7 @@ attempts, unknown outcomes, budgets and source clocks.
 The immediate repair is the differing Llama settings and time limits across
 the legacy scheduled CLI, the trading share worker, the SENS bridge and activity
 reporting. The accepted profile is 3.75 GiB start, 500 MiB emergency stop and
-480-second model timeout. The existing Llama Windows task allows ten minutes.
+330-second model timeout. The existing Llama Windows task allows ten minutes.
 Keep Qwen's own policies. Read CONTEXT.md for the exact source map and evidence.
 
 For each milestone return a concise evidence checkpoint before proceeding.

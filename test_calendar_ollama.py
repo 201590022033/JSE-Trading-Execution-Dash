@@ -100,6 +100,16 @@ class CalendarOllamaTests(unittest.TestCase):
         self.assertEqual(result["model_calls"], 0)
         call.assert_not_called()
 
+    def test_dashboard_share_lane_uses_calendar_profile(self):
+        from scripts.share_expectations import run_due
+        with patch.object(runner, 'due_events', return_value=[self.event]), \
+             patch.object(runner, 'execute', return_value={'state': 'WAITING_FOR_MEMORY'}) as call:
+            run_due(self.repo, NOW, self.folder, 'unused')
+        self.assertEqual(call.call_args.kwargs['start_memory'], runner.CALENDAR_START_MEMORY)
+        profile = call.call_args.kwargs['generator'].keywords
+        self.assertEqual(profile['running_memory'], runner.CALENDAR_RUNNING_MEMORY)
+        self.assertEqual(profile['timeout_seconds'], 330)
+
     def test_active_pc_never_prepares_reserves_or_calls(self):
         def forbidden(*args, **kwargs): raise AssertionError("generation forbidden")
         result = self.execute(forbidden, idle=lambda: 1)
@@ -284,7 +294,7 @@ class CalendarOllamaTests(unittest.TestCase):
         self.assertEqual(status["available_physical_ram_gib"], 3)
         self.assertEqual(status["minimum_start_free_ram_gib"], 3.75)
         self.assertEqual(status["abort_free_ram_below_bytes"], 500 * 1024 * 1024)
-        self.assertEqual(status["timeout_seconds"], 480)
+        self.assertEqual(status["timeout_seconds"], 330)
         self.assertFalse(status["resources_ready"])
         self.assertEqual(status["total_reservations"], 0)
         self.assertEqual(runner.runner_status(self.repo, NOW, idle=lambda: 1,
@@ -298,7 +308,7 @@ class CalendarOllamaTests(unittest.TestCase):
             runner.configure_calendar_task()
             self.assertEqual(runner.effective_start_memory(), 15 * runner.GIB // 4)
             self.assertEqual(runner.MIN_RUNNING_MEMORY, 500 * 1024 * 1024)
-            self.assertEqual(runner.TIMEOUT_SECONDS, 480)
+            self.assertEqual(runner.TIMEOUT_SECONDS, 330)
             self.assertEqual(runner.IDLE_SECONDS, 600)
 
             session = Session()
@@ -310,8 +320,8 @@ class CalendarOllamaTests(unittest.TestCase):
             runner.generate({}, 'prompt', {}, 'x', self.folder, idle=lambda: 601,
                 memory=lambda: runner.CALENDAR_START_MEMORY,
                 session_factory=lambda: session, owner_factory=Owner)
-            self.assertGreater(session.posts[0][1]['timeout'][1], 470)
-            self.assertLessEqual(session.posts[0][1]['timeout'][1], 480)
+            self.assertGreater(session.posts[0][1]['timeout'][1], 320)
+            self.assertLessEqual(session.posts[0][1]['timeout'][1], 330)
 
 
 if __name__ == "__main__":

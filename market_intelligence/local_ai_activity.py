@@ -23,7 +23,7 @@ def snapshot(repo, now, *, idle=None, memory=None):
     try:
         free = (memory or runner.available_memory_bytes)()
         idle_secs = (idle or runner.windows_idle_seconds)()
-        calendar_gate = runner.effective_start_memory()
+        calendar_gate = runner.CALENDAR_START_MEMORY
         checks = {'free_gib': round(free / runner.GIB, 2), 'idle_seconds': round(idle_secs, 1),
                   'qwen_minimum_gib': 3.5, 'calendar_minimum_gib': calendar_gate / runner.GIB,
                   'idle_required_seconds': runner.IDLE_SECONDS,

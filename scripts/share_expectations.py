@@ -8,7 +8,8 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 
 def write_check(result,path=None):
     path=path or ROOT/'runtime/share-expectations-last-check.json'
-    fields=('state','model_calls','model_calls_upper_bound','error_type','trading_weight')
+    fields=('state','model_calls','model_calls_upper_bound','error_type','trading_weight',
+            'check_started_at','reason')
     receipt={key:result[key] for key in fields if key in result}
     receipt['checked_at']=datetime.now(timezone.utc).isoformat()
     temp=None
@@ -24,9 +25,14 @@ def write_check(result,path=None):
 
 def run_due(repo,now,folder,executable):
     from scripts import calendar_ollama as runner
+    from functools import partial
     if not runner.due_events(repo,now):
         return {'state':'NO_CONFIRMED_SHARE_EVENTS_IN_WINDOW','model_calls':0,'trading_weight':0}
-    return runner.execute(repo,now,folder,executable)
+    generate = partial(runner.generate, start_memory=runner.CALENDAR_START_MEMORY,
+                       running_memory=runner.CALENDAR_RUNNING_MEMORY,
+                       timeout_seconds=runner.CALENDAR_TIMEOUT_SECONDS)
+    return runner.execute(repo,now,folder,executable,
+                          start_memory=runner.CALENDAR_START_MEMORY, generator=generate)
 
 
 def main():
@@ -38,15 +44,17 @@ def main():
     if parsed.hostname not in ('localhost','127.0.0.1') or parsed.port!=5433 or parsed.path!='/trading':
         raise ValueError('Expected local trading database')
     repo=runtime_repository(database_url=url)
+    check_started_at = datetime.now(timezone.utc).isoformat()
     try:
         with process_lock(ROOT/'runtime/local-migration/fresh-20261015/heavy-research.lock'):
             runner.below_normal()
             exe=Path(os.environ['LOCALAPPDATA'])/'Programs/Ollama/ollama.exe'
             result=run_due(repo,datetime.now(timezone.utc),ROOT/'runtime/share-expectations',exe)
-        write_check(result)
+        write_check({**result, 'check_started_at': check_started_at})
         print(json.dumps({k:result[k] for k in ('state','model_calls','model_calls_upper_bound','error_type','trading_weight') if k in result}))
     except Exception as exc:
-        write_check({'state':'WORKER_ERROR','error_type':type(exc).__name__})
+        write_check({'state':'WORKER_ERROR','error_type':type(exc).__name__,
+                     'check_started_at':check_started_at})
         raise
     finally:repo.close()
 

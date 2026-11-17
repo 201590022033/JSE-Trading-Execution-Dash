@@ -30,7 +30,7 @@ CONTEXT.md and should be verified rather than rediscovered from all history.
 1. Make the Llama profile explicit and consistently consumed by scheduled CLI,
    dashboard share-worker CLI, dispatcher and readiness APIs. Preserve current
    signatures for existing callers or supply compatible optional arguments.
-   Apply 3.75 GiB start, 500 MiB emergency, 480-second model request, two CPU
+   Apply 3.75 GiB start, 500 MiB emergency, 330-second model request, two CPU
    threads and ten-minute idle. Preserve Qwen path-specific profiles. Avoid
    global profile mutation that leaks between workers or misleads API reads.
 2. Remove the four-minute AI-child timeout conflict. Trace all enclosing timeout
@@ -65,7 +65,7 @@ localhost News & SENS workflow. Read its instructions before UI control.
 ## Acceptance and evidence
 
 - Fake generation through both CLIs and the dispatcher sees the intended policy.
-  A simulated request longer than 240 seconds but within 480 can finish through
+  A simulated request longer than 240 seconds but within 330 can finish through
   the full caller chain. Use a fake clock, with no eight-minute unit-test sleep.
 - At 3.75 GiB the start check allows Llama, below it waits without reserving.
   Crossing the 500 MiB floor terminates only its owned model tree. User input,

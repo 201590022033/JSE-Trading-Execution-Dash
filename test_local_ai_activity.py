@@ -21,7 +21,8 @@ class LocalActivityTests(unittest.TestCase):
   self.assertTrue(report['calendar']['latest_attempt_unresolved'])
   self.assertEqual(report['model_calls_on_read'],0)
   self.assertTrue(report['resources']['qwen_memory_ready'])
-  self.assertFalse(report['resources']['calendar_memory_ready'])
+  self.assertTrue(report['resources']['calendar_memory_ready'])
+  self.assertEqual(report['resources']['calendar_minimum_gib'],3.75)
   self.assertFalse(report['resources']['idle_ready'])
  def test_missing_legacy_db_does_not_expose_error(self):
   from market_intelligence.local_ai_activity import status

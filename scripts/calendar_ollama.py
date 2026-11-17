@@ -34,7 +34,7 @@ MIN_RUNNING_MEMORY = 3 * GIB // 2
 # runner keep their existing defaults and per-worker overrides.
 CALENDAR_START_MEMORY = 15 * GIB // 4
 CALENDAR_RUNNING_MEMORY = 500 * 1024 * 1024
-CALENDAR_TIMEOUT_SECONDS = 480
+CALENDAR_TIMEOUT_SECONDS = 330
 SAST = ZoneInfo("Africa/Johannesburg")
 
 
@@ -318,7 +318,8 @@ def _session():
 
 def generate(packet, prompt, schema, executable, folder, *, idle=windows_idle_seconds,
              memory=None, session_factory=_session, owner_factory=OwnedOllama,
-             clock=time.monotonic, sleep=time.sleep, required_idle_seconds=None):
+             clock=time.monotonic, sleep=time.sleep, required_idle_seconds=None,
+             start_memory=None, running_memory=None, timeout_seconds=None):
     """Exactly one local generation request; caller must already reserve its budget."""
     if required_idle_seconds not in (None,0):
         raise ValueError('Only explicit supervised zero-idle override is supported')
@@ -326,15 +327,18 @@ def generate(packet, prompt, schema, executable, folder, *, idle=windows_idle_se
     if idle() < idle_floor:
         raise InterruptedError("User input returned before model start")
     memory = memory or available_memory_bytes
-    if memory() < effective_start_memory():
+    start_memory = effective_start_memory() if start_memory is None else start_memory
+    running_memory = MIN_RUNNING_MEMORY if running_memory is None else running_memory
+    timeout_seconds = TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+    if memory() < start_memory:
         raise ResourcePressure("Insufficient free memory before owned model start")
-    deadline = clock() + TIMEOUT_SECONDS
+    deadline = clock() + timeout_seconds
     with owner_factory(executable, folder) as owner, session_factory() as session:
         # GET readiness only. No model load/download occurs until the one POST.
         while True:
             if idle() < idle_floor:
                 raise InterruptedError("User input returned during startup")
-            if memory() < MIN_RUNNING_MEMORY:
+            if memory() < running_memory:
                 raise ResourcePressure("Memory pressure during model startup")
             if clock() >= deadline:
                 raise TimeoutError("Local model startup deadline")
@@ -393,7 +397,7 @@ def generate(packet, prompt, schema, executable, folder, *, idle=windows_idle_se
                 raise InterruptedError("User input returned; owned model process tree terminated")
             if clock() >= deadline:
                 raise TimeoutError("Owned local model deadline exceeded")
-            if memory() < MIN_RUNNING_MEMORY:
+            if memory() < running_memory:
                 raise ResourcePressure("Memory pressure; owned model process tree terminated")
             thread.join(.5)
         if idle() < idle_floor:
@@ -416,12 +420,12 @@ def generate(packet, prompt, schema, executable, folder, *, idle=windows_idle_se
         return raw, data["response"], box["started_at"], box["completed_at"]
 
 
-def execute(repository, now, folder, executable, *, idle=windows_idle_seconds, memory=None, generator=generate):
+def execute(repository, now, folder, executable, *, idle=windows_idle_seconds, memory=None, generator=generate, start_memory=None):
     from market_intelligence.calendar_expectations import prepare_input, prompt_for, response_schema, register_response
     if idle() < IDLE_SECONDS:
         return {"state": "WAITING_FOR_10_MINUTES_IDLE", "model_calls": 0, "trading_weight": 0}
     memory = memory or available_memory_bytes
-    if memory() < effective_start_memory():
+    if memory() < (effective_start_memory() if start_memory is None else start_memory):
         return {"state": "WAITING_FOR_MEMORY", "model_calls": 0, "trading_weight": 0}
     events = due_events(repository, now)
     for event in events:
@@ -460,7 +464,7 @@ def execute(repository, now, folder, executable, *, idle=windows_idle_seconds, m
     return {"state": "NO_UNRESERVED_DUE_SHARE_EVENT", "model_calls": 0, "trading_weight": 0}
 
 
-def runner_status(repository, now, *, idle=None, memory=None):
+def runner_status(repository, now, *, idle=None, memory=None, source_database='unspecified'):
     events = due_events(repository, now)
     attempts = repository.paper_records(ACCOUNT, "calendar-ollama-attempt", as_of=now.isoformat(), limit=1000)
     results = repository.paper_records(ACCOUNT, "calendar-ollama-result", as_of=now.isoformat(), limit=1000)
@@ -476,7 +480,12 @@ def runner_status(repository, now, *, idle=None, memory=None):
     except Exception:
         pass  # Unavailable telemetry never grants inference eligibility.
     unresolved = sum(not repository.paper_record(a["record_id"] + "-result") for a in attempts)
+    fields = ("record_id", "event_key", "state", "reserved_at", "received_at",
+              "request_started_at", "request_completed_at", "error_type", "model_calls")
     return {"state": "LOCAL_CALENDAR_DRAFT_RUNNER_ONLY", "due_events": len(events),
+        "source_database": source_database,
+        "latest_attempt": {k: attempts[0][k] for k in fields if k in attempts[0]} if attempts else None,
+        "latest_result": {k: results[0][k] for k in fields if k in results[0]} if results else None,
         "reserved_today": sum(bool(repository.paper_record(attempt_id(e["event_key"], now))) for e in events),
         "model": MODEL, "model_digest": MODEL_DIGEST, "endpoint": HOST,
         "idle_seconds_required": IDLE_SECONDS, "model_calls_on_read": 0, "trading_weight": 0,
@@ -510,7 +519,7 @@ def main():
     repository = runtime_repository(database_url=url)
     try:
         if args.command != "run":
-            result = runner_status(repository, now)
+            result = runner_status(repository, now, source_database='legacy research (localhost:55432)')
         elif windows_idle_seconds() < IDLE_SECONDS:
             result = {"state": "WAITING_FOR_10_MINUTES_IDLE", "model_calls": 0, "trading_weight": 0}
         else:

@@ -29,12 +29,34 @@ class MacroDispatchTests(unittest.TestCase):
   def bridge(): raise RuntimeError('bridge failed')
   def invoke(*args,**kwargs): calls.append((args,kwargs))
   with self.assertRaises(RuntimeError): run_with_macro(bridge,invoke,args=[])
-  self.assertEqual(len(calls),2)
-  self.assertTrue(calls[1][0][0][-2].endswith('share_expectations.py'))
-  self.assertEqual(calls[0][0][0][-1], '--run')
-  self.assertTrue(calls[0][0][0][-2].endswith('scripts\\macro_expectations.py') or calls[0][0][0][-2].endswith('scripts/macro_expectations.py'))
+  self.assertEqual(len(calls),1)
+  self.assertTrue(calls[0][0][0][-1].endswith('ai_expectation_dispatch.py'))
+  self.assertIsNotNone(calls[0][1]['stdout'])
  def test_bridge_only_does_not_start_macro(self):
   from scripts.sens_runtime_bridge import run_with_macro
   calls=[]
   run_with_macro(lambda:None,lambda *a,**k:calls.append(a),args=['--bridge-only'])
   self.assertEqual(calls,[])
+ def test_detached_supervisor_runs_both_with_bounded_timeouts(self):
+  from scripts.ai_expectation_dispatch import dispatch
+  from unittest.mock import patch
+  from contextlib import nullcontext
+  calls=[]
+  with patch('scripts.local_runtime.process_lock',return_value=nullcontext()):
+   dispatch(lambda *a,**k:calls.append((a,k)))
+  self.assertEqual([c[1]['timeout'] for c in calls],[240,390])
+  self.assertTrue(calls[1][0][0][-2].endswith('share_expectations.py'))
+ def test_macro_timeout_does_not_prevent_share_check(self):
+  import subprocess
+  from unittest.mock import patch
+  from contextlib import nullcontext
+  from scripts.ai_expectation_dispatch import dispatch
+  calls=[]
+  def invoke(*args,**kwargs):
+   calls.append(args[0])
+   if len(calls)==1: raise subprocess.TimeoutExpired(args[0],240)
+  with patch('scripts.local_runtime.process_lock',return_value=nullcontext()), \
+       patch('scripts.macro_expectations.write_check') as receipt:
+   dispatch(invoke)
+  self.assertEqual(len(calls),2)
+  receipt.assert_called_once()

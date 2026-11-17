@@ -38,18 +38,16 @@ Discover renamed files with `rg --files` rather than inventing missing APIs.
 ## Verified gap at handoff
 
 1. The legacy scheduled Llama CLI now explicitly applies a 3.75 GiB start gate,
-   500 MiB emergency stop and 480-second request timeout. Its enabled hourly
+   500 MiB emergency stop and 330-second request timeout. Its enabled hourly
    Windows task, `Trading System Idle Calendar Ollama`, has a ten-minute task
    limit, ten-minute idle condition and Interactive Windows principal.
-2. `share_expectations.py` imports the shared runner and calls `execute` against
-   trading. It does not call `configure_calendar_task`. Shared imported defaults
-   remain 7 GiB start, 1.5 GiB abort and 180 seconds. `runner_status` currently
-   reports the new calendar constants, so this path can display misleading
-   readiness. Correct this through real entry points in AI1.
-3. The SENS bridge invokes macro and share children with `timeout=240`. A share
-   request that legitimately needs more than four minutes cannot finish there.
-   Examine the enclosing dispatcher timeout and shared heavy-work lock too.
-   Fix AI child execution without changing source collection or the ticker.
+2. `share_expectations.py` explicitly passes the owner-selected Llama profile
+   against trading. Shared imported defaults remain distinct for Qwen callers.
+   Verify effective profile and deployed status through the real entry points.
+3. The SENS bridge launches an independent AI supervisor. It invokes macro and
+   share children sequentially with 240 and 390 second outer limits. The share
+   model request has a 330-second limit. The supervisor has its own lock and
+   the model workers retain their existing shared heavy-work lock.
 4. `local_ai_activity.py` reads legacy activity and derives gates from imported
    runner defaults. Dashboard expectations use trading. Show database identity
    and separate last check, reservation, request and result clocks accurately.
@@ -79,6 +77,13 @@ the existing narrowly defined retry policy still apply.
 The previous changes are committed as `b90765f`. Focused validation passed
 124 calendar/model tests and 25 Sasol checks. All nine frozen implementation
 hashes matched HEAD at that point. No real unattended result was claimed.
+
+On 17 November the owner selected a shorter 290-second Llama timeout and
+requested one supervised synthetic test. It returned ReadTimeout at 290 seconds,
+with minimum sampled free memory 2,371,792,896 bytes and no telemetry errors.
+The separate 480-second test remains the last passing synthetic fixture.
+The owner subsequently selected a 330-second model timeout. That new timeout
+has not yet been verified with an unattended real model request.
 
 ## Frozen implementation modules
 

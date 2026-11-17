@@ -143,7 +143,7 @@ def create_weekly_brief_blueprint(factory):
         repository = factory()
         try:
             now = datetime.now(timezone.utc)
-            runner = runner_status(repository, now)
+            runner = runner_status(repository, now, source_database='configured dashboard repository')
             from pathlib import Path
             import json
             path = Path(__file__).resolve().parents[1] / 'runtime/share-expectations-last-check.json'

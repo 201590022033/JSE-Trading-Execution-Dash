@@ -555,6 +555,7 @@ async function refreshCalendarExpectations() {
     const r = data.runner;
     $('#calendar-expectation-status').textContent = `${data.runs} model responses · ${data.frozen} frozen research plans · ${data.abstained} abstentions · ${data.rejected} blocked drafts · ${r.due_events} events in the seven-day window · ${r.total_reservations} request reservations · ${r.readiness_state.replaceAll('_',' ').toLowerCase()} · ${r.available_physical_ram_gib ?? 'unknown'} GiB free RAM (${r.minimum_start_free_ram_gib} GiB required)`;
     if (r.last_worker_check) $('#calendar-expectation-status').textContent += ` | Share worker ${r.last_worker_check.state} at ${when(r.last_worker_check.checked_at)}`;
+    $('#calendar-expectation-status').textContent += ` | Trading database | Llama timeout ${r.timeout_seconds ?? 'unknown'}s | Last reservation ${r.latest_attempt ? when(r.latest_attempt.reserved_at) : 'none'} | Last result ${r.latest_result ? r.latest_result.state + ' at ' + when(r.latest_result.received_at) : 'none'}${r.unresolved_reservations ? ' | Unresolved requests: ' + r.unresolved_reservations : ''}`;
     const latest = (r.latest_states || []).map(s => `<p class="muted">Worker: ${esc(s.state.replaceAll('_',' ').toLowerCase())} · ${esc(when(s.received_at))}</p>`).join('');
     $('#calendar-expectation-results').innerHTML = latest + data.proposals.slice(0,20).map(p => {
       const event = researchCalendarEvents.find(e => e.record_id === p.event_id);
