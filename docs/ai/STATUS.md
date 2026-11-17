@@ -53,3 +53,10 @@ Visual verification of the updated panel and actual detached-supervisor survival
 under the SENS host remain pending. The running dashboard has not been restarted.
 Separately verify child lifetime under actual Windows job containment and complete
 AI1 acceptance before marking it complete. Legacy and trading budgets are separate.
+
+The owner later requested progress while away from the desktop. Offline tests
+now additionally simulate a request that reaches 245 seconds and verify that
+concurrent AI supervisors cannot both hold the same dispatch lock. Both pass.
+The collector login window timed out before the owner could access the desktop;
+the Radar monitor remained running. The session recovery steps are documented
+in `docs/strategy-radar/VIEWPOINT_SESSION_HANDOFF.md`.

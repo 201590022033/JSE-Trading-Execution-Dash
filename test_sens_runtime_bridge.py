@@ -60,3 +60,29 @@ class MacroDispatchTests(unittest.TestCase):
    dispatch(invoke)
   self.assertEqual(len(calls),2)
   receipt.assert_called_once()
+ def test_concurrent_dispatch_is_exclusive(self):
+  import tempfile, threading
+  from pathlib import Path
+  from unittest.mock import patch
+  from scripts.ai_expectation_dispatch import dispatch
+  from scripts.local_runtime import process_lock
+  started=threading.Event(); release=threading.Event(); calls=[]; errors=[]
+  with tempfile.TemporaryDirectory() as folder:
+   lock=Path(folder)/'dispatch.lock'
+   def invoke(*args,**kwargs):
+    calls.append(args[0])
+    if len(calls)==1:
+     started.set(); release.wait(5)
+   def first():
+    try: dispatch(invoke)
+    except Exception as exc: errors.append(exc)
+   with patch('scripts.local_runtime.process_lock',side_effect=lambda unused:process_lock(lock)):
+    worker=threading.Thread(target=first);worker.start()
+    self.assertTrue(started.wait(5))
+    try:
+     with self.assertRaises(OSError): dispatch(invoke)
+    finally:
+     release.set(); worker.join(5)
+   self.assertFalse(worker.is_alive())
+  self.assertEqual(errors,[])
+  self.assertEqual(len(calls),2)

@@ -220,6 +220,18 @@ class CalendarOllamaTests(unittest.TestCase):
         self.assertEqual(session.posts, [])
         self.assertTrue(Owner.closed)
 
+    def test_calendar_request_can_finish_after_four_minutes(self):
+        session = Session()
+        ticks = iter([0] + [245] * 100)
+        runner.generate({}, 'source packet', {}, 'existing.exe', self.folder,
+            idle=lambda: 601, memory=lambda: 8 * runner.GIB,
+            session_factory=lambda: session, owner_factory=Owner,
+            clock=lambda: next(ticks, 245), timeout_seconds=330,
+            start_memory=runner.CALENDAR_START_MEMORY,
+            running_memory=runner.CALENDAR_RUNNING_MEMORY)
+        self.assertEqual(len(session.posts), 1)
+        self.assertEqual(session.posts[0][1]['timeout'][1], 85)
+
     def test_explicit_foreground_idle_override_keeps_default_and_memory_checks(self):
         session=Session()
         with self.assertRaises(InterruptedError):
