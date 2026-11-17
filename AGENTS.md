@@ -1,3 +1,18 @@
+## AI series handoff — 17 November 2026
+
+The owner requested the separate AI series for integrated local AI research.
+Read `docs/ai/README.md`, `docs/ai/CONTEXT.md`, `docs/ai/EXECUTION.md` and the
+active prompt under `docs/ai/milestones/`. `docs/ai/START.md` is the complete
+implementation-task handoff. AI1 is ready for the owner's selected Terra Light
+implementation task. Execute each milestone end to end and continue sequentially
+without repeated user prods. Preserve Xebra/Zebra, the five-minute ticker,
+ViewPoint/OST/IRESS settings and sessions, all running processes, existing local
+data from every source, and the nine frozen modules listed in CONTEXT.md.
+An issue accessing a new source cannot pause existing collection or create a
+new permission dependency for retained data. Earlier research and Strategy Radar
+series keep their recorded status. Planning and real runtime evidence are
+tracked separately in `docs/ai/STATUS.md`.
+
 ## Strategy Radar planning handoff — 6 November 2026
 
 For the new radar/dashboard/ingestion/manual-alert work, read `docs/strategy-radar/README.md` and `docs/strategy-radar/HIERARCHY.md`, then the active Strategy Radar milestone brief. This is a separate named M-series from the existing research redesign. Strategy Radar M1 is planned, not active until the user says go; prior research and R12/P1 statuses remain below. Preserve existing uncommitted changes.

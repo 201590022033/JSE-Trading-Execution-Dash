@@ -1,3 +1,15 @@
+## AI implementation handoff — 17 November 2026
+
+The owner authorized planning the named AI series and a dedicated implementation
+task for their selected Terra Light configuration. The [AI roadmap](../ai/README.md)
+and [AI1 prompt](../ai/milestones/AI1.md) define the next implementation work.
+AI0 is the planning handoff, AI1 is ready, and AI2–AI5 follow sequentially.
+No implementation is claimed by this planning entry. Preserve the protected
+operations and frozen files in [the execution contract](../ai/EXECUTION.md).
+Use [AI status](../ai/STATUS.md) for real evidence and continue each milestone
+through verification and commit/push before advancing. Earlier research and
+Strategy Radar milestones retain their independent historical status below.
+
 ## Five-minute roster integration started — 16 November 2026
 
 The existing LearningJournal now supports atomic lane-specific claiming for

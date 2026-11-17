@@ -1,3 +1,15 @@
+## AI series — planned 17 November 2026
+
+The owner requested a separate [AI roadmap](../ai/README.md) with complete
+implementation prompts, context, agent allocations, constraints and acceptance
+evidence. AI1 repairs worker/runtime integration and reporting, AI2 connects
+source-linked radar explanations, AI3 integrates event preparation, AI4 adds
+user review and later usefulness measurement, and AI5 verifies unattended
+operation. The dedicated task starts from [the AI handoff](../ai/START.md).
+AI1 is ready for implementation. Existing Xebra/Zebra, five-minute collection,
+local storage and running processes are protected. Earlier milestone statuses
+remain recorded below. Track execution in [AI status](../ai/STATUS.md).
+
 ## Strategy Radar roadmap — prepared 6 November 2026
 
 The user-approved radar, product-aware manual trade plan, data lifecycle and alerts are tracked in the separate [Strategy Radar roadmap](../strategy-radar/README.md), with [hierarchy](../strategy-radar/HIERARCHY.md). Strategy Radar M1–M11 are complete locally; M11's source-specific freshness and bounded prepared-context path was live-verified after the dashboard restart. M12 is implemented and its restarted API is verified on retained MTN bars. Visible provenance for an actual overlap remains open. M10 delivered the six-choice view and an owner-accepted, normalized manual IRESS CSV research path. The owner authorized M10 and M11 alongside research M5; this one-time exception leaves research M5's scope unchanged. Earlier research M5–M7, R12 and P1 retain their recorded status. Preserve existing uncommitted work and prior evidence.
