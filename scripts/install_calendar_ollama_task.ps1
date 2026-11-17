@@ -9,7 +9,7 @@ $draftUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $draftPrincipal = New-ScheduledTaskPrincipal -UserId $draftUser -LogonType Interactive -RunLevel Limited
 $draftAction = New-ScheduledTaskAction -Execute $draftPython -Argument ('"' + $draftScript + '" run') -WorkingDirectory $draftRoot
 $draftTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Hours 1)
-$draftSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RunOnlyIfIdle -IdleDuration (New-TimeSpan -Minutes 10) -IdleWaitTimeout (New-TimeSpan -Hours 23) -RestartOnIdle -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 4) -Priority 7
+$draftSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RunOnlyIfIdle -IdleDuration (New-TimeSpan -Minutes 10) -IdleWaitTimeout (New-TimeSpan -Hours 23) -RestartOnIdle -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -Priority 7
 # Explicitly require StopOnIdleEnd; the owned Windows job additionally kills the
 # dedicated Ollama server and its runner if this task is stopped or crashes.
 $draftSettings.IdleSettings.StopOnIdleEnd = $true

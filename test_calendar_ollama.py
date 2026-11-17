@@ -279,15 +279,39 @@ class CalendarOllamaTests(unittest.TestCase):
         self.assertEqual(before, self.repo._job_sql("SELECT COUNT(*) FROM paper_records", rows=True)[0][0])
 
     def test_status_reports_actual_resource_wait_without_model_or_reservation(self):
-        status = runner.runner_status(self.repo, NOW, idle=lambda: 650, memory=lambda: 4 * runner.GIB)
+        status = runner.runner_status(self.repo, NOW, idle=lambda: 650, memory=lambda: 3 * runner.GIB)
         self.assertEqual(status["readiness_state"], "WAITING_FOR_MEMORY")
-        self.assertEqual(status["available_physical_ram_gib"], 4)
+        self.assertEqual(status["available_physical_ram_gib"], 3)
+        self.assertEqual(status["minimum_start_free_ram_gib"], 3.75)
+        self.assertEqual(status["abort_free_ram_below_bytes"], 500 * 1024 * 1024)
+        self.assertEqual(status["timeout_seconds"], 480)
         self.assertFalse(status["resources_ready"])
         self.assertEqual(status["total_reservations"], 0)
         self.assertEqual(runner.runner_status(self.repo, NOW, idle=lambda: 1,
             memory=lambda: 8 * runner.GIB)["readiness_state"], "WAITING_FOR_10_MINUTES_IDLE")
         self.assertTrue(runner.runner_status(self.repo, NOW, idle=lambda: 650,
             memory=lambda: 8 * runner.GIB)["resources_ready"])
+
+    def test_calendar_profile_is_explicit_and_preserves_idle(self):
+        with patch.multiple(runner, MIN_START_MEMORY=7 * runner.GIB,
+                            MIN_RUNNING_MEMORY=3 * runner.GIB // 2, TIMEOUT_SECONDS=180):
+            runner.configure_calendar_task()
+            self.assertEqual(runner.effective_start_memory(), 15 * runner.GIB // 4)
+            self.assertEqual(runner.MIN_RUNNING_MEMORY, 500 * 1024 * 1024)
+            self.assertEqual(runner.TIMEOUT_SECONDS, 480)
+            self.assertEqual(runner.IDLE_SECONDS, 600)
+
+            session = Session()
+            with self.assertRaises(runner.ResourcePressure):
+                runner.generate({}, 'prompt', {}, 'x', self.folder, idle=lambda: 601,
+                    memory=lambda: runner.CALENDAR_START_MEMORY - 1,
+                    session_factory=lambda: session, owner_factory=Owner)
+            self.assertEqual(session.posts, [])
+            runner.generate({}, 'prompt', {}, 'x', self.folder, idle=lambda: 601,
+                memory=lambda: runner.CALENDAR_START_MEMORY,
+                session_factory=lambda: session, owner_factory=Owner)
+            self.assertGreater(session.posts[0][1]['timeout'][1], 470)
+            self.assertLessEqual(session.posts[0][1]['timeout'][1], 480)
 
 
 if __name__ == "__main__":

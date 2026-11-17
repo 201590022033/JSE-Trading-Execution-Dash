@@ -30,7 +30,20 @@ MAX_BYTES = 100_000
 GIB = 1024 ** 3
 MIN_START_MEMORY = 7 * GIB
 MIN_RUNNING_MEMORY = 3 * GIB // 2
+# Owner-authorized Llama calendar task profile. Other users of this shared
+# runner keep their existing defaults and per-worker overrides.
+CALENDAR_START_MEMORY = 15 * GIB // 4
+CALENDAR_RUNNING_MEMORY = 500 * 1024 * 1024
+CALENDAR_TIMEOUT_SECONDS = 480
 SAST = ZoneInfo("Africa/Johannesburg")
+
+
+def configure_calendar_task():
+    """Apply the owner-approved profile only in the calendar task process."""
+    global MIN_START_MEMORY, MIN_RUNNING_MEMORY, TIMEOUT_SECONDS
+    MIN_START_MEMORY = CALENDAR_START_MEMORY
+    MIN_RUNNING_MEMORY = CALENDAR_RUNNING_MEMORY
+    TIMEOUT_SECONDS = CALENDAR_TIMEOUT_SECONDS
 
 
 def _hash(value):
@@ -458,7 +471,7 @@ def runner_status(repository, now, *, idle=None, memory=None):
     try:
         free = (memory or available_memory_bytes)()
         idle_value = (idle or windows_idle_seconds)()
-        readiness = ("WAITING_FOR_MEMORY" if free < effective_start_memory() else
+        readiness = ("WAITING_FOR_MEMORY" if free < CALENDAR_START_MEMORY else
             "WAITING_FOR_10_MINUTES_IDLE" if idle_value < IDLE_SECONDS else "READY_FOR_IDLE_DRAFT")
     except Exception:
         pass  # Unavailable telemetry never grants inference eligibility.
@@ -467,10 +480,11 @@ def runner_status(repository, now, *, idle=None, memory=None):
         "reserved_today": sum(bool(repository.paper_record(attempt_id(e["event_key"], now))) for e in events),
         "model": MODEL, "model_digest": MODEL_DIGEST, "endpoint": HOST,
         "idle_seconds_required": IDLE_SECONDS, "model_calls_on_read": 0, "trading_weight": 0,
-        "minimum_start_free_ram_bytes": effective_start_memory(), "abort_free_ram_below_bytes": MIN_RUNNING_MEMORY,
+        "minimum_start_free_ram_bytes": CALENDAR_START_MEMORY, "abort_free_ram_below_bytes": CALENDAR_RUNNING_MEMORY,
+        "timeout_seconds": CALENDAR_TIMEOUT_SECONDS,
         "readiness_state": readiness, "resources_ready": readiness == "READY_FOR_IDLE_DRAFT",
         "available_physical_ram_gib": round(free / GIB, 2) if free is not None else None,
-        "minimum_start_free_ram_gib": effective_start_memory()/GIB, "observed_idle_seconds": round(idle_value, 1) if idle_value is not None else None,
+        "minimum_start_free_ram_gib": CALENDAR_START_MEMORY/GIB, "observed_idle_seconds": round(idle_value, 1) if idle_value is not None else None,
         "total_reservations": len(attempts), "total_results": len(results),
         "unresolved_reservations": unresolved,
         "completed_generation_calls": sum(r.get("model_calls", 0) for r in results),
@@ -517,6 +531,7 @@ def main():
 
 if __name__ == "__main__":
     try:
+        configure_calendar_task()
         raise SystemExit(main())
     except Exception as exc:
         print(json.dumps({"state": "CALENDAR_OLLAMA_BLOCKED", "error_type": type(exc).__name__}))

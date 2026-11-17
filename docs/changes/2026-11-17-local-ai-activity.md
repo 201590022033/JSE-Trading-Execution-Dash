@@ -195,3 +195,23 @@ no reported errors. The model process exited and free RAM recovered to about
 5.76 GiB. The production Llama start and abort gates remain 7 GiB and 1.5 GiB
 because this was an isolated test and did not qualify the smaller profile.
 Evidence: runtime/llama-3_75g-abort500mib-20261117/result.json.
+
+## Longer Llama test and owner-authorized scheduled profile
+
+The owner requested one longer supervised synthetic test. With a 3.75 GiB
+start gate, 500 MiB emergency stop and 480-second timeout, it passed the exact
+fixture in 5 minutes 9 seconds. Minimum sampled available RAM was 3,040,387,072
+bytes (about 2.83 GiB); sampling produced no telemetry errors. This is one
+synthetic pass, not an accuracy or worst-case memory guarantee. Receipt:
+runtime/llama-3_75g-abort500mib-timeout480-20261117-140431/result.json.
+
+At the owner's request, those three parameters now apply to the scheduled
+Llama calendar process, and its Windows task limit was changed from 4 to 10
+minutes to allow startup and cleanup around the 8-minute request. The existing
+10-minute idle requirement, signed-in Windows principal, event/day budget and
+advisory-only scope remain unchanged. The lower memory floor is an explicit
+owner choice and intermittent sampling can fall below it before termination.
+Other AI workers retain their own process defaults and overrides. The scheduled
+task's trading-system-complete path is a junction to this checkout. No model
+request was started as part of this configuration change; the next unattended
+run remains to be observed. No ViewPoint setting or other task was changed.
