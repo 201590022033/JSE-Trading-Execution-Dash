@@ -62,7 +62,9 @@ class CalibrationTests(unittest.TestCase):
    record['telemetry_errors']=[];record['profile_sha256']='wrong';path.write_text(json.dumps(record));self.assertFalse(trial.certified(temp))
  def test_production_reduces_only_after_successful_calibration(self):
   from unittest.mock import patch
-  with patch.object(trial,'certified',return_value=False):self.assertEqual(runner.effective_start_memory(),7*runner.GIB)
-  with patch.object(trial,'certified',return_value=True):self.assertEqual(runner.effective_start_memory(),4*runner.GIB)
+  with patch.object(runner,'MODEL',trial.LLAMA_MODEL), patch.object(runner,'MODEL_DIGEST',trial.LLAMA_DIGEST):
+   with patch.object(trial,'certified',return_value=False):self.assertEqual(runner.effective_start_memory(),7*runner.GIB)
+   with patch.object(trial,'certified',return_value=True):self.assertEqual(runner.effective_start_memory(),4*runner.GIB)
+  with patch.object(trial,'certified',return_value=True):self.assertEqual(runner.effective_start_memory(),7*runner.GIB)
   with base.candidate_profile(), patch.object(trial,'certified',return_value=True):
    self.assertEqual(runner.effective_start_memory(),base.START_MEMORY)

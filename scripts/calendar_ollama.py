@@ -20,8 +20,8 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 HOST = "http://127.0.0.1:11435"
-MODEL = "llama3:latest"
-MODEL_DIGEST = "365c0bd3c000a25d28ddbf732fe1c6add414de7275464c4e4d1c3b5fcb5d8ad1"
+MODEL = "llama3.2:3b"
+MODEL_DIGEST = "a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72"
 ACCOUNT = "calendar-ollama-runner-v1"
 VERSION = "calendar-ollama-runner-v1"
 IDLE_SECONDS = 600

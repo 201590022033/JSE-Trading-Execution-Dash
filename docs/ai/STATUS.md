@@ -128,6 +128,25 @@ in `docs/strategy-radar/VIEWPOINT_SESSION_HANDOFF.md`.
 
 ## AI1/AI2 browser follow-up — 18 November
 
+### Owner-selected Llama 3.2 3B — 18 November
+
+Installed `llama3.2:3b` alongside the retained `llama3:latest` model. One
+owner-authorized isolated synthetic calibration used the 3.75 GiB start,
+500 MiB emergency and 330-second timeout with a zero-idle supervised override.
+It passed exact JSON citation and abstention in one request from 12:54:13 to
+12:55:57 SAST (104 seconds); minimum sampled free memory was 3,983,687,680
+bytes and sampled owned working-set peak was 2,685,788,160 bytes. This is a
+single synthetic fixture, not proof of news quality or unattended operation.
+No market database record was written. The normal scheduled idle rule remains.
+
+The current source selects the exact installed 3B name and digest for share
+expectations; Qwen remains pinned separately to qwen2.5:1.5b. Existing 8B
+calibration is not applied to 3B. A current-code read-only trading API check
+reported 3B, 0 eligible events, 0 reservations and 0 model calls on read.
+102 focused checks passed. The already-running dashboard backend was not
+restarted, so its visible model and limits can still reflect old code. No
+actual 3B share-event generation or automatic idle run is claimed.
+
 The owner requested no Llama run during development; no model test was made
 and temporary memory conditions are not a model failure. A read-only Flask API
 check using current source and localhost:5433/trading returned 0 eligible share
