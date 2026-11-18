@@ -276,7 +276,7 @@ def create_radar_blueprint(factory):
         from datetime import datetime
         from application.opportunities.prospective_prices import ost_daily_context
         from .intraday_aggregation import derive_30m_records
-        from .intraday_store import IntradayCache, SAST, merge_bars
+        from .intraday_store import IntradayCache, SAST, merge_bars, five_minute_updates
         service = factory()
         cache = IntradayCache(service.folder / 'intraday.sqlite3')
         try:
@@ -287,7 +287,9 @@ def create_radar_blueprint(factory):
             sessions = {datetime.fromisoformat(bar['bar_start']).astimezone(SAST).date().isoformat()
                         for bar in data['bars']}
             daily = ost_daily_context(service.folder.parent, instrument, sessions, as_of=now)
-            return jsonify(**data, ost_daily=daily, source_status='MANUAL_OR_IMPORTED_ONLY', live_execution=False)
+            updates = five_minute_updates(records)['updates']
+            return jsonify(**data, ost_daily=daily, latest_five_minute_update=updates[-1] if updates else None,
+                           source_status='MANUAL_OR_IMPORTED_ONLY', live_execution=False)
         except (ValueError, TypeError):
             return jsonify(error='Intraday data unavailable'), 422
 

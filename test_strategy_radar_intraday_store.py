@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from application.strategy_radar.intraday_store import IntradayCache, normalize_bar, merge_bars, aggregate_30m
+from application.strategy_radar.intraday_store import IntradayCache, normalize_bar, merge_bars, aggregate_30m, five_minute_updates
 
 UTC=timezone.utc
 
@@ -16,6 +16,21 @@ def bar(i=0, source='A', date='2026-11-06', **kwargs):
     return out
 
 class IntradayTests(unittest.TestCase):
+    def test_update_identity_survives_repeat_and_changes_for_revision(self):
+        first = bar(fields={'close': 1000})
+        duplicate = bar(fields={'close': 1000}, received_at='2026-11-06T07:12:00+00:00')
+        revision = bar(fields={'close': 1100}, received_at='2026-11-06T07:13:00+00:00')
+        one = five_minute_updates([first])['updates'][0]
+        repeated = five_minute_updates([first, duplicate])['updates']
+        changed = five_minute_updates([first, duplicate, revision])['updates'][0]
+        self.assertEqual(len(repeated), 1)
+        self.assertEqual(one['id'], changed['id'])
+        self.assertEqual(one['version'], repeated[0]['version'])
+        self.assertNotEqual(one['version'], changed['version'])
+        self.assertEqual(changed['fields']['close']['selected']['value'], '11')
+        self.assertEqual(changed['fields']['volume']['state'], 'MISSING')
+        self.assertEqual(changed['fields']['close']['revisions'][0]['value'], '10')
+
     def test_merge_conflicts_revisions_invalid_and_unknown(self):
         first=bar(fields={'close':1000,'volume':-1})
         later=bar(fields={'close':1100},received_at='2026-11-06T07:12:00+00:00')

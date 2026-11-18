@@ -189,6 +189,31 @@ def merge_bars(records):
     return {'bars': output, 'unknown_clock_records': unknown, 'research_only': True}
 
 
+def five_minute_updates(records):
+    """Project retained observations into stable, provenance-bearing updates.
+
+    An update identifies a canonical interval and its selected values. Repeated
+    receipts for unchanged values keep the same version; a selected value or
+    source change creates a new version. Receipt clocks and alternatives remain
+    available in the merged fields and are not mistaken for fresh market data.
+    """
+    updates = []
+    merged = merge_bars(records)
+    for bar in merged['bars']:
+        if bar['interval_minutes'] != 5:
+            continue
+        key = {name: bar[name] for name in ('instrument', 'interval_minutes', 'bar_start', 'bar_end')}
+        values = {name: {'value': field['selected']['value'], 'source': field['selected']['source']}
+                  if field['selected'] else None for name, field in bar['fields'].items()}
+        def digest(value):
+            return sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        updates.append({**key, 'id': digest(key), 'version': digest({'key': key, 'values': values,
+                        'provisional': bar['provisional']}), 'fields': bar['fields'],
+                        'provisional': bar['provisional'], 'research_only': True})
+    return {'updates': updates, 'unknown_clock_records': len(merged['unknown_clock_records']),
+            'research_only': True}
+
+
 def aggregate_30m(records):
     """Produce 30m same-source bars only from six completed aligned 5m bars."""
     groups = {}
