@@ -14,6 +14,37 @@ NOW = datetime(2026, 11, 12, 8, 14, tzinfo=timezone.utc)
 
 
 class PreparedContextTests(unittest.TestCase):
+    def test_monitor_import_hands_retained_bar_to_prepared_context(self):
+        from application.strategy_radar.roster import collect_due
+        with tempfile.TemporaryDirectory() as tmp:
+            service = RadarService(tmp, clock=lambda: NOW)
+            service.store.reconcile([{'instrument': 'MTN', 'strategy_id': 'daily',
+                                      'strategy_version': '1.0'}], NOW)
+            cache = IntradayCache(service.folder / 'intraday.sqlite3')
+            record = {'instrument': 'MTN', 'source': 'IRESS_VIEWPOINT_TABLE_CSV',
+                'interval_minutes': 5, 'clock_semantics': 'START',
+                'source_timestamp': '2026-11-12T08:00:00+00:00',
+                'bar_start': '2026-11-12T08:00:00+00:00',
+                'bar_end': '2026-11-12T08:05:00+00:00',
+                'received_at': '2026-11-12T08:06:00+00:00',
+                'availability': 'MANUAL', 'unit': 'ZAR_CENTS',
+                'fields': {'close': '10050'}}
+            def collect(watches):
+                cache.put(record, evidence=True)
+                return {'state': 'CHECKED', 'instruments': {'MTN': 'IMPORTED'}}
+            def prepare(reason):
+                return build_packet(service, reason=reason, now=NOW, news_status={}, event_status={})
+            service.prepare_context = Mock(side_effect=prepare)
+            collector = Mock(collect=Mock(side_effect=collect))
+            result = collect_due(service, collector, NOW)
+            self.assertEqual(result['prepared_context']['state'], 'PREPARED')
+            packet = service.prepare_context.call_args
+            self.assertEqual(packet.args, ('VIEWPOINT_CSV_IMPORT',))
+            context = prepare('VIEWPOINT_CSV_IMPORT')
+            update = context['choices'][0]['intraday']['latest_five_minute_update']
+            self.assertEqual(update['fields']['close']['selected']['value'], '100.5')
+            self.assertEqual(update['fields']['volume']['state'], 'MISSING')
+
     def test_new_top5_membership_prepares_a_local_packet(self):
         with tempfile.TemporaryDirectory() as tmp:
             clock = [NOW]
@@ -98,6 +129,10 @@ class PreparedContextTests(unittest.TestCase):
             self.assertEqual(len(packet['choices']), 6)
             self.assertEqual(packet['choices'][-1]['instrument'], 'PIN')
             self.assertEqual(packet['choices'][0]['intraday']['available_bars'], 1)
+            update = packet['choices'][0]['intraday']['latest_five_minute_update']
+            self.assertEqual(update['instrument'], 'SHARE1')
+            self.assertEqual(update['fields']['close']['selected']['value'], '100.5')
+            self.assertEqual(update['fields']['close']['selected']['source'], 'IRESS_VIEWPOINT_TABLE_CSV')
             self.assertEqual(
                 packet['choices'][0]['intraday']['bars'][0]['fields']['close']['selected']['selection_policy'],
                 'VIEWPOINT_PREFERRED',

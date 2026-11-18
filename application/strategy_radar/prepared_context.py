@@ -109,7 +109,7 @@ def build_packet(service, *, reason, now, news_report=None, news_status=None, ev
             or not re.fullmatch(r'[A-Z][A-Z0-9_]{1,15}', imported_instrument)):
         raise ValueError('registered imported instrument required')
 
-    from .intraday_store import IntradayCache, merge_bars
+    from .intraday_store import IntradayCache, merge_bars, five_minute_updates
 
     watches = [item for item in service.store.list_watches()
                if item.get('in_top5') or item.get('pinned')][:MAX_CHOICES]
@@ -126,7 +126,9 @@ def build_packet(service, *, reason, now, news_report=None, news_status=None, ev
             daily_as_of = saved.get('as_of')
         except (OSError, ValueError, TypeError) as exc:
             daily_error = type(exc).__name__
-        merged = merge_bars(cache.read(instrument))
+        records = cache.read(instrument)
+        merged = merge_bars(records)
+        updates = five_minute_updates(records, as_of=now)['updates']
         bars = merged.get('bars') or []
         choices.append({
             'instrument': instrument,
@@ -143,6 +145,7 @@ def build_packet(service, *, reason, now, news_report=None, news_status=None, ev
                 'available_bars': len(bars),
                 'bars': [_compact_bar(bar) for bar in bars[-MAX_BARS_PER_CHOICE:]],
                 'unknown_clock_count': len(merged.get('unknown_clock_records') or []),
+                'latest_five_minute_update': updates[-1] if updates else None,
             },
         })
 

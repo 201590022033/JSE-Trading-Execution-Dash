@@ -93,6 +93,18 @@ def collect_due(service, collector, now):
             success = (result.get('state') == 'CHECKED' and all(
                 states.get(key) in ('IMPORTED', 'ALREADY_RETAINED') for key in expected))
             journal.finish(identity, 'COMPLETED' if success else 'FAILED', result)
+            # Collection has already been recorded: a context failure must not
+            # discard successful imports or turn a healthy feed into a failure.
+            imported = sorted(key for key, state in states.items() if state == 'IMPORTED')
+            if imported:
+                try:
+                    prepared = service.prepare_context('VIEWPOINT_CSV_IMPORT')
+                    result['prepared_context'] = {'state': prepared.get('state', 'UNKNOWN'),
+                                                  'imported_instruments': imported}
+                except Exception as exc:
+                    result['prepared_context'] = {'state': 'UNAVAILABLE',
+                                                  'error_type': type(exc).__name__,
+                                                  'imported_instruments': imported}
             return result
         except Exception as exc:
             journal.finish(identity, 'FAILED', {'state': 'WORKER_FAILED', 'error_type': type(exc).__name__})

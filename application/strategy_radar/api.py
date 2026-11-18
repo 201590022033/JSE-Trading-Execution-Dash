@@ -267,8 +267,15 @@ def create_radar_blueprint(factory):
             errors = ViewPointInbox(service).load([choices[instrument]], service.clock())
         except OSError:
             return jsonify(error='Could not read the ViewPoint download folder'), 503
+        prepared = None
+        if collection.get('instruments', {}).get(instrument) == 'IMPORTED':
+            try:
+                prepared = service.prepare_context('VIEWPOINT_CSV_IMPORT', imported_instrument=instrument)
+            except Exception as exc:
+                prepared = {'state': 'UNAVAILABLE', 'error_type': type(exc).__name__}
         return jsonify(imported=max(0, len(cache.read(instrument)) - before),
-                       rejected_files=errors, collection=collection, live_execution=False)
+                       rejected_files=errors, collection=collection, prepared_context=prepared,
+                       live_execution=False)
 
     @bp.get('/api/v1/strategy-radar/intraday/<instrument>')
     def intraday(instrument):
@@ -287,7 +294,7 @@ def create_radar_blueprint(factory):
             sessions = {datetime.fromisoformat(bar['bar_start']).astimezone(SAST).date().isoformat()
                         for bar in data['bars']}
             daily = ost_daily_context(service.folder.parent, instrument, sessions, as_of=now)
-            updates = five_minute_updates(records)['updates']
+            updates = five_minute_updates(records, as_of=now)['updates']
             return jsonify(**data, ost_daily=daily, latest_five_minute_update=updates[-1] if updates else None,
                            source_status='MANUAL_OR_IMPORTED_ONLY', live_execution=False)
         except (ValueError, TypeError):

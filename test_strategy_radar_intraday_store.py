@@ -31,6 +31,16 @@ class IntradayTests(unittest.TestCase):
         self.assertEqual(changed['fields']['volume']['state'], 'MISSING')
         self.assertEqual(changed['fields']['close']['revisions'][0]['value'], '10')
 
+    def test_update_respects_receipt_cutoff_and_versions_new_conflict(self):
+        first = bar(fields={'close': 1000})
+        other = bar(source='B', fields={'close': 1100}, received_at='2026-11-06T07:12:00+00:00')
+        earlier = five_minute_updates([first, other], as_of='2026-11-06T07:10:00+00:00')['updates'][0]
+        later = five_minute_updates([first, other], as_of='2026-11-06T07:13:00+00:00')['updates'][0]
+        self.assertEqual(earlier['fields']['close']['state'], 'AVAILABLE')
+        self.assertEqual(later['fields']['close']['state'], 'CONFLICT')
+        self.assertEqual(earlier['id'], later['id'])
+        self.assertNotEqual(earlier['version'], later['version'])
+
     def test_merge_conflicts_revisions_invalid_and_unknown(self):
         first=bar(fields={'close':1000,'volume':-1})
         later=bar(fields={'close':1100},received_at='2026-11-06T07:12:00+00:00')

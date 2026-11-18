@@ -8,6 +8,21 @@ from application.strategy_radar.roster import collect_due, status
 
 
 class ViewPointRosterTests(unittest.TestCase):
+    def test_context_handoff_does_not_reclassify_successful_imports(self):
+        with tempfile.TemporaryDirectory() as folder:
+            prepare = Mock(side_effect=RuntimeError('context failure'))
+            service = SimpleNamespace(folder=Path(folder), prepare_context=prepare,
+                store=SimpleNamespace(radar_choices=lambda: [{'instrument': 'MTN'}]))
+            collector = Mock()
+            collector.collect.return_value = {'state': 'CHECKED', 'instruments': {'MTN': 'IMPORTED'}}
+            now = datetime(2026, 11, 16, 8, tzinfo=timezone.utc)
+            result = collect_due(service, collector, now)
+            self.assertEqual(result['instruments']['MTN'], 'IMPORTED')
+            self.assertEqual(result['prepared_context']['state'], 'UNAVAILABLE')
+            self.assertEqual(status(service)['jobs'][0]['state'], 'COMPLETED')
+            collect_due(service, collector, now)
+            self.assertEqual(prepare.call_count, 1)
+
     def test_slot_deduplicates_and_requires_benchmark_success(self):
         with tempfile.TemporaryDirectory() as folder:
             service = SimpleNamespace(folder=Path(folder), store=SimpleNamespace(

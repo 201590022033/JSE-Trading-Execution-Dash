@@ -189,7 +189,7 @@ def merge_bars(records):
     return {'bars': output, 'unknown_clock_records': unknown, 'research_only': True}
 
 
-def five_minute_updates(records):
+def five_minute_updates(records, *, as_of=None):
     """Project retained observations into stable, provenance-bearing updates.
 
     An update identifies a canonical interval and its selected values. Repeated
@@ -198,12 +198,17 @@ def five_minute_updates(records):
     available in the merged fields and are not mistaken for fresh market data.
     """
     updates = []
+    cutoff = _time(as_of) if as_of is not None else None
+    if cutoff is not None:
+        records = [record for record in records if _time(record['received_at']) <= cutoff]
     merged = merge_bars(records)
     for bar in merged['bars']:
         if bar['interval_minutes'] != 5:
             continue
         key = {name: bar[name] for name in ('instrument', 'interval_minutes', 'bar_start', 'bar_end')}
-        values = {name: {'value': field['selected']['value'], 'source': field['selected']['source']}
+        values = {name: {'value': field['selected']['value'], 'source': field['selected']['source'],
+                         'state': field['state'], 'alternatives': sorted(
+                             (c['source'], c['value']) for c in field['alternatives'])}
                   if field['selected'] else None for name, field in bar['fields'].items()}
         def digest(value):
             return sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
