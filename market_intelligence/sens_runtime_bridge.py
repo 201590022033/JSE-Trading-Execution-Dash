@@ -3,6 +3,33 @@ from . import anticipatory_radar as radar
 from .hermes import ACCOUNT as HERMES
 KINDS = ('radar-sens-source', 'radar-sens-discovery-attempt', 'radar-sens-discovery-result')
 
+def transfer_sens_page(source, target, kind, now, *, limit=200, cursor=None):
+    """Transfer one explicit SENS page, retaining original record identities."""
+    if kind not in KINDS or type(limit) is not int or not 1 <= limit <= 500:
+        raise ValueError('Valid SENS kind and page size required')
+    as_of=now.isoformat();before=None
+    if cursor is not None:
+        if not isinstance(cursor,dict) or set(cursor)!={'received_at','record_id'}:
+            raise ValueError('Valid SENS cursor required')
+        from .research_calendar import _at
+        if _at(cursor['received_at']) > _at(now):raise ValueError('Future SENS cursor')
+        as_of=cursor['received_at'];before=cursor['record_id']
+        if not isinstance(before,str) or not before.startswith(kind+'-'):
+            raise ValueError('Valid SENS identity required')
+    page=source.paper_records(radar.ACCOUNT,kind,as_of=as_of,limit=limit+1,before_record_id=before)
+    selected=page[:limit];added=0
+    with target.transaction():
+        if selected:target.create_paper_account(radar.ACCOUNT,{'mode':'PAPER','purpose':'RESEARCH_ONLY'})
+        for record in selected:
+            rid=record['record_id'];old=target.paper_record(rid)
+            if old is not None and old!=record:raise ValueError('conflicting retained SENS identity')
+            target.save_paper_record(rid,radar.ACCOUNT,kind,record['received_at'],record)
+            added+=old is None
+    boundary=page[limit] if len(page)>limit else None
+    return {'state':'PAGE_DELIVERED','new_records':added,'records':len(selected),
+            'next_cursor':{'received_at':boundary['received_at'],'record_id':boundary['record_id']} if boundary else None,
+            'original_receipts_preserved':True,'model_calls':0}
+
 def transfer_news_page(source, target, now, *, limit=200, cursor=None):
     """Explicitly transfer one bounded page; never called by the automatic bridge."""
     if type(limit) is not int or not 1 <= limit <= 500:

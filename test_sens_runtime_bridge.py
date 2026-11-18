@@ -5,6 +5,18 @@ from market_intelligence import anticipatory_radar as radar
 from market_intelligence.sens_runtime_bridge import sync
 
 class BridgeTests(unittest.TestCase):
+ def test_sens_pages_over_5000_preserve_ties_and_retry(self):
+  from market_intelligence.sens_runtime_bridge import transfer_sens_page
+  source=SQLiteRepository(':memory:');target=SQLiteRepository(':memory:');self.addCleanup(source.close);self.addCleanup(target.close)
+  now=datetime.now(timezone.utc)
+  for i in range(5001):radar.save(source,'sens-source',str(i),{'body':'retained'},now)
+  cursor=None;added=0
+  while True:
+   page=transfer_sens_page(source,target,'radar-sens-source',now,limit=500,cursor=cursor)
+   added+=page['new_records'];cursor=page['next_cursor']
+   if not cursor:break
+  self.assertEqual(added,5001)
+  self.assertEqual(transfer_sens_page(source,target,'radar-sens-source',now,limit=500)['new_records'],0)
  def test_news_pages_with_tied_clocks_are_idempotent(self):
   from market_intelligence.hermes import ACCOUNT
   from market_intelligence.sens_runtime_bridge import transfer_news_page
