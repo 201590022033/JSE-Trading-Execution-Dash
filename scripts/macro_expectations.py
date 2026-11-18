@@ -7,7 +7,7 @@ def write_check(result, path=None):
  # Best-effort operational evidence; a receipt failure cannot block inference.
  import tempfile
  path = path or ROOT/'runtime/macro-expectations-last-check.json'
- fields = ('state','readiness_state','free_gib','minimum_free_gib','idle_seconds','eligible_count','reason')
+ fields = ('state','readiness_state','free_gib','minimum_free_gib','idle_seconds','eligible_count','reason','news_source_state')
  body = {k:result[k] for k in fields if k in result}
  body['checked_at'] = datetime.now(timezone.utc).isoformat()
  tmp = None
@@ -30,17 +30,31 @@ def main():
  url=dotenv_values(ROOT/'.env.local')['DATABASE_URL'];u=urlsplit(url)
  if u.hostname not in ('localhost','127.0.0.1') or u.port!=5433 or u.path!='/trading':raise ValueError('Expected trading on localhost:5433')
  repo=runtime_repository(database_url=url)
+ source_repo=None
+ news_source_state='UNAVAILABLE'
  try:
   now=datetime.now(timezone.utc)
   if '--run' in sys.argv:
    try:
     with process_lock(ROOT/'runtime/local-migration/fresh-20261015/heavy-research.lock'):
-     local.below_normal();result=execute(repo,now,ROOT/'runtime/macro-expectations',Path(os.environ['LOCALAPPDATA'])/'Programs/Ollama/ollama.exe')
+     try:
+      import psycopg
+      from persistence.postgres_repository import PostgresRepository
+      legacy=json.loads((ROOT/'runtime/local-migration/fresh-20261015/environment.json').read_text(encoding='utf-8'))['DATABASE_URL']
+      parsed=urlsplit(legacy)
+      if parsed.hostname not in ('localhost','127.0.0.1') or parsed.port!=55432 or parsed.path!='/trading_local_20261015':raise ValueError('Unexpected source database')
+      source_repo=PostgresRepository(legacy,connection=psycopg.connect(legacy,connect_timeout=3,options='-c default_transaction_read_only=on'))
+      news_source_state='CONNECTION_OPEN_QUERY_UNVERIFIED'
+     except Exception:
+      source_repo=None
+     local.below_normal();result=execute(repo,now,ROOT/'runtime/macro-expectations',Path(os.environ['LOCALAPPDATA'])/'Programs/Ollama/ollama.exe',source_repo=source_repo)
    except Exception as exc:
     write_check({'state':'WORKER_ERROR','reason':type(exc).__name__})
     raise
-   write_check(result)
+   write_check({**result,'news_source_state':news_source_state})
   else:result=status(repo,now)
   print(json.dumps(result))
- finally:repo.close()
+ finally:
+  if source_repo is not None:source_repo.close()
+  repo.close()
 if __name__=='__main__':main()

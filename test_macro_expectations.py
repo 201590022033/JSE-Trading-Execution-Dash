@@ -75,6 +75,41 @@ class MacroExpectationTests(unittest.TestCase):
   with patch.object(m.radar,'sources',return_value=sources), patch.object(m.radar,'news_is_current',return_value=True):
    selected=m.relevant_sources(self.repo,self.now,self.event)
   self.assertEqual([item['source_id'] for item in selected],['relevant'])
+ def test_sarb_worker_includes_retained_rand_news_from_second_repository(self):
+  source=object();event={**self.event,'event_key':'SARB_MPC_2026-11'}
+  news={'source_id':'rand','body':'Rand weakness ahead of SARB decision',
+        'url':'https://example.test/rand','receipt_id':'receipt',
+        'available_at':self.now.isoformat(),'published_at':self.now.isoformat()}
+  with patch.object(m.radar,'sources',side_effect=lambda repo,now: [news] if repo is source else []), \
+       patch.object(m.radar,'news_is_current',return_value=True):
+   selected=m.relevant_sources(self.repo,self.now,event,source_repo=source)
+  self.assertEqual([item['source_id'] for item in selected],['rand'])
+  self.assertEqual(selected[0]['receipt_id'],'receipt')
+  self.assertEqual(selected[0]['available_at'],self.now.isoformat())
+ def test_secondary_source_failure_does_not_block_primary(self):
+  source=object();event={**self.event,'event_key':'SARB_MPC_2026-11'}
+  news={'source_id':'primary','body':'SARB decision','url':'https://example.test/primary'}
+  diagnostics={}
+  def read(repo,now):
+   if repo is source:raise OSError('source unavailable')
+   return [news]
+  with patch.object(m.radar,'sources',side_effect=read),patch.object(m.radar,'news_is_current',return_value=True):
+   selected=m.relevant_sources(self.repo,self.now,event,source_repo=source,diagnostics=diagnostics)
+  self.assertEqual([item['source_id'] for item in selected],['primary'])
+  self.assertEqual(diagnostics['legacy_news'],'READ_FAILED')
+ def test_sarb_sources_prioritize_relevant_headlines_and_keep_rand_context(self):
+  event={**self.event,'event_key':'SARB_MPC_2026-11'}
+  def item(key,headline,extra=''):
+   return {'source_id':key,'body':headline+'\n'+extra,'url':'https://example.test/'+key,
+           'available_at':self.now.isoformat(),'published_at':self.now.isoformat()}
+  inputs=[item('sens','Interest payment notification','SARB reference and ZAR 100000'),
+          item('one','SARB rates decision'),item('two','MPC meeting Thursday'),
+          item('three','Inflation ahead of SARB decision'),item('four','Inflation rises'),
+          item('currency','Rand weakens to R17 per dollar')]
+  with patch.object(m.radar,'sources',return_value=inputs):
+   selected=m.relevant_sources(self.repo,self.now,event)
+  ids=[item['source_id'] for item in selected]
+  self.assertIn('currency',ids);self.assertNotIn('sens',ids);self.assertEqual(len(ids),4)
  def test_abstention_does_not_publish_model_fabrication(self):
   result=self.run_fake({'decision':'ABSTAIN','expectation':'The confirmed event is not confirmed','citations':[]})
   self.assertEqual(result['output'],{'decision':'ABSTAIN','expectation':'','citations':[]})

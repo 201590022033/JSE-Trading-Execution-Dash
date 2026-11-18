@@ -51,6 +51,21 @@ class EventPreparationTests(unittest.TestCase):
         self.assertEqual(found['link_state'],'KEYWORD_CANDIDATE_REQUIRES_REVIEW')
         self.assertEqual(found['available_at'],self.now.isoformat())
 
+    def test_rand_activity_counts_distinct_retained_articles_by_sast_day(self):
+        from market_intelligence.event_preparation import _news_activity
+        def item(source_id, url, body, hours):
+            return {'source_id':source_id,'url':url,'body':body,
+                    'available_at':(self.now+timedelta(hours=hours)).isoformat()}
+        rows=[item('one','https://example.test/rand?utm_source=one','USD/ZAR strengthens',0),
+              item('one-again','https://example.test/rand?utm_source=two','USD/ZAR strengthens',1),
+              item('two','https://example.test/cpi','SARB inflation and rand',25),
+              item('future','https://example.test/future','ZAR',80)]
+        activity=_news_activity(rows,self.now,self.now+timedelta(hours=48))
+        self.assertEqual(activity['distinct_articles'],2)
+        self.assertEqual([x['rand_usd'] for x in activity['days']],[1,1])
+        self.assertEqual(activity['days'][1]['rates'],1)
+        self.assertEqual(activity['scope'],'RETAINED_SOURCES_ONLY_NOT_THE_INTERNET')
+
     def test_event_evidence_remains_visible_after_current_news_window(self):
         from market_intelligence.hermes import capture_news_snapshot
         import json

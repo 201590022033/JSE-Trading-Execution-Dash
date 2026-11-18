@@ -8,9 +8,46 @@ from .calendar_expectations import status as share_expectations
 from .macro_expectations import relevant_sources
 from . import anticipatory_radar as radar
 import re
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 SAST = ZoneInfo('Africa/Johannesburg')
 LIMIT = 5000
+
+_TOPIC_TERMS = {
+    'rand_usd': re.compile(r'\b(?:rand|usd\s*[/\-]\s*zar|zar\s*[/\-]\s*usd|zar(?=.{0,70}\b(?:dollar|currency|exchange|forex|weaken|strength|sarb)\b))\b', re.I),
+    'rates': re.compile(r'\b(?:sarb|reserve bank|monetary policy|mpc|interest rates?|repo rate)\b', re.I),
+    'inflation': re.compile(r'\b(?:inflation|cpi|consumer prices?)\b', re.I),
+    'oil': re.compile(r'\b(?:oil|brent|crude|fuel)\b', re.I),
+}
+
+
+def _news_activity(retained, start, end):
+    """Count distinct retained article URLs by first available SAST day, not web-wide mentions."""
+    unique = {}
+    for source in retained:
+        if source['source_id'].startswith('calendar-source-'):
+            continue
+        available = calendar._at(source['available_at'])
+        if not start <= available <= end:
+            continue
+        url = source.get('url') or ''
+        parsed = urlsplit(url)
+        params = sorted((k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True)
+                        if not k.lower().startswith('utm_') and k.lower() not in ('fbclid', 'gclid'))
+        key = urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip('/'), urlencode(params), '')) if parsed.netloc else source['source_id']
+        if key not in unique or available < calendar._at(unique[key]['available_at']):
+            unique[key] = source
+    days = {}
+    for source in unique.values():
+        day = calendar._at(source['available_at']).astimezone(SAST).date().isoformat()
+        counts = days.setdefault(day, {'date': day, 'articles': 0, **{key: 0 for key in _TOPIC_TERMS}})
+        counts['articles'] += 1
+        for key, pattern in _TOPIC_TERMS.items():
+            if pattern.search(source['body']):
+                counts[key] += 1
+    return {'basis': 'FIRST_RETAINED_RECEIPT_SAST_DISTINCT_URL', 'scope': 'RETAINED_SOURCES_ONLY_NOT_THE_INTERNET',
+            'days': sorted(days.values(), key=lambda row: row['date']), 'distinct_articles': len(unique),
+            'interpretation': 'Counts indicate source coverage, not sentiment, causation or a rate prediction.'}
 
 
 def _rows(repo, account, kind, now):
@@ -52,9 +89,12 @@ def status(repo, now, *, source_repo=None):
         event_attempts = [a for a in attempts if a.get('event_id') == event_id]
         latest_attempt = max(event_attempts, key=lambda a:a['received_at'], default=None)
         latest_result = results.get(latest_attempt['record_id'] + '-result') if latest_attempt else None
-        related = relevant_sources(repo, now, event) if event['event_key'].startswith(('SARB_MPC_', 'ZA_CPI_', 'ZA_RETAIL_')) else []
+        related = (relevant_sources(repo, now, event, source_repo=source_repo) if source_repo is not None
+                   else relevant_sources(repo, now, event)) if event['event_key'].startswith(('SARB_MPC_', 'ZA_CPI_', 'ZA_RETAIL_')) else []
         candidate_evidence = []
         candidate_coverage = None
+        candidate_total = 0
+        news_activity = None
         if event['event_key'].startswith('SARB_MPC_'):
             end = min(now, anchor + timedelta(days=7))
             start = anchor - timedelta(days=7)
@@ -65,12 +105,13 @@ def status(repo, now, *, source_repo=None):
                     source_windows[window] = radar.sources(source_repo or repo, end, earliest=start)
                 retained = source_windows[window]
                 candidate_coverage = retained.coverage
+                news_activity = _news_activity(retained, start, end)
             else:
                 retained = []
-            for source in sorted(retained, key=lambda s: not s['receipt_id'].startswith('hermes-news-input-')):
+            for source in retained:
                 if source['source_id'].startswith('calendar-source-'):
                     continue
-                if not re.search(r'\b(sarb|reserve bank|monetary policy|mpc|inflation|rand)\b', source['body'], re.I):
+                if not any(pattern.search(source['body']) for pattern in _TOPIC_TERMS.values()):
                     continue
                 if abs((calendar._at(source['available_at']) - anchor).total_seconds()) > 7 * 86400:
                     continue
@@ -80,7 +121,15 @@ def status(repo, now, *, source_repo=None):
                     'published_at':source.get('published_at'), 'body':source['body'],
                     'link_state':'KEYWORD_CANDIDATE_REQUIRES_REVIEW',
                     'content_quality':'HEADLINE_ONLY' if len(lines)<2 or all(x==lines[0] for x in lines[1:]) else 'RETAINED_EXCERPT'})
-                if len(candidate_evidence) >= 50: break
+            def candidate_rank(item):
+                body = item['body'].splitlines()[0]
+                direct = bool(re.search(r'\b(sarb|reserve bank|monetary policy|mpc)\b', body, re.I))
+                currency = bool(_TOPIC_TERMS['rand_usd'].search(body))
+                rates = bool(_TOPIC_TERMS['rates'].search(body))
+                return (4*int(direct)+2*int(rates)+int(currency), item['available_at'], item['source_id'])
+            candidate_evidence.sort(key=candidate_rank, reverse=True)
+            candidate_total = len(candidate_evidence)
+            candidate_evidence = candidate_evidence[:50]
         source_state = 'NO_SAVED_MODEL_INPUT'
         if latest_attempt:
             event_sources = latest_attempt.get('input', {}).get('sources', [])
@@ -128,7 +177,9 @@ def status(repo, now, *, source_repo=None):
             'macro_result': latest_result, 'saved_input_source_state': source_state,
             'related_sources': related,
             'candidate_evidence': candidate_evidence,
+            'candidate_evidence_total': candidate_total,
             'candidate_evidence_coverage': candidate_coverage,
+            'news_activity': news_activity,
             'failure_condition': (latest_result.get('output') or {}).get('failure_condition') if latest_result else None,
             'uncertainty': (latest_result.get('output') or {}).get('uncertainty') if latest_result else None,
             'share_proposals': [p for p in shares if p['event_id'] == event_id],
