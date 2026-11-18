@@ -427,15 +427,31 @@ def respond(operation):
     try: return jsonify(operation())
     except KeyError as exc: return jsonify(error=str(exc)),404
     except ValueError as exc: return jsonify(error=str(exc)),400
+
+def start_strategy_radar_background():
+    """Start the existing research worker without blocking dashboard startup."""
+    if zebra_research_screen is None:
+        return None
+    from threading import Thread
+
+    def initialize():
+        try:
+            radar = strategy_radar_service()
+            if zebra_research_screen.snapshot:
+                try:
+                    radar.reconcile(zebra_research_screen.snapshot, start_worker=False)
+                except (ValueError, KeyError, TypeError, OSError) as exc:
+                    app.logger.warning('Strategy Radar startup reconciliation unavailable: %s', type(exc).__name__)
+            radar.start()
+        except Exception:
+            app.logger.exception('Strategy Radar startup unavailable')
+
+    thread = Thread(target=initialize, name='strategy-radar-startup', daemon=True)
+    thread.start()
+    return thread
+
 if __name__ == "__main__":
-    if zebra_research_screen is not None:
-        radar = strategy_radar_service()
-        if zebra_research_screen.snapshot:
-            try:
-                radar.reconcile(zebra_research_screen.snapshot, start_worker=False)
-            except (ValueError, KeyError, TypeError, OSError) as exc:
-                app.logger.warning('Strategy Radar startup reconciliation unavailable: %s', type(exc).__name__)
-        radar.start()
+    start_strategy_radar_background()
     socketio.run(
         app,
         host=os.environ.get("HOST", "0.0.0.0"),
