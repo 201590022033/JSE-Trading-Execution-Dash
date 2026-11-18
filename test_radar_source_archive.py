@@ -73,6 +73,24 @@ class SourceArchiveTests(unittest.TestCase):
             history(self.repo, NOW, before={'available_at': (NOW + timedelta(days=1)).isoformat(),
                                            'source_id': 'a', 'source_receipt_id': 'b'})
 
+    def test_history_pages_multiple_articles_from_one_capture(self):
+        raw = json.dumps({'data': {'llm_used': False, 'ai_available': False,
+            'ai_pending': False, 'items': [
+                {'url':f'https://example.test/{index}', 'headline':f'Headline {index}',
+                 'summary':'Retained excerpt', 'timestamp':NOW.isoformat(),
+                 'timestamp_kind':'published'} for index in range(3)]}}).encode()
+        capture = capture_news_snapshot(self.repo, raw, NOW)
+        page = history(self.repo, NOW, limit=1)
+        articles = []
+        while True:
+            articles.extend(item['source_id'] for item in page['sources']
+                            if item['source_receipt_id'] == capture['capture_id'])
+            if not page['next_cursor']:
+                break
+            page = history(self.repo, NOW, limit=1, before=page['next_cursor'])
+        self.assertEqual(len(articles), 3)
+        self.assertEqual(len(set(articles)), 3)
+
     def test_repeat_capture_preserves_each_real_receipt(self):
         later = NOW + timedelta(hours=1)
         raw = json.dumps({'data': {'llm_used': False, 'ai_available': False,
@@ -103,7 +121,68 @@ class SourceArchiveTests(unittest.TestCase):
                 'published_at':None, 'sens_provenance':{}}, NOW)
         page = history(self.repo, NOW, limit=200)
         self.assertTrue(page['receipt_window_truncated'])
-        self.assertTrue(page['more_available'])
+        seen = set()
+        while True:
+            for item in page['sources']:
+                key = (item['source_id'], item['source_receipt_id'])
+                self.assertNotIn(key, seen)
+                seen.add(key)
+            if not page['more_available']:
+                break
+            self.assertIsNotNone(page['next_cursor'])
+            page = history(self.repo, NOW, limit=200, before=page['next_cursor'])
+        self.assertEqual(len(seen), 508)
+
+    def test_empty_truncated_window_advances_to_older_sources(self):
+        later = NOW + timedelta(seconds=1)
+        for index in range(505):
+            rid = 'radar-sens-source-' + f'{index:064x}'
+            self.repo.save_paper_record(rid, radar.ACCOUNT, 'radar-sens-source',
+                later.isoformat(), {'record_id':rid,'received_at':later.isoformat(),
+                                     'schema':'unsupported-legacy-schema'})
+        page = history(self.repo, later, limit=10)
+        self.assertEqual(page['sources'], [])
+        self.assertTrue(page['receipt_window_truncated'])
+        self.assertIsNotNone(page['next_cursor'])
+        older = history(self.repo, later, limit=10, before=page['next_cursor'])
+        self.assertIn(self.sens['record_id'], [item['source_id'] for item in older['sources']])
+
+    def test_empty_hermes_window_advances_using_capture_identity(self):
+        from market_intelligence.hermes import ACCOUNT
+        later = NOW + timedelta(seconds=1)
+        for index in range(505):
+            rid = 'hermes-news-input-' + f'{index:064x}'
+            self.repo.save_paper_record(rid, ACCOUNT, 'hermes-news-input',
+                later.isoformat(), {'capture_id':rid, 'received_at':later.isoformat(), 'articles':[]})
+        page = history(self.repo, later, limit=10)
+        self.assertEqual(page['sources'], [])
+        self.assertIsNotNone(page['next_cursor'])
+        older = history(self.repo, later, limit=10, before=page['next_cursor'])
+        self.assertIn(self.sens['record_id'], [item['source_id'] for item in older['sources']])
+
+    def test_later_article_clock_does_not_skip_older_capture(self):
+        from market_intelligence.hermes import ACCOUNT
+        captured = NOW - timedelta(minutes=5)
+        rid = 'hermes-news-input-' + 'a' * 64
+        article = {'url':'https://example.test/late-clock', 'headline':'Late clock',
+                   'summary':'Retained text', 'timestamp_kind':'unknown',
+                   'received_at':NOW.isoformat()}
+        self.repo.save_paper_record(rid, ACCOUNT, 'hermes-news-input', captured.isoformat(),
+            {'capture_id':rid, 'received_at':captured.isoformat(), 'articles':[article]})
+        for index in range(505):
+            radar.save(self.repo, 'sens-source', ['late-clock', index], {
+                'body':f'Headline {index}', 'source_url':'https://example.test/sens',
+                'published_at':None, 'sens_provenance':{}}, NOW)
+        page = history(self.repo, NOW, limit=200)
+        found = []
+        while True:
+            found.extend(item for item in page['sources'] if item['source_receipt_id'] == rid)
+            if not page['next_cursor']:
+                break
+            page = history(self.repo, NOW, limit=200, before=page['next_cursor'])
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]['receipt_at'], captured.isoformat())
+        self.assertEqual(found[0]['available_at'], NOW.isoformat())
 
     def test_detail_and_history_api_require_access_and_do_not_write(self):
         from flask import Flask

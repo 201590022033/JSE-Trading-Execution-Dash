@@ -8,7 +8,7 @@ planning turn. AI1 is ready for the dedicated implementation task.
 | Prior Llama task profile, commit b90765f | Yes | 124 focused + 25 Sasol checks | Pending unattended verification | Dashboard-path mismatch identified |
 | AI0 roadmap and implementation prompts | Yes | Ten Markdown files and all local links verified | Not applicable | Dedicated AI task created |
 | AI1 runtime integration and reporting | Partial implementation | 97 focused tests passed | Read-only API check passed; no eligible share event | Browser unavailable; activation pending |
-| AI2 source-linked radar cards | Implemented | 172 focused checks and JS rendering harness pass | Read-only API check passed | Browser check and main-dashboard activation pending |
+| AI2 source-linked radar cards | Implemented | 185 focused checks and JS interaction harness pass | Read-only API check passed | Browser check and main-dashboard activation pending |
 | AI3 event preparation | Prompt ready | Pending | Pending | Pending |
 | AI4 usefulness and outcome review | Prompt ready | Pending | Pending | Pending |
 | AI5 unattended acceptance | Prompt ready | Pending | Pending | Pending |
@@ -76,9 +76,7 @@ passed; all nine frozen implementation hashes matched HEAD. A Flask blueprint
 test against localhost:5433/trading returned HTTP 200: 30 SENS cards, 8 source
 leads, and confirmed retail, CPI and SARB events with sidecar labels and hashes.
 History returned 100 records with a bounded-window indicator; a retained SENS
-detail returned HTTP 200 and zero model calls. The recent history window is
-bounded to 500 receipts per source kind. A batch exceeding that count at the
-same timestamp may require separate lookup and is labelled in the UI.
+detail returned HTTP 200 and zero model calls.
 
 No accessible Edge or in-app browser was available in this remote session. The
 JavaScript harness verifies cards and unsafe links, but retained-source clicks,
@@ -87,3 +85,33 @@ the running dashboard remain pending real browser verification.
 The dashboard and collector were not restarted. AI1 unattended verification
 also remains pending. This checkpoint is implemented with UI verification open,
 not a claim of completed live acceptance.
+
+## AI2 pagination and interaction follow-up — 18 November
+
+Receipt-keyset paging now traverses batches larger than 500 records sharing a
+timestamp and preserves a separate source-availability clock. Regressions cover
+505 same-time SENS records, empty SENS and Hermes receipt windows, multiple
+articles in one capture, and an older capture whose article became available
+later. Eight consecutive API pages against localhost:5433/trading returned 800
+distinct source/receipt pairs with zero model calls. Each individual database
+query remains bounded; the cursor continues through supported receipts. A
+malformed boundary lacking both a receipt identity and receipt time may still
+report a truncated window without an advance cursor.
+
+The JavaScript harness now invokes the source-detail, history/pagination and
+instrument-handoff handlers using simulated dashboard controls. 185 focused
+tests passed, and all nine frozen modules matched HEAD. The full safe runner
+executed 2,209 tests and reported 4 failures, 22 errors and one skip. Most
+errors arose because its socket block prevents Windows asyncio's local socket
+pair and local OAuth test callbacks; subsequent OAuth tests hit an already
+pending test authorization. Two old Hermes tests expect a SASOL-only state
+name while HEAD returns the already-expanded SHARE name. Two MCP failures also
+occurred under the runner's local-socket block. The log is retained at
+`runtime/ai2-full-offline-check.log` and is excluded from Git.
+
+The in-app browser was unavailable and the computer-use inventory exposed no
+browser window. The actual desktop and narrow layouts, browser click flow and
+main-dashboard activation remain unverified. No existing process or collector
+was restarted. AI2 is implemented and API/harness verified; live UI acceptance
+remains open until a browser is available and the running dashboard loads the
+updated code.

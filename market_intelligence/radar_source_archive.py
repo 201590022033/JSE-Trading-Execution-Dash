@@ -26,11 +26,11 @@ def _provider(url):
 
 
 def _document(source_id, receipt_id, body, url, available_at, published_at,
-              kind, provider=None, provenance=None):
+              kind, provider=None, provenance=None, receipt_at=None):
     return {'source_id': source_id, 'source_receipt_id': receipt_id,
             'body': body, 'headline': body.splitlines()[0] if body else '',
             'source_url': url, 'available_at': available_at,
-            'published_at': published_at, 'source_kind': kind,
+            'published_at': published_at, 'receipt_at': receipt_at or available_at, 'source_kind': kind,
             'provider': provider or _provider(url), 'provenance': provenance,
             'model_calls_on_read': 0}
 
@@ -50,7 +50,7 @@ def _article(capture, article, now):
     source_id = calendar._hash([article['url'], body, published])
     return _document(source_id, capture['capture_id'], body, article['url'],
                      available.isoformat(), published, 'NEWS_HEADLINE_OR_EXCERPT',
-                     provider=article.get('publisher'))
+                     provider=article.get('publisher'), receipt_at=capture['received_at'])
 
 
 def _saved_source(record, source_id, now):
@@ -104,18 +104,21 @@ def history(repo, now, *, limit=100, before=None):
     now = calendar._at(now)
     before_key = None
     if before is not None:
-        if (not isinstance(before, dict) or set(before) != {'available_at', 'source_id', 'source_receipt_id'}
+        if (not isinstance(before, dict) or set(before) not in (
+                {'available_at', 'source_id', 'source_receipt_id'},
+                {'available_at', 'receipt_at', 'source_id', 'source_receipt_id'})
                 or not all(isinstance(value, str) and 0 < len(value) <= 160 for value in before.values())):
             raise ValueError('Valid history cursor required')
-        before_at = calendar._at(before['available_at'])
+        before_at = calendar._at(before.get('receipt_at', before['available_at']))
         if before_at > now:
             raise ValueError('Future history cursor is not allowed')
-        before_key = (before_at.isoformat(), before['source_id'], before['source_receipt_id'])
+        before_key = (before_at.isoformat(), before['source_receipt_id'], before['source_id'])
     as_of = before_key[0] if before_key else now.isoformat()
     feeds = ((RADAR_ACCOUNT, 'radar-sens-source'),
              (calendar.ACCOUNT, calendar.KINDS['source']),
              (HERMES_ACCOUNT, 'hermes-news-input'))
-    records = [repo.paper_records(account, kind, as_of=as_of, limit=_RECEIPT_LIMIT + 1)
+    records = [repo.paper_records(account, kind, as_of=as_of, limit=_RECEIPT_LIMIT + 1,
+                                  before_record_id=before_key[1] if before_key else None)
                for account, kind in feeds]
     found = {}
     for group in records[:2]:
@@ -131,16 +134,32 @@ def history(repo, now, *, limit=100, before=None):
             if document:
                 found[(document['source_id'], document['source_receipt_id'])] = document
     def identity(item):
-        return (calendar._at(item['available_at']).isoformat(), item['source_id'], item['source_receipt_id'])
+        return (calendar._at(item['receipt_at']).isoformat(), item['source_receipt_id'], item['source_id'])
+    def receipt_id(row):
+        return row.get('record_id') or row.get('capture_id')
+    boundaries = [group[_RECEIPT_LIMIT - 1] for group in records
+                  if len(group) > _RECEIPT_LIMIT and group[_RECEIPT_LIMIT - 1].get('received_at')
+                  and receipt_id(group[_RECEIPT_LIMIT - 1])]
+    cutoff = max(((calendar._at(row['received_at']).isoformat(), receipt_id(row), '')
+                  for row in boundaries), default=None)
     ordered = sorted((item for item in found.values() if before_key is None or identity(item) < before_key),
                      key=identity, reverse=True)
+    if cutoff:
+        ordered = [item for item in ordered if identity(item) >= cutoff]
     previews = [{**{k: item[k] for k in ('source_id', 'source_receipt_id', 'headline',
-                 'source_url', 'available_at', 'published_at', 'source_kind', 'provider')},
+                 'source_url', 'available_at', 'receipt_at', 'published_at', 'source_kind', 'provider')},
                  'excerpt': item['body'][:300]} for item in ordered[:limit]]
     truncated = any(len(group) > _RECEIPT_LIMIT for group in records)
     more = len(ordered) > limit or truncated
-    next_cursor = ({k: previews[-1][k] for k in ('available_at', 'source_id', 'source_receipt_id')}
+    next_cursor = ({k: previews[-1][k] for k in ('available_at', 'receipt_at', 'source_id', 'source_receipt_id')}
                    if previews and more else None)
+    if not previews and truncated:
+        # Advance past a bounded window containing no usable documents rather
+        # than leaving later retained receipts unreachable.
+        if boundaries:
+            boundary = max(boundaries, key=lambda row: (calendar._at(row['received_at']), receipt_id(row)))
+            next_cursor = {'available_at': boundary['received_at'], 'receipt_at': boundary['received_at'],
+                           'source_receipt_id': receipt_id(boundary), 'source_id': '!'}
     return {'sources': previews, 'limit': limit, 'next_cursor': next_cursor,
             'more_available': more, 'receipt_window_truncated': truncated,
             'scope': 'BOUNDED_RETAINED_RECEIPTS', 'model_calls_on_read': 0}

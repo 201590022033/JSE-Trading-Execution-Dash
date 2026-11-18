@@ -973,6 +973,7 @@ async function refreshAnticipatoryRadar() {
     historyTitle.textContent = 'Retained source history';
     const historyList = document.createElement('div');
     const historyStatus = document.createElement('p'); historyStatus.setAttribute('role', 'status');
+    const historyOrder = document.createElement('p'); historyOrder.textContent = 'Ordered by receipt time; source availability is shown separately.';
     const historyButton = document.createElement('button');
     historyButton.type = 'button'; historyButton.textContent = 'Load retained sources';
     let cursor = null;
@@ -985,7 +986,7 @@ async function refreshAnticipatoryRadar() {
           const card = document.createElement('article');
           const heading = document.createElement('h4'); heading.textContent = item.headline || 'Retained source';
           const meta = document.createElement('p');
-          meta.textContent = `${item.provider || 'Provider unknown'} · received ${when(item.available_at)} · published ${item.published_at ? when(item.published_at) : 'unknown'}`;
+          meta.textContent = `${item.provider || 'Provider unknown'} · available ${when(item.available_at)} · receipt ${when(item.receipt_at || item.available_at)} · published ${item.published_at ? when(item.published_at) : 'unknown'}`;
           const excerpt = document.createElement('p'); excerpt.textContent = item.excerpt || '';
           const view = document.createElement('button'); view.type = 'button'; view.textContent = 'View retained source';
           view.dataset.sourceDetail = item.source_id; view.dataset.sourceReceipt = item.source_receipt_id || '';
@@ -993,12 +994,12 @@ async function refreshAnticipatoryRadar() {
           card.append(heading, meta, excerpt, view); historyList.append(card);
         }
         cursor = page.next_cursor;
-        historyStatus.textContent = page.receipt_window_truncated ? 'This archive page uses a bounded receipt window; some records may require a separate lookup.' : '';
+        historyStatus.textContent = page.receipt_window_truncated ? (cursor ? 'This archive is large. Use Load older sources to continue.' : 'The bounded receipt window could not advance; use a source-specific lookup.') : '';
         historyButton.textContent = cursor ? 'Load older sources' : 'No more sources in this window';
         historyButton.disabled = !cursor;
       } catch (error) { historyList.textContent = error.message; historyButton.disabled = false; }
     };
-    history.append(historyTitle, historyButton, historyStatus, historyList); sourcePanel.append(history);
+    history.append(historyTitle, historyButton, historyStatus, historyList, historyOrder); sourcePanel.append(history);
     const m=d.metrics;
     $('#anticipatory-radar-metrics').textContent = `${m.frozen_watch_count} saved watches (${m.event_component_count || 0} individual events from ${m.split_parent_count || 0} combined ${m.split_parent_count===1 ? 'source' : 'sources'}) · ${m.assistant_source_review_count || 0} assistant source reviews · ${m.reviewed_watch_count} human observations · ${m.occurred} human-confirmed occurrences · ${m.not_observed} not observed · ${m.incorrect_links} incorrect links · ${m.expired_unreviewed} expired awaiting human review · ${m.missed_windows} missed windows. Forecast accuracy is not established.`;
     const macro=await api('/api/market-intelligence/macro-health').catch(error => ({events:[], error:error.message}));

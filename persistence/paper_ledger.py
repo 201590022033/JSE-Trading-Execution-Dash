@@ -166,9 +166,19 @@ class PaperLedger:
                 saved += 1
         return saved
 
-    def paper_records(self, account_id, kind, *, as_of, limit=400):
+    def paper_records(self, account_id, kind, *, as_of, limit=400, before_record_id=None):
         if not isinstance(limit, int) or not 1 <= limit <= 5000:
             raise ValueError("bounded paper query required")
+        if before_record_id is not None:
+            if not isinstance(before_record_id, str) or not before_record_id or len(before_record_id) > 160:
+                raise ValueError("bounded paper record cursor required")
+            at = timestamp(as_of).isoformat()
+            rows = self._job_sql(
+                "SELECT payload FROM paper_records WHERE account_id=? AND kind=? AND "
+                "(available_at<? OR (available_at=? AND record_id<=?)) "
+                "ORDER BY available_at DESC,record_id DESC LIMIT ?",
+                (account_id, kind, at, at, before_record_id, limit), rows=True)
+            return [json.loads(row[0]) for row in rows]
         rows = self._job_sql(
             "SELECT payload FROM paper_records WHERE account_id=? AND kind=? AND available_at<=? "
             "ORDER BY available_at DESC,record_id DESC LIMIT ?",

@@ -104,6 +104,10 @@ def create_weekly_brief_blueprint(factory):
             values = {key: request.args.get(key) for key in keys}
             if any(values.values()) and not all(values.values()):
                 return jsonify(error='Complete history cursor required'), 400
+            if request.args.get('receipt_at'):
+                if not all(values.values()):
+                    return jsonify(error='Complete history cursor required'), 400
+                values['receipt_at'] = request.args['receipt_at']
             try:
                 return jsonify(history(repository, datetime.now(timezone.utc),
                                        before=values if all(values.values()) else None))
