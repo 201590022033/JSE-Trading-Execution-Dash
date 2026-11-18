@@ -67,4 +67,18 @@ class UsefulnessTests(unittest.TestCase):
         self.assertEqual(state['outputs'][0]['cutoff'],NOW.isoformat())
         self.assertEqual(state['counts']['followup_available'],1)
 
+    def test_later_news_from_separate_source_store_is_included_once(self):
+        source=object()
+        old=self.repo.paper_record('a'); old['input']['sources'][0]['url']='https://example.test/report'
+        output={'output_id':'a-result','state':'ABSTAIN','received_at':NOW.isoformat(),
+                'cutoff':NOW.isoformat(),'input_sources':old['input']['sources'],
+                'citation_state':'NOT_APPLICABLE','followup_state':'NOT_ASSESSED'}
+        later={'source_id':'late','receipt_id':'receipt','url':'https://example.test/report','body':'Later news',
+               'available_at':(NOW+timedelta(hours=1)).isoformat(),'published_at':None}
+        with patch('market_intelligence.ai_usefulness._outputs',return_value=([output],{'a':old})), \
+             patch('market_intelligence.ai_usefulness.radar.sources',side_effect=lambda repo,now: [later]):
+            state=ai.status(self.repo,NOW+timedelta(hours=2),source_repo=source)
+        self.assertEqual([x['source_id'] for x in state['outputs'][0]['later_sources']],['late'])
+        self.assertEqual(state['counts']['followup_available'],1)
+
 if __name__ == '__main__': unittest.main()

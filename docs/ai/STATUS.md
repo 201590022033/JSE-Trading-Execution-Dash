@@ -1,5 +1,23 @@
 # AI series status
 
+## Radar and AI usefulness routing — 18 November
+
+Grouped bounded first-page follow-up reads replace two queries per watch in the
+radar status projection. A read-only PostgreSQL comparison on 27 actual watches
+returned identical per-watch records, counts and cursors: individual reads
+took 2.851 seconds and grouped reads 0.169 seconds; the grouped full radar status
+took 1.278 seconds in that check. Individual history pages remain available.
+
+AI usefulness now reads outputs and reviews from the existing trading worker
+database and can use retained news from the legacy radar database for later
+source context. A read-only Flask test using the two actual stores returned six
+macro attempts, six outputs, four abstentions and two invalid/failed results;
+the old live panel previously showed zero. No reviews existed in either store
+at the read-only check. No model call or migration was performed. 124 focused
+Python tests and both existing AI JavaScript harnesses passed. The existing
+automatic bridge's 5,000-record capacity and other archive readers' limits
+remain separate, unresolved limitations.
+
 ## AI1 database routing repair — 18 November
 
 On the running local dashboard the macro expectation API reported zero eligible

@@ -183,12 +183,15 @@ def create_weekly_brief_blueprint(factory, event_factory=None):
     @bp.get('/api/market-intelligence/ai-usefulness')
     def read_ai_usefulness():
         from .ai_usefulness import status
-        repository = factory()
+        repository = (event_factory or factory)()
+        source = None
         try:
-            return jsonify(status(repository, datetime.now(timezone.utc), int(request.args.get('days', '30'))))
+            source = factory() if event_factory else None
+            return jsonify(status(repository, datetime.now(timezone.utc), int(request.args.get('days', '30')), source_repo=source))
         except ValueError:
             return jsonify(error='Period must be 1 to 365 days'), 400
         finally:
+            if source is not None: source.close()
             repository.close()
 
     @bp.get("/api/market-intelligence/macro-expectations")
@@ -316,7 +319,7 @@ def create_weekly_brief_blueprint(factory, event_factory=None):
             return jsonify(error="Bounded body required"), 413
         payload = request.get_json(silent=True)
         repository = ((event_factory or factory)() if kind in ('calendar-expectation-prepare',
-                       'calendar-expectation-freeze') else factory())
+                       'calendar-expectation-freeze', 'ai-usefulness-review') else factory())
         now = datetime.now(timezone.utc)
         try:
             if kind == 'ai-usefulness-review':

@@ -39,6 +39,8 @@ class RadarTests(unittest.TestCase):
         item=next(w for w in result['watches'] if w['record_id']==watch)
         self.assertEqual(item['related_source_count'],2001)
         self.assertEqual(len(item['related_sources']),5)
+        self.assertEqual(radar.followup_first_pages(self.repo,[watch],NOW)[watch],
+                         radar.followup_page(self.repo,watch,NOW))
         cursor=None; seen=[]
         while True:
             page=radar.followup_page(self.repo,watch,NOW,limit=200,before=cursor)

@@ -75,7 +75,7 @@ def _outputs(repo, now):
     return output, attempts
 
 
-def status(repo, now, days=30):
+def status(repo, now, days=30, *, source_repo=None):
     now = cal._at(now)
     if type(days) is not int or not 1 <= days <= 365:
         raise ValueError('Period must be 1 to 365 days')
@@ -83,7 +83,11 @@ def status(repo, now, days=30):
     share_runs = [r for r in shares._rows(repo, 'calendar-expectation-run', now)
                   if now-timedelta(days=days) <= cal._at(r['received_at']) <= now]
     outputs = [o for o in outputs if now - timedelta(days=days) <= cal._at(o['received_at']) <= now]
-    sources = radar.sources(repo, now)
+    sources = list(radar.sources(repo, now))
+    if source_repo is not None and source_repo is not repo:
+        seen = {(s['source_id'], s['receipt_id']) for s in sources}
+        sources.extend(s for s in radar.sources(source_repo, now)
+                       if (s['source_id'], s['receipt_id']) not in seen)
     for item in outputs:
         cutoff = cal._at(item['cutoff']) if item.get('cutoff') else None
         urls = {s.get('url') for s in item['input_sources'] if s.get('url')}

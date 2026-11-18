@@ -65,6 +65,36 @@ def followup_page(repo, watch_id, now, *, limit=5, before=None):
     return {'items': items, 'total': total, 'next_cursor': cursor}
 
 
+def followup_first_pages(repo, watch_ids, now, *, limit=5):
+    """Fetch bounded first pages in groups, retaining per-watch counts and cursors."""
+    if type(limit) is not int or not 1 <= limit <= 200:
+        raise ValueError('Follow-up page must contain 1 to 200 records')
+    ids = list(dict.fromkeys(watch_ids))
+    if any(not isinstance(w, str) or not w.startswith('radar-watch-') or len(w) > 160 for w in ids):
+        raise ValueError('Valid watch identities required')
+    field = "json_extract(payload, '$.watch_id')" if repo.backend == 'sqlite' else "payload::jsonb->>'watch_id'"
+    source_time = "json_extract(payload, '$.source_available_at')" if repo.backend == 'sqlite' else "payload::jsonb->>'source_available_at'"
+    result = {w: {'items': [], 'total': 0, 'next_cursor': None} for w in ids}
+    for start in range(0, len(ids), 100):
+        group = ids[start:start+100]
+        marks = ','.join('?' for _ in group)
+        sql = (f'SELECT watch_id,payload,total FROM (SELECT {field} AS watch_id,payload,'
+               f'COUNT(*) OVER (PARTITION BY {field}) AS total,'
+               f'ROW_NUMBER() OVER (PARTITION BY {field} ORDER BY {source_time} DESC,record_id DESC) AS pos '
+               f'FROM paper_records WHERE account_id=? AND kind=? AND available_at<=? AND {field} IN ({marks})) ranked '
+               'WHERE pos<=? ORDER BY watch_id,pos')
+        rows = repo._job_sql(sql, [ACCOUNT, 'radar-watch-followup', cal._at(now).isoformat(), *group, limit], rows=True)
+        for watch_id, raw, total in rows:
+            result[watch_id]['items'].append(json.loads(raw))
+            result[watch_id]['total'] = total
+        for watch_id in group:
+            page = result[watch_id]
+            if page['total'] > len(page['items']):
+                last = page['items'][-1]
+                page['next_cursor'] = {'source_available_at': last['source_available_at'], 'record_id': last['record_id']}
+    return result
+
+
 @cal._write
 def save(repo, kind, identity, payload, now):
     rid = 'radar-'+kind+'-'+cal._hash(identity)
@@ -577,6 +607,7 @@ def status(repo, now):
     linked_dates = {e['event_key']:e for e in sorted(calendar_view['events'],key=lambda e:e['revision'])}
     windows = rows(repo, 'window', now)
     watches = rows(repo, 'watch', now)
+    followup_pages = followup_first_pages(repo, [w['record_id'] for w in watches], now)
     reviews = rows(repo,'review',now)
     reviewed = {r['watch_id']:r for r in sorted(reviews,key=lambda x:x['received_at'])}
     source_reviews = rows(repo,'watch-source-review',now)
@@ -607,7 +638,7 @@ def status(repo, now):
         linked = linked_dates.get(w['record_id'])
         if not r and linked and linked['state'] in {'CANCELLED','SUPERSEDED'}:
             state = 'CALENDAR_DATE_'+linked['state']
-        related = followup_page(repo, w['record_id'], now)
+        related = followup_pages[w['record_id']]
         lead_zone = timing['timezone'] if timing and timing['timezone'] != components.UNKNOWN_ZONE else ('Africa/Johannesburg' if not timing and w.get('event_date') else None)
         lead = ((components.date_start(timeline['event_date'], lead_zone) - cal._at(w['frozen_at'])).total_seconds()/3600
                 if timeline['event_date'] and lead_zone else None)

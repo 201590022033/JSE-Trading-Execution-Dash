@@ -42,3 +42,16 @@ class AIRepositoryRoutingTests(unittest.TestCase):
         self.assertIs(prepare.call_args.args[0], self.trading)
         self.legacy.close.assert_not_called()
 
+    def test_usefulness_reads_and_reviews_use_worker_repository(self):
+        with patch('application.opportunities.operator_api.has_access', return_value=True), \
+             patch('market_intelligence.ai_usefulness.status', return_value={}) as status, \
+             patch('market_intelligence.ai_usefulness.submit', return_value={'state':'RECORDED'}) as submit:
+            self.assertEqual(self.client.get('/api/market-intelligence/ai-usefulness').status_code, 200)
+            response=self.client.post('/api/market-intelligence/weekly-brief/ai-usefulness-review',
+                                      json={'output_id':'output','verdict':'USEFUL','reason':'reason'})
+        self.assertEqual(response.status_code, 202)
+        self.assertIs(status.call_args.args[0], self.trading)
+        self.assertIs(status.call_args.kwargs['source_repo'], self.legacy)
+        self.assertIs(submit.call_args.args[0], self.trading)
+        self.legacy.close.assert_called_once()
+
