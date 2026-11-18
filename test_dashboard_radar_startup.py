@@ -7,6 +7,18 @@ import app as dashboard
 
 
 class DashboardRadarStartupTests(unittest.TestCase):
+    def test_local_macro_join_uses_only_expected_local_pair(self):
+        legacy='postgresql://user:pass@127.0.0.1:55432/trading_local_20261015'
+        macro='postgresql://user:pass@localhost:5433/trading'
+        with patch.dict('os.environ', {'DATABASE_URL': legacy}, clear=True), \
+             patch('dotenv.dotenv_values', return_value={'DATABASE_URL': macro}):
+            self.assertEqual(dashboard.event_preparation_database_url(), macro)
+        with patch.dict('os.environ', {'DATABASE_URL': legacy}, clear=True), \
+             patch('dotenv.dotenv_values', return_value={'DATABASE_URL': 'postgresql://remote:5433/trading'}):
+            self.assertIsNone(dashboard.event_preparation_database_url())
+        with patch.dict('os.environ', {'DATABASE_URL': legacy, 'RAILWAY_ENVIRONMENT_ID': 'production'}, clear=True):
+            self.assertIsNone(dashboard.event_preparation_database_url())
+
     def test_slow_radar_initialization_does_not_block_and_still_starts(self):
         entered = threading.Event()
         release = threading.Event()

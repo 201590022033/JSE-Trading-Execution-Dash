@@ -114,10 +114,28 @@ app.register_blueprint(create_learning_overview_blueprint(runtime_repository))
 from application.opportunities.ost_data_api import create_ost_blueprint
 app.register_blueprint(create_ost_blueprint(runtime_repository))
 from market_intelligence.weekly_brief_api import create_weekly_brief_blueprint
+def event_preparation_database_url():
+    """Use the existing local macro store only with the known local radar store."""
+    from urllib.parse import urlsplit
+    explicit = os.environ.get('EVENT_PREPARATION_DATABASE_URL', '').strip()
+    if explicit:
+        return explicit
+    if os.environ.get('RAILWAY_ENVIRONMENT_ID'):
+        return None
+    source = urlsplit(os.environ.get('DATABASE_URL', ''))
+    if source.hostname not in ('localhost', '127.0.0.1', '::1') or source.port != 55432 or source.path != '/trading_local_20261015':
+        return None
+    from dotenv import dotenv_values
+    target = dotenv_values(Path(__file__).resolve().parent / '.env.local').get('DATABASE_URL', '') or ''
+    parsed = urlsplit(target)
+    if parsed.hostname in ('localhost', '127.0.0.1', '::1') and parsed.port == 5433 and parsed.path == '/trading':
+        return target
+    return None
+
 def event_preparation_repository():
-    return runtime_repository(database_url=os.environ['EVENT_PREPARATION_DATABASE_URL'])
+    return runtime_repository(database_url=event_preparation_database_url())
 app.register_blueprint(create_weekly_brief_blueprint(
-    runtime_repository, event_preparation_repository if os.environ.get('EVENT_PREPARATION_DATABASE_URL') else None))
+    runtime_repository, event_preparation_repository if event_preparation_database_url() else None))
 from application.opportunities.operator_api import create_operator_blueprint, has_access
 app.register_blueprint(create_operator_blueprint(runtime_repository, paper_config))
 from connected_portfolio_api import create_connected_blueprint
