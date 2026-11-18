@@ -87,13 +87,39 @@ def ensure_scope(repo, now):
                 'mapping_basis': 'EXISTING_CURATED_CATALOG_MEMBERSHIP_NOT_CAUSAL_EXPOSURE'}, now)
 
 
+class SourceResults(list):
+    """List-compatible result with explicit bounded-scan coverage."""
+    def __init__(self, values, coverage):
+        super().__init__(values)
+        self.coverage = coverage
+
+
+def _source_receipts(repo, account, kind, now, *, maximum=5000, cutoff=None):
+    """Read bounded keyset pages; use the first unconsumed inclusive cursor."""
+    collected=[]; as_of=now.isoformat(); cursor=None; truncated=False
+    while len(collected) < maximum:
+        size=min(500,maximum-len(collected))
+        page=repo.paper_records(account,kind,as_of=as_of,limit=size+1,before_record_id=cursor)
+        batch=page[:size]
+        for record in batch:
+            if cutoff and cal._at(record['received_at']) < cutoff:
+                return collected, False
+            collected.append(record)
+        if len(page) <= size:
+            return collected, False
+        boundary=page[size]
+        cursor=boundary.get('record_id') or boundary.get('capture_id')
+        if not cursor or not boundary.get('received_at'):
+            return collected, True
+        as_of=cal._at(boundary['received_at']).isoformat()
+    return collected, True
+
+
 def sources(repo, now):
     """Bounded unique excerpts, retaining actual receipt/publication clocks."""
     now = cal._at(now)
     result = {}
-    captures = repo.paper_records(HERMES, 'hermes-news-input', as_of=now.isoformat(), limit=501)
-    if len(captures) > 500:
-        raise ValueError('News archive requires explicit pagination/archival')
+    captures, hermes_truncated = _source_receipts(repo, HERMES, 'hermes-news-input', now)
     for capture in captures:
         for a in capture.get('articles', []):
             published = a.get('timestamp') if a.get('timestamp_kind') == 'published' else None
@@ -112,7 +138,8 @@ def sources(repo, now):
     result={k:s for k,s in result.items() if cal._at(s['available_at'])>=now-timedelta(days=7)}
     # Discovery receipts are persisted separately from the legacy Hermes feed.
     # Availability is the actual dashboard receipt, never the older source date.
-    sens_recent = repo.paper_records(ACCOUNT, 'radar-sens-source', as_of=now.isoformat(), limit=2000)
+    sens_recent, sens_truncated = _source_receipts(repo, ACCOUNT, 'radar-sens-source', now,
+                                                   cutoff=now-timedelta(days=7))
     for s in sens_recent:
         if cal._at(s['received_at']) < now-timedelta(days=7):
             continue
@@ -124,7 +151,9 @@ def sources(repo, now):
         result[s['record_id']] = {'source_id': s['record_id'], 'body': s['body'][:3000],
             'url': s['source_url'], 'published_at': s['published_at'],
             'available_at': s['received_at'], 'receipt_id': s['record_id']}
-    return sorted(result.values(), key=lambda a: (a['available_at'], a['source_id']), reverse=True)
+    return SourceResults(sorted(result.values(), key=lambda a: (a['available_at'], a['source_id']), reverse=True),
+                         {'hermes_receipts_scanned':len(captures), 'hermes_truncated':hermes_truncated,
+                          'sens_receipts_scanned':len(sens_recent), 'sens_truncated':sens_truncated})
 
 
 def news_expiry(source):
@@ -652,7 +681,8 @@ def status(repo, now):
                 'model': event_contract.get('model') if event_contract else None,
                 'fallback': fallback_by_source.get(source_id)}
     previews=[]
-    for s in sources(repo,now):
+    retained_sources = sources(repo,now)
+    for s in retained_sources:
         candidate=news_candidate(s,(scope or {}).get('members',{}))
         if not candidate and not s['source_id'].startswith('calendar-source-'):
             candidate={'kind':'CONDITIONAL_WATCH','source_id':s['source_id'],'quote':s['body'][:1000],
@@ -682,7 +712,7 @@ def status(repo, now):
     previews.sort(key=lambda item:(item['source_id'] not in event_by_source and item['source_id'] not in batch_by_source,
         not bool(item['instrument_ids'] or item['topic_sectors'])))
     previews=previews[:8]
-    sens_sources = [s for s in sources(repo,now) if s.get('sens_provenance')]
+    sens_sources = [s for s in retained_sources if s.get('sens_provenance')]
     # With a bounded display, put current source dates ahead of older retained
     # pages while keeping both categories inspectable in the source archive.
     sens_sources.sort(key=lambda s:not news_is_current(s,now))
@@ -699,7 +729,7 @@ def status(repo, now):
     latest_sens = max(sens_runs,key=lambda r:r['received_at'],default=None)
     from .macro_calendar import records as macro_confirmations
     sidecars = {item['event_id']: item for item in macro_confirmations(repo, now)}
-    return {'state':'ADVISORY_ANTICIPATORY_RADAR','checked_at':now.isoformat(),
+    return {'state':'ADVISORY_ANTICIPATORY_RADAR','checked_at':now.isoformat(), 'source_coverage':getattr(retained_sources, 'coverage', {'state':'UNKNOWN'}),
         'scope':scope, 'watches':public,'source_leads':previews,
         'sens_discovery': {'latest_run':latest_sens,'sources':sens_sources,
             'state':'SOURCE_LEADS_ONLY_NO_AUTOMATIC_EVENT_OR_FORECAST'},
