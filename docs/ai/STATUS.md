@@ -9,7 +9,7 @@ planning turn. AI1 is ready for the dedicated implementation task.
 | AI0 roadmap and implementation prompts | Yes | Ten Markdown files and all local links verified | Not applicable | Dedicated AI task created |
 | AI1 runtime integration and reporting | Partial implementation | 97 focused tests passed | Read-only API check passed; no eligible share event | Browser unavailable; activation pending |
 | AI2 source-linked radar cards | Implemented | 185 focused checks and JS interaction harness pass | Read-only API check passed | Browser check and main-dashboard activation pending |
-| AI3 event preparation | Prompt ready | Pending | Pending | Pending |
+| AI3 event preparation | Partial | 96 focused Python tests and two JS harnesses passed | Read-only API checked against trading | Browser acceptance pending |
 | AI4 usefulness and outcome review | Prompt ready | Pending | Pending | Pending |
 | AI5 unattended acceptance | Prompt ready | Pending | Pending | Pending |
 
@@ -20,6 +20,29 @@ runtime version, UI route/screenshot or DOM proof, actual record IDs, call count
 unattended window observations, remaining conditions and next action. Keep this
 file compact. Raw data, source bodies, logs and model responses stay under the
 existing ignored runtime paths. Preserve earlier failure evidence.
+
+## AI3 partial checkpoint — 18 November
+
+Added a read-only projection joining confirmed events to existing warning and
+preparation receipts, sidecars and saved model attempts. A proposed expectation
+with invalid citations or only a date source is withheld by the projection;
+historical receipts are unchanged. Share and macro expectation refreshes now
+fail independently. Reads make zero model calls and have zero trading weight.
+
+The trading API returned HTTP 200. SARB event e4699f27, CPI event 8dea1fd9
+and retail event 01927101 each linked two saved packets and an ABSTAIN result.
+The SARB and CPI 168h windows were missed before confirmation; their 24h
+receipts were observed at 00:01:40 SAST on 18 November and 00:01:41 SAST
+on 17 November respectively. CPI and retail date-only anchors have passed;
+that does not establish the actual release outcome.
+
+96 focused Python tests and the independent-panel and source-card JavaScript
+harnesses passed. All nine frozen file Git hashes match the pre-change HEAD;
+research_calendar.py has no diff. No browser acceptance has been performed.
+The required related-source and instrument-view connections, complete advisory
+failure/uncertainty schema, broader acceptance cases and visual checks remain
+open. AI3 is not complete and AI4 has not started. Earlier full-suite failures
+and AI1/AI2 runtime acceptance gaps remain open.
 
 ## Dedicated implementation task
 

@@ -531,8 +531,20 @@ function expectationCondition(condition) {
   if (!condition) return 'No numerical expectation';
   return `Share return minus Top40 return ${condition.operator === 'GTE' ? '≥' : '≤'} ${num(condition.threshold_pct)} percentage points`;
 }
+async function refreshMacroExpectations() {
+  let panel = $('#macro-expectations-panel');
+  if (!panel) { panel=document.createElement('section'); panel.id='macro-expectations-panel'; $('#calendar-expectation-status').before(panel); }
+  try {
+    const macro = await api('/api/market-intelligence/macro-expectations');
+    panel.innerHTML=`<h3>South African macro expectations</h3><p>${macro.eligible_count} eligible events | ${esc(macro.label)} | ${macro.free_gib ?? 'unknown'} GiB free (${macro.minimum_free_gib} GiB required) | ${esc(macro.model || 'model unknown')} | idle ${Math.floor(macro.idle_seconds ?? 0)}s (600s required)</p>`+macro.events.map(e=>`<p>${esc(e.event_key)} | ${esc(e.state)}${e.next_attempt_number === 2 ? ' | one retry available' : ''}</p>`).join('')+`<p>Last attempt: ${esc(macro.latest_result?.state === 'ABSTAIN' ? 'Model abstained; no expectation proposed' : (macro.latest_result?.reason || macro.latest_attempt?.reason || 'No attempt; '+macro.readiness_state))}</p>`+(macro.latest_result?.output ? `<p>${esc(macro.latest_result.output.expectation || 'ABSTAIN')}</p><pre>${esc(JSON.stringify(macro.latest_result.output.citations))}</pre>` : '');
+    if (macro.latest_result) { const latest=macro.latest_result; panel.insertAdjacentHTML('beforeend', `<p>Latest result: ${esc(latest.state)} | ${esc(latest.event_key || 'event unavailable')} | ${esc(when(latest.received_at))}</p>`); }
+    panel.insertAdjacentHTML('beforeend', macro.last_worker_check ? `<p>Last worker check: ${esc(when(macro.last_worker_check.checked_at))} | ${esc(macro.last_worker_check.state || macro.last_worker_check.readiness_state || 'unknown')} ${esc(macro.last_worker_check.reason || '')}</p>` : '<p>No worker check receipt yet.</p>');
+  } catch (error) { panel.textContent = `Macro expectations unavailable: ${error.message}`; }
+  return panel;
+}
 async function refreshCalendarExpectations() {
   if (!$('#calendar-expectation-status')) return;
+  const macroRefresh = refreshMacroExpectations();
   try {
     const data = await api('/api/market-intelligence/calendar-expectations');
     const activity = await api('/api/market-intelligence/local-ai-activity').catch(() => ({state:'LEGACY_ACTIVITY_UNAVAILABLE'}));
@@ -544,12 +556,7 @@ async function refreshCalendarExpectations() {
       const describe=x=>x ? `${esc(x.state || 'unknown')} at ${esc(when(x.received_at || x.reserved_at))}${x.error_type ? ' | '+esc(x.error_type) : ''}` : 'No recorded result';
       localActivity.innerHTML=`<h3>Local AI activity</h3><p>Legacy research database | read only | responses need review</p><p>Qwen latest recorded result: ${describe(q.last_result)}</p><p>Qwen latest attempt: ${describe(q.last_attempt)}</p><p>Calendar model latest result: ${describe(c.last_result)}</p><p>Calendar latest attempt: ${describe(c.last_attempt)}${c.latest_attempt_unresolved ? ' | outcome not recorded' : ''}</p><p>Available memory: ${esc(r.free_gib ?? 'unknown')} GiB | Qwen memory ${readiness(r.qwen_memory_ready)} (3.5 GiB required) | share calendar memory ${readiness(r.calendar_memory_ready)} (${esc(r.calendar_minimum_gib ?? 'unknown')} GiB required) | SA macro uses Qwen (3 GiB required) | idle ${readiness(r.idle_ready)} (${esc(r.idle_seconds ?? 'unknown')}s / 600s required)</p>`;
     } else { localActivity.innerHTML='<h3>Local AI activity</h3><p>Legacy research activity unavailable; no model was started by this check.</p>'; }
-    const macro = await api('/api/market-intelligence/macro-expectations');
-    let panel = $('#macro-expectations-panel');
-    if (!panel) { panel=document.createElement('section');panel.id='macro-expectations-panel';$('#calendar-expectation-status').before(panel); }
-    panel.innerHTML=`<h3>South African macro expectations</h3><p>${macro.eligible_count} eligible events | ${esc(macro.label)} | ${macro.free_gib ?? 'unknown'} GiB free (${macro.minimum_free_gib} GiB required) | ${esc(macro.model || 'model unknown')} | idle ${Math.floor(macro.idle_seconds ?? 0)}s (600s required)</p>`+macro.events.map(e=>`<p>${esc(e.event_key)} | ${esc(e.state)}${e.next_attempt_number === 2 ? ' | one retry available' : ''}</p>`).join('')+`<p>Last attempt: ${esc(macro.latest_result?.state === 'ABSTAIN' ? 'Model abstained; no expectation proposed' : (macro.latest_result?.reason || macro.latest_attempt?.reason || 'No attempt; '+macro.readiness_state))}</p>`+(macro.latest_result?.output ? `<p>${esc(macro.latest_result.output.expectation || 'ABSTAIN')}</p><pre>${esc(JSON.stringify(macro.latest_result.output.citations))}</pre>` : '');
-    if (macro.latest_result) { const latest=macro.latest_result; panel.insertAdjacentHTML('beforeend', `<p>Latest result: ${esc(latest.state)} | ${esc(latest.event_key || 'event unavailable')} | ${esc(when(latest.received_at))}</p>`); }
-    panel.insertAdjacentHTML('beforeend', macro.last_worker_check ? `<p>Last worker check: ${esc(when(macro.last_worker_check.checked_at))} | ${esc(macro.last_worker_check.state || macro.last_worker_check.readiness_state || 'unknown')} ${esc(macro.last_worker_check.reason || '')}</p>` : '<p>No worker check receipt yet.</p>');
+    const panel = await macroRefresh;
     const llamaTest=await api('/api/market-intelligence/llama-memory-calibration').catch(() => ({state:'UNAVAILABLE'}));
     panel.insertAdjacentHTML('beforeend', `<p>Llama ${esc(llamaTest.candidate_start_gib ?? 'unknown')} GiB test: ${esc(llamaTest.state)} | ${esc(llamaTest.readiness || 'unknown')} | available ${esc(llamaTest.free_gib ?? 'unknown')} GiB. Production Llama threshold: ${esc(data.runner.minimum_start_free_ram_gib)} GiB.</p>`);
     const r = data.runner;
@@ -591,6 +598,7 @@ async function refreshCalendarExpectations() {
       } catch(error) { node.textContent = error.message; }
     };
   } catch(error) { $('#calendar-expectation-status').textContent = `Expectations unavailable: ${error.message}`; }
+  await macroRefresh;
 }
 if ($('#reload-calendar-expectations')) $('#reload-calendar-expectations').onclick = refreshCalendarExpectations;
 if ($('#calendar-expectation-prepare')) $('#calendar-expectation-prepare').onsubmit = async event => {
@@ -918,8 +926,26 @@ async function refreshAnticipatoryRadar() {
       return `<article><h3>${esc(e.title)}</h3><p><strong>Confirmed calendar date</strong> · ${esc(e.event_date)} · ${esc(companies || 'Market context')}</p><p>${esc(e.source_quote)}</p>${attribution}<p class="muted">${esc(timing)} Source received ${e.source_available_at ? esc(when(e.source_available_at)) : 'time unknown'}. 48-hour and 24-hour preparation uses the saved calendar event. ${esc(assessmentText(e.screening_assessment))}</p>${sourceLink(e.source_url, 'Calendar source ↗')} ${sourceActions({source_id:e.source_receipt_id, source_receipt_id:e.source_receipt_id, instrument_ids:e.instrument_ids})}</article>`;
     };
     const isSecondary=e => /^(US_|FOMC_)/.test(e.event_key || '');
-    const calendarCards=(d.calendar_upcoming || []).filter(e => !isSecondary(e)).map(renderCalendarCard).join('');
-    const secondaryCards=(d.calendar_upcoming || []).filter(isSecondary).map(renderCalendarCard).join('');
+    const preparation = await api('/api/market-intelligence/event-preparation').catch(() => ({events:[], unavailable:true}));
+    const preparationCards = new Map(preparation.events.map(e => [e.event_id, e]));
+    const renderPreparation = e => {
+      const current=preparationCards.get(e.record_id);
+      if (!current) return '';
+      const warning=current.next_warning ? `Next warning ${current.next_warning.hours}h · ${current.next_warning.due_sast} SAST · ${current.next_warning.state}` : 'No upcoming warning window';
+      const packets=(current.packets || []).map(p => `<p>${esc(p.hours)}h preparation · ${esc(p.state)} · saved ${esc(when(p.received_at))} · ${esc(p.coverage || 'Coverage unknown')}</p>${(p.analogues || []).map(a => `<p>${esc(a.date)}: ${esc(a.coverage || a.state)}</p>`).join('')}`).join('') || '<p>No preparation packet recorded.</p>';
+      const result=current.macro_result;
+      const advisory=result ? `<p>Model result ${esc(result.state)} · ${esc(when(result.received_at))} · model-generated, advisory</p>${result.output?.expectation ? `<p>${esc(result.output.expectation)}</p>` : ''}${(result.output?.citations || []).map(c => `<p>Source ${esc(c.source_id)}: ${esc(c.quote)}</p>`).join('')}` : '<p>No macro model result recorded.</p>';
+      const shares=(current.share_proposals || []).map(p => `<p>Share draft ${esc(p.instrument_id)} · ${esc(p.reviewability)} · ${esc(p.statement || 'No statement')} · ${esc(when(p.received_at))} · model-generated, advisory</p>`).join('');
+      return `<details><summary>Event preparation and warnings</summary><p>${esc(warning)}</p>${(current.windows || []).map(w => `<p>${esc(w.hours)}h · ${esc(w.state)} · ${esc(w.due_sast)} SAST</p>`).join('')}${packets}${advisory}${shares}<p>Saved event-source input: ${esc(current.saved_input_source_state)}. Failure condition and uncertainty: ${esc(current.failure_condition || 'not recorded')} / ${esc(current.uncertainty || 'not recorded')}.</p></details>`;
+    };
+    const withPreparation = e => renderCalendarCard(e) + renderPreparation(e);
+    const calendarCards=(d.calendar_upcoming || []).filter(e => !isSecondary(e)).map(withPreparation).join('');
+    const secondaryCards=(d.calendar_upcoming || []).filter(isSecondary).map(withPreparation).join('');
+    const pastPrimary=preparation.events.filter(e => e.state === 'PAST_AWAITING_OBSERVATIONAL_FOLLOWUP' && /^(ZA_|SARB_)/.test(e.event_key || ''))
+      .sort((a,b) => b.anchor_at.localeCompare(a.anchor_at)).slice(0,10).map(e => {
+        const marker={...e, record_id:e.event_id};
+        return `<article><h3>${esc(e.title)} · ${esc(e.event_date)}</h3><p>Date anchor passed; actual release or outcome requires source review.</p><p>${esc(e.source_quote)}</p><p>${esc(e.confirmation_label)} · SHA256 ${esc(e.confirmation_source_hash || 'unavailable')}</p>${sourceLink(e.source_url, 'Official source ↗')}${renderPreparation(marker)}</article>`;
+      }).join('');
     const sens=d.sens_discovery || {};
     const displayedSens = new Set((sens.sources || []).map(s => s.source_id));
     const sourceLeads = new Map((d.source_leads || []).map(s => [s.source_id, s]));
@@ -942,7 +968,7 @@ async function refreshAnticipatoryRadar() {
       const topics=details.topic_sectors || lead?.topic_sectors || [];
       return `<article><h3>${esc(s.headline)}</h3><p><strong>Public SENS source</strong> · ${esc(sourceProvider(s.source_url))} · ${esc(readable(p.detail_state || 'listing only'))}${s.current ? '' : ' · older or future-dated; not current news'}${p.share_code ? ` · reported share code ${esc(p.share_code)}` : ''}</p><p>${esc((s.instrument_ids || []).join(', ') || 'Instrument not mapped')}</p>${excerpt ? `<p>${esc(excerpt)}</p>` : ''}${topics.length ? `<p>Topic navigation: ${esc(topics.join(', '))}</p>` : ''}${dates.length ? `<p>Future date mentioned: ${esc(dates.join(', '))}. Its link to an event has not been confirmed.</p>` : ''}${details.forward_looking_wording?.length ? `<p>Source wording to investigate: ${esc(details.forward_looking_wording.join(', '))}; the event and timing need review.</p>` : ''}<p>${esc(eventText(s.event_assessment))} ${esc(assessmentText(s.screening_assessment))}</p>${s.event_assessment ? `<p class="muted">Model: ${esc(s.event_assessment.model || 'unknown')} · recorded ${esc(when(s.event_assessment.received_at))} · model-generated, advisory</p>` : ''}<p class="muted">${date} · source acquired ${esc(when(p.detail_acquired_at || p.listing_acquired_at))} · dashboard received ${esc(when(s.available_at))}. Check the source; the event has not been independently confirmed.</p>${sourceLink(s.source_url)} ${sourceActions(s)}</article>`;
     }).join('');
-    $('#anticipatory-radar-items').innerHTML = calendarCards + (secondaryCards ? `<details><summary>Secondary US events</summary>${secondaryCards}</details>` : '') + windows.map(w => `<article><h3>${esc(w.title)} · ${w.hours}h preparation</h3><p>${esc(w.instrument_ids.join(', ') || 'Market context')} · ${esc(readable(w.model_state))}</p><p>${esc(w.source_quote)}</p><p class="muted">Saved ${esc(when(w.observed_at))} · actual lead ${num(w.lead_hours)} hours · ${esc(readable(w.time_precision))}</p>${sourceLink(w.source_url, 'Event source ↗')}</article>`).join('') + d.watches.slice(0,40).map(renderRadarWatch).join('') + sensState + sensCards + sourceCards || '<p>No recent source leads or upcoming calendar events. Source collection continues on its saved schedule.</p>';
+    $('#anticipatory-radar-items').innerHTML = calendarCards + (pastPrimary ? `<details><summary>Recent South African event dates</summary>${pastPrimary}</details>` : '') + (secondaryCards ? `<details><summary>Secondary US events</summary>${secondaryCards}</details>` : '') + windows.map(w => `<article><h3>${esc(w.title)} · ${w.hours}h preparation</h3><p>${esc(w.instrument_ids.join(', ') || 'Market context')} · ${esc(readable(w.model_state))}</p><p>${esc(w.source_quote)}</p><p class="muted">Saved ${esc(when(w.observed_at))} · actual lead ${num(w.lead_hours)} hours · ${esc(readable(w.time_precision))}</p>${sourceLink(w.source_url, 'Event source ↗')}</article>`).join('') + d.watches.slice(0,40).map(renderRadarWatch).join('') + sensState + sensCards + sourceCards || '<p>No recent source leads or upcoming calendar events. Source collection continues on its saved schedule.</p>';
     const sourcePanel = $('#anticipatory-radar-items');
     const showRetainedSource = async button => {
       const card = button.closest('article');

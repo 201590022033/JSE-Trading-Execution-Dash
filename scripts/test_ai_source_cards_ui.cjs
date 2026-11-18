@@ -60,6 +60,7 @@ const context = {URL, URLSearchParams, Date, Math, Number, String, Set, Event:cl
   api:async url => {
     requests.push(url);
     if (url.endsWith('macro-health')) { if (macroFails) throw Error('offline'); return {events:[]}; }
+    if (url.endsWith('event-preparation')) return {events:[]};
     if (url.startsWith('/api/market-intelligence/radar-sources/')) return {body:'Retained exact text'};
     if (url.startsWith('/api/market-intelligence/radar-sources')) {
       const cursor = {available_at:'2026-11-17T10:00:00Z',receipt_at:'2026-11-17T09:00:00Z',source_id:'history-1',source_receipt_id:'receipt-1'};

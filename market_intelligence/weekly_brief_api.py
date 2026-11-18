@@ -152,6 +152,15 @@ def create_weekly_brief_blueprint(factory):
         from .local_ai_activity import status as activity_status
         return jsonify(activity_status())
 
+    @bp.get('/api/market-intelligence/event-preparation')
+    def read_event_preparation():
+        from .event_preparation import status as preparation_status
+        repository = factory()
+        try:
+            return jsonify(preparation_status(repository, datetime.now(timezone.utc)))
+        finally:
+            repository.close()
+
     @bp.get("/api/market-intelligence/macro-expectations")
     def read_macro_expectations():
         from .macro_expectations import status
