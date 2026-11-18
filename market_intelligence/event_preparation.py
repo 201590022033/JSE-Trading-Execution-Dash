@@ -6,6 +6,8 @@ from . import research_calendar as calendar
 from .macro_calendar import records as macro_confirmations
 from .calendar_expectations import status as share_expectations
 from .macro_expectations import relevant_sources
+from . import anticipatory_radar as radar
+import re
 
 SAST = ZoneInfo('Africa/Johannesburg')
 LIMIT = 5000
@@ -28,6 +30,7 @@ def status(repo, now):
     results = {item['record_id']: item for item in
                _rows(repo, 'macro-expectations-v1', 'macro-expectation-result', now)}
     shares = share_expectations(repo, now)['proposals']
+    retained = radar.sources(repo, now)
     warnings = {(item['event_id'], item['hours']): item for item in saved['warning_receipts']}
     projected = []
     for event in saved['upcoming'] + saved['past']:
@@ -50,6 +53,22 @@ def status(repo, now):
         latest_attempt = max(event_attempts, key=lambda a:a['received_at'], default=None)
         latest_result = results.get(latest_attempt['record_id'] + '-result') if latest_attempt else None
         related = relevant_sources(repo, now, event) if event['event_key'].startswith(('SARB_MPC_', 'ZA_CPI_', 'ZA_RETAIL_')) else []
+        candidate_evidence = []
+        if event['event_key'].startswith('SARB_MPC_'):
+            for source in sorted(retained, key=lambda s: not s['receipt_id'].startswith('hermes-news-input-')):
+                if source['source_id'].startswith('calendar-source-'):
+                    continue
+                if not re.search(r'\b(sarb|reserve bank|monetary policy|mpc|inflation|rand)\b', source['body'], re.I):
+                    continue
+                if abs((calendar._at(source['available_at']) - anchor).total_seconds()) > 7 * 86400:
+                    continue
+                lines=source['body'].splitlines()
+                candidate_evidence.append({'source_id':source['source_id'], 'source_receipt_id':source['receipt_id'],
+                    'source_url':source['url'], 'available_at':source['available_at'],
+                    'published_at':source.get('published_at'), 'body':source['body'],
+                    'link_state':'KEYWORD_CANDIDATE_REQUIRES_REVIEW',
+                    'content_quality':'HEADLINE_ONLY' if len(lines)<2 or all(x==lines[0] for x in lines[1:]) else 'RETAINED_EXCERPT'})
+                if len(candidate_evidence) >= 50: break
         source_state = 'NO_SAVED_MODEL_INPUT'
         if latest_attempt:
             event_sources = latest_attempt.get('input', {}).get('sources', [])
@@ -96,6 +115,7 @@ def status(repo, now):
                 if latest_attempt else None),
             'macro_result': latest_result, 'saved_input_source_state': source_state,
             'related_sources': related,
+            'candidate_evidence': candidate_evidence,
             'failure_condition': (latest_result.get('output') or {}).get('failure_condition') if latest_result else None,
             'uncertainty': (latest_result.get('output') or {}).get('uncertainty') if latest_result else None,
             'share_proposals': [p for p in shares if p['event_id'] == event_id],

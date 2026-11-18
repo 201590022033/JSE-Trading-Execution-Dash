@@ -5,6 +5,20 @@ from market_intelligence import anticipatory_radar as radar
 from market_intelligence.sens_runtime_bridge import sync
 
 class BridgeTests(unittest.TestCase):
+ def test_opt_in_news_delivery_preserves_identity_clock_and_is_idempotent(self):
+  import json
+  from market_intelligence.hermes import capture_news_snapshot
+  source=SQLiteRepository(':memory:');target=SQLiteRepository(':memory:');self.addCleanup(source.close);self.addCleanup(target.close)
+  now=datetime.now(timezone.utc);old=now-timedelta(days=1)
+  raw=json.dumps({'data':{'llm_used':False,'ai_available':False,'items':[{'headline':'SARB meeting approaches',
+      'summary':'SARB meeting approaches','url':'https://example.test/sarb',
+      'timestamp':old.isoformat(),'timestamp_kind':'published'}]}}).encode()
+  captured=capture_news_snapshot(source,raw,old)
+  self.assertEqual(sync(source,target,now)['new_records'],0)
+  first=sync(source,target,now,include_news=True);second=sync(source,target,now,include_news=True)
+  self.assertEqual(first['counts']['hermes-news-input'],1);self.assertEqual(second['new_records'],0)
+  self.assertEqual(target.paper_record(captured['capture_id']),captured)
+  self.assertEqual(target.paper_record(captured['capture_id'])['received_at'],old.isoformat())
  def test_lossless_idempotent_and_does_not_copy_watches(self):
   source=SQLiteRepository(':memory:');target=SQLiteRepository(':memory:');self.addCleanup(source.close);self.addCleanup(target.close)
   now=datetime.now(timezone.utc);old=now-timedelta(days=1)
