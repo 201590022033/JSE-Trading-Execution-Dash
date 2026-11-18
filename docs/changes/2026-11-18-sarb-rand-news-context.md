@@ -1,6 +1,6 @@
 # SARB and rand news context — 18 November 2026
 
-The SARB event-preparation view now reports distinct retained article URLs by
+The SARB event-preparation view now reports distinct retained source URLs by
 first receipt day in SAST, with separate rand/USD, rates, inflation and oil
 keyword counts. It preserves article clocks and labels these as retained-source
 coverage, not a count of internet mentions, a sentiment measure or a forecast.
@@ -20,7 +20,7 @@ attempt, retry and execution settings are unchanged.
 On the two actual local databases, a read-only Flask check returned the SARB
 event and selected the Moneyweb headlines about the MPC meeting, the rates
 cliffhanger, inflation before the verdict and rand weakness. At the check the
-retained data included 769 distinct article URLs in the event window; the
+retained data included 769 distinct news and SENS source URLs in the event window; the
 daily counts vary with actual capture coverage. Article comments and forum
 activity are not currently ingested and must not be inferred from these counts.
 No model call was made in verification.
