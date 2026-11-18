@@ -93,6 +93,22 @@ def create_weekly_brief_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get('/api/market-intelligence/radar-watches/<watch_id>/followups')
+    def read_watch_followups(watch_id):
+        from .anticipatory_radar import followup_page
+        repository = factory()
+        try:
+            before = None
+            if request.args.get('source_available_at') or request.args.get('record_id'):
+                before = {'source_available_at':request.args.get('source_available_at'),
+                          'record_id':request.args.get('record_id')}
+            return jsonify(followup_page(repository, watch_id, datetime.now(timezone.utc),
+                                        limit=int(request.args.get('limit', '50')), before=before))
+        except (ValueError, TypeError):
+            return jsonify(error='Invalid follow-up page request'), 400
+        finally:
+            repository.close()
+
     @bp.get('/api/market-intelligence/radar-sources')
     def read_radar_source_history():
         if not allowed():

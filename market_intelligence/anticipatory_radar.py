@@ -36,6 +36,35 @@ def rows(repo, kind, now):
     return result
 
 
+def followup_page(repo, watch_id, now, *, limit=5, before=None):
+    """Bounded watch history; a cursor traverses retained records without deletion."""
+    if not isinstance(watch_id, str) or not watch_id.startswith('radar-watch-') or len(watch_id) > 160:
+        raise ValueError('Valid watch identity required')
+    if type(limit) is not int or not 1 <= limit <= 200:
+        raise ValueError('Follow-up page must contain 1 to 200 records')
+    field = "json_extract(payload, '$.watch_id')" if repo.backend == 'sqlite' else "payload::jsonb->>'watch_id'"
+    source_time = "json_extract(payload, '$.source_available_at')" if repo.backend == 'sqlite' else "payload::jsonb->>'source_available_at'"
+    where = f'account_id=? AND kind=? AND available_at<=? AND {field}=?'
+    params = [ACCOUNT, 'radar-watch-followup', cal._at(now).isoformat(), watch_id]
+    total = repo._job_sql('SELECT COUNT(*) FROM paper_records WHERE ' + where, params, rows=True)[0][0]
+    if before is not None:
+        if not isinstance(before, dict) or set(before) != {'source_available_at', 'record_id'}:
+            raise ValueError('Valid follow-up cursor required')
+        cal._at(before['source_available_at'])
+        boundary = before['source_available_at']
+        rid = before['record_id']
+        if not isinstance(rid, str) or not rid.startswith('radar-watch-followup-') or len(rid) > 160:
+            raise ValueError('Valid follow-up cursor required')
+        where += f' AND ({source_time}<? OR ({source_time}=? AND record_id<?))'
+        params += [boundary, boundary, rid]
+    found = repo._job_sql(f'SELECT payload FROM paper_records WHERE {where} ORDER BY {source_time} DESC, record_id DESC LIMIT ?',
+                          params + [limit + 1], rows=True)
+    items = [json.loads(row[0]) for row in found[:limit]]
+    cursor = ({'source_available_at': items[-1]['source_available_at'], 'record_id': items[-1]['record_id']}
+              if len(found) > limit and items else None)
+    return {'items': items, 'total': total, 'next_cursor': cursor}
+
+
 @cal._write
 def save(repo, kind, identity, payload, now):
     rid = 'radar-'+kind+'-'+cal._hash(identity)
@@ -518,7 +547,6 @@ def status(repo, now):
     watches = rows(repo, 'watch', now)
     reviews = rows(repo,'review',now)
     reviewed = {r['watch_id']:r for r in sorted(reviews,key=lambda x:x['received_at'])}
-    followups = rows(repo,'watch-followup',now)
     source_reviews = rows(repo,'watch-source-review',now)
     from . import radar_event_components as components
     expiry_rows = rows(repo, 'watch-expiry', now)
@@ -547,8 +575,7 @@ def status(repo, now):
         linked = linked_dates.get(w['record_id'])
         if not r and linked and linked['state'] in {'CANCELLED','SUPERSEDED'}:
             state = 'CALENDAR_DATE_'+linked['state']
-        related = sorted((f for f in followups if f['watch_id']==w['record_id']),
-                         key=lambda x:x['source_available_at'],reverse=True)
+        related = followup_page(repo, w['record_id'], now)
         lead_zone = timing['timezone'] if timing and timing['timezone'] != components.UNKNOWN_ZONE else ('Africa/Johannesburg' if not timing and w.get('event_date') else None)
         lead = ((components.date_start(timeline['event_date'], lead_zone) - cal._at(w['frozen_at'])).total_seconds()/3600
                 if timeline['event_date'] and lead_zone else None)
@@ -571,7 +598,8 @@ def status(repo, now):
             'reviewed_at':r['received_at'] if r else None, 'review_note':r['note'] if r else None,
             'review_hours_after_watch':(cal._at(r['received_at'])-cal._at(w['frozen_at'])).total_seconds()/3600 if r else None,
             'date_only_lead_hours':lead, 'date_lead_timezone':lead_zone,
-            'related_sources':related[:5], 'related_source_count':len(related),
+            'related_sources':related['items'], 'related_source_count':related['total'],
+            'related_sources_next_cursor':related['next_cursor'],
             'source_reviews':sorted((s for s in source_reviews if s['watch_id']==w['record_id']),
                 key=lambda x:x['received_at'],reverse=True)[:10],
             'expiry_observation':expiry})

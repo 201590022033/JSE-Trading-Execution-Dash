@@ -29,6 +29,25 @@ class RadarTests(unittest.TestCase):
         self.anchor=cal._at(self.event['anchor_at'])
         self.p=radar.packet(self.repo,NOW)
 
+    def test_followup_archive_over_old_limit_pages_without_duplicates(self):
+        radar.record_response(self.repo,self.p,self.output(),NOW)
+        watch=radar.status(self.repo,NOW)['watches'][0]['record_id']
+        for i in range(2001):
+            radar.save(self.repo,'watch-followup',str(i),{'watch_id':watch,
+                'source_available_at':NOW.isoformat()},NOW)
+        result=radar.status(self.repo,NOW)
+        item=next(w for w in result['watches'] if w['record_id']==watch)
+        self.assertEqual(item['related_source_count'],2001)
+        self.assertEqual(len(item['related_sources']),5)
+        cursor=None; seen=[]
+        while True:
+            page=radar.followup_page(self.repo,watch,NOW,limit=200,before=cursor)
+            seen.extend(r['record_id'] for r in page['items'])
+            cursor=page['next_cursor']
+            if not cursor:break
+        self.assertEqual(len(seen),2001)
+        self.assertEqual(len(set(seen)),2001)
+
     def test_sens_source_keeps_assessment_and_actual_model_attribution(self):
         sens=radar.save(self.repo,'sens-source','sens-test',{
             'body':'Naspers schedules results\nNaspers will release results',
