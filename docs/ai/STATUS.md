@@ -1,5 +1,22 @@
 # AI series status
 
+## AI1 database routing repair — 18 November
+
+On the running local dashboard the macro expectation API reported zero eligible
+events and no latest attempt, while a read-only Flask test against the actual
+worker database, localhost:5433/trading, reported one eligible event and a
+retained attempt. The dashboard was reading the legacy repository. The macro
+and share expectation read routes, share review and explicit share preparation/
+freeze operations now use the configured event-preparation repository, with
+the previous single-repository behavior retained when none is configured.
+Other radar/calendar operations stay on their existing repository. No records
+were moved, no model was called, and no worker or active dashboard was restarted.
+The running dashboard still needs a coordinated restart before it reflects
+this code. Targeted tests: 78 passed (AI repository routing, expectation APIs,
+macro, bridge, activity and calendar model tests). The source-card JavaScript
+harness also passed. This corrects visibility; it does not establish model
+accuracy or unattended inference success.
+
 Planning snapshot, 17 November 2026. Implementation has not started in this
 planning turn. AI1 is ready for the dedicated implementation task.
 

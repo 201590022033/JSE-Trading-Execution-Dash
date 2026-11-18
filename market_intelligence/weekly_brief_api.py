@@ -194,9 +194,10 @@ def create_weekly_brief_blueprint(factory, event_factory=None):
     @bp.get("/api/market-intelligence/macro-expectations")
     def read_macro_expectations():
         from .macro_expectations import status
-        repository = factory()
+        repository = (event_factory or factory)()
         try:
             result = status(repository, datetime.now(timezone.utc))
+            result['source_database'] = 'configured event preparation repository' if event_factory else 'configured dashboard repository'
             from pathlib import Path
             import json
             path = Path(__file__).resolve().parents[1] / 'runtime/macro-expectations-last-check.json'
@@ -217,10 +218,10 @@ def create_weekly_brief_blueprint(factory, event_factory=None):
     def read_expectations():
         from .calendar_expectations import status as expectation_status
         from scripts.calendar_ollama import runner_status
-        repository = factory()
+        repository = (event_factory or factory)()
         try:
             now = datetime.now(timezone.utc)
-            runner = runner_status(repository, now, source_database='configured dashboard repository')
+            runner = runner_status(repository, now, source_database=('configured event preparation repository' if event_factory else 'configured dashboard repository'))
             from pathlib import Path
             import json
             path = Path(__file__).resolve().parents[1] / 'runtime/share-expectations-last-check.json'
@@ -289,7 +290,7 @@ def create_weekly_brief_blueprint(factory, event_factory=None):
         if not allowed():
             return jsonify(error="Unlock Portfolio controls to inspect and review the source packet"), 401
         from .calendar_expectations import VERSION as EXPECTATION_VERSION, _packet
-        repository = factory()
+        repository = (event_factory or factory)()
         try:
             proposal = repository.paper_record(proposal_id)
             now = datetime.now(timezone.utc)
@@ -314,7 +315,8 @@ def create_weekly_brief_blueprint(factory, event_factory=None):
         if request.content_length is None or request.content_length > 500_000:
             return jsonify(error="Bounded body required"), 413
         payload = request.get_json(silent=True)
-        repository = factory()
+        repository = ((event_factory or factory)() if kind in ('calendar-expectation-prepare',
+                       'calendar-expectation-freeze') else factory())
         now = datetime.now(timezone.utc)
         try:
             if kind == 'ai-usefulness-review':
