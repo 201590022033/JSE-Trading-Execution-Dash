@@ -51,6 +51,21 @@ class EventPreparationTests(unittest.TestCase):
         self.assertEqual(found['link_state'],'KEYWORD_CANDIDATE_REQUIRES_REVIEW')
         self.assertEqual(found['available_at'],self.now.isoformat())
 
+    def test_event_evidence_remains_visible_after_current_news_window(self):
+        from market_intelligence.hermes import capture_news_snapshot
+        import json
+        raw=json.dumps({'data':{'llm_used':False,'ai_available':False,'items':[{
+            'headline':'SARB rates cliffhanger','summary':'SARB rates cliffhanger',
+            'url':'https://example.test/economy','timestamp':self.now.isoformat(),
+            'timestamp_kind':'published'}]}}).encode()
+        capture=capture_news_snapshot(self.repo,raw,self.now)
+        event=next(e for e in status(self.repo,self.now+timedelta(days=20))['events']
+                   if e['event_key']=='SARB_MPC_2026-11')
+        found=next(x for x in event['candidate_evidence'] if x['source_receipt_id']==capture['capture_id'])
+        self.assertEqual(found['content_quality'],'HEADLINE_ONLY')
+        self.assertEqual(found['link_state'],'KEYWORD_CANDIDATE_REQUIRES_REVIEW')
+        self.assertFalse(event['candidate_evidence_coverage']['hermes_truncated'])
+
     def test_invalid_saved_citation_is_not_presented_as_advice(self):
         event = self.packet['event']
         self.repo.create_paper_account('macro-expectations-v1', {'mode':'PAPER'})

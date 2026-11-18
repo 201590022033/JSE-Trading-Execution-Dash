@@ -30,7 +30,7 @@ def status(repo, now):
     results = {item['record_id']: item for item in
                _rows(repo, 'macro-expectations-v1', 'macro-expectation-result', now)}
     shares = share_expectations(repo, now)['proposals']
-    retained = radar.sources(repo, now)
+    source_windows = {}
     warnings = {(item['event_id'], item['hours']): item for item in saved['warning_receipts']}
     projected = []
     for event in saved['upcoming'] + saved['past']:
@@ -54,7 +54,19 @@ def status(repo, now):
         latest_result = results.get(latest_attempt['record_id'] + '-result') if latest_attempt else None
         related = relevant_sources(repo, now, event) if event['event_key'].startswith(('SARB_MPC_', 'ZA_CPI_', 'ZA_RETAIL_')) else []
         candidate_evidence = []
+        candidate_coverage = None
         if event['event_key'].startswith('SARB_MPC_'):
+            end = min(now, anchor + timedelta(days=7))
+            start = anchor - timedelta(days=7)
+            # A future event may have no receipts in its event window yet.
+            if end >= start:
+                window = (start, end)
+                if window not in source_windows:
+                    source_windows[window] = radar.sources(repo, end, earliest=start)
+                retained = source_windows[window]
+                candidate_coverage = retained.coverage
+            else:
+                retained = []
             for source in sorted(retained, key=lambda s: not s['receipt_id'].startswith('hermes-news-input-')):
                 if source['source_id'].startswith('calendar-source-'):
                     continue
@@ -116,6 +128,7 @@ def status(repo, now):
             'macro_result': latest_result, 'saved_input_source_state': source_state,
             'related_sources': related,
             'candidate_evidence': candidate_evidence,
+            'candidate_evidence_coverage': candidate_coverage,
             'failure_condition': (latest_result.get('output') or {}).get('failure_condition') if latest_result else None,
             'uncertainty': (latest_result.get('output') or {}).get('uncertainty') if latest_result else None,
             'share_proposals': [p for p in shares if p['event_id'] == event_id],

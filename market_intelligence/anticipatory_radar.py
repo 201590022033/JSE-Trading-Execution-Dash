@@ -115,15 +115,18 @@ def _source_receipts(repo, account, kind, now, *, maximum=5000, cutoff=None):
     return collected, True
 
 
-def sources(repo, now):
+def sources(repo, now, *, earliest=None):
     """Bounded unique excerpts, retaining actual receipt/publication clocks."""
     now = cal._at(now)
+    earliest = cal._at(earliest) if earliest is not None else now-timedelta(days=7)
+    if earliest > now:
+        raise ValueError('Source window begins after its cutoff')
     result = {}
     captures, hermes_truncated = _source_receipts(repo, HERMES, 'hermes-news-input', now)
     for capture in captures:
         for a in capture.get('articles', []):
             published = a.get('timestamp') if a.get('timestamp_kind') == 'published' else None
-            if published and not now-timedelta(days=7) <= cal._at(published) <= now:
+            if published and not earliest <= cal._at(published) <= now:
                 continue
             available = max(cal._at(capture['received_at']), cal._at(a['received_at']))
             if available > now:
@@ -135,13 +138,13 @@ def sources(repo, now):
                     'available_at': available.isoformat(), 'receipt_id': capture['capture_id']}
             if sid not in result or item['available_at'] < result[sid]['available_at']:
                 result[sid] = item
-    result={k:s for k,s in result.items() if cal._at(s['available_at'])>=now-timedelta(days=7)}
+    result={k:s for k,s in result.items() if cal._at(s['available_at'])>=earliest}
     # Discovery receipts are persisted separately from the legacy Hermes feed.
     # Availability is the actual dashboard receipt, never the older source date.
     sens_recent, sens_truncated = _source_receipts(repo, ACCOUNT, 'radar-sens-source', now,
-                                                   cutoff=now-timedelta(days=7))
+                                                   cutoff=earliest)
     for s in sens_recent:
-        if cal._at(s['received_at']) < now-timedelta(days=7):
+        if cal._at(s['received_at']) < earliest:
             continue
         result[s['record_id']] = {'source_id': s['record_id'], 'body': s['body'][:3000],
             'url': s['source_url'], 'published_at': s.get('published_at'),
