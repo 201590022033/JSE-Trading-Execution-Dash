@@ -10,7 +10,7 @@ planning turn. AI1 is ready for the dedicated implementation task.
 | AI1 runtime integration and reporting | Partial implementation | 97 focused tests passed | Read-only API check passed; no eligible share event | Browser unavailable; activation pending |
 | AI2 source-linked radar cards | Implemented | 185 focused checks and JS interaction harness pass | Read-only API check passed | Browser check and main-dashboard activation pending |
 | AI3 event preparation | Implemented; acceptance partial | 99 focused Python tests and two JS harnesses passed | Read-only API checked against trading | DOM fixture passed; live browser acceptance pending |
-| AI4 usefulness and outcome review | Prompt ready | Pending | Pending | Pending |
+| AI4 usefulness and outcome review | Partial implementation | 125 focused tests and JS harnesses passed | Read-only counts checked | Live browser and activation pending |
 | AI5 unattended acceptance | Prompt ready | Pending | Pending | Pending |
 
 ## Evidence required at each checkpoint
@@ -52,8 +52,27 @@ matching news or SENS sources were returned for these three events. The 99
 focused Python tests and JS fixture checks passed; all nine frozen files match
 the starting Git revision. Browser inventory contains no browser window in
 this remote session; live browser acceptance and activation remain open. AI3
-is implemented but not fully accepted and AI4 has not started. Earlier
+is implemented but not fully accepted. Earlier
 full-suite failures and AI1/AI2 runtime acceptance gaps remain open.
+
+## AI4 partial checkpoint — 18 November
+
+Added separate immutable operator-asserted usefulness reviews with explicit
+verdicts, source/input identity, actual cutoff, model and prompt attribution
+where known. Protected POST and read-only period counts use existing paper
+records; review or read invokes no model or calendar operation. Frozen share
+plans expose existing outcome state. Dashboard controls and an empty state are
+written, but have not been checked in a live browser or loaded by the running
+dashboard. Exact duplicate submissions reuse the same immutable record.
+
+On localhost:5433/trading, read-only 30-day counts were six macro attempts,
+six outputs, four abstentions, two failed or invalid, zero reviewed and zero
+owner-usefulness denominator. No synthetic review was written to trading.
+125 focused tests passed, including existing expectation, Hermes and frozen
+guards, plus the JavaScript harnesses. AI4 remains partial: clocked later
+source/price follow-up, citation and coverage denominators, bounded prompt
+comparison, full fixture browser workflow and wider tests are outstanding.
+AI5 has not started.
 
 ## Dedicated implementation task
 

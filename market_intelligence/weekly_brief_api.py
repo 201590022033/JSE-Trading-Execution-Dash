@@ -161,6 +161,17 @@ def create_weekly_brief_blueprint(factory):
         finally:
             repository.close()
 
+    @bp.get('/api/market-intelligence/ai-usefulness')
+    def read_ai_usefulness():
+        from .ai_usefulness import status
+        repository = factory()
+        try:
+            return jsonify(status(repository, datetime.now(timezone.utc), int(request.args.get('days', '30'))))
+        except ValueError:
+            return jsonify(error='Period must be 1 to 365 days'), 400
+        finally:
+            repository.close()
+
     @bp.get("/api/market-intelligence/macro-expectations")
     def read_macro_expectations():
         from .macro_expectations import status
@@ -287,6 +298,11 @@ def create_weekly_brief_blueprint(factory):
         repository = factory()
         now = datetime.now(timezone.utc)
         try:
+            if kind == 'ai-usefulness-review':
+                from .ai_usefulness import submit
+                if not isinstance(payload, dict) or set(payload) != {'output_id','verdict','reason'}:
+                    raise ValueError('Explicit review required')
+                return jsonify(submit(repository, payload['output_id'], payload['verdict'], payload['reason'], now)), 202
             if kind == 'radar-review':
                 from .anticipatory_radar import review
                 if not isinstance(payload, dict):

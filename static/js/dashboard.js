@@ -544,6 +544,7 @@ async function refreshMacroExpectations() {
 }
 async function refreshCalendarExpectations() {
   if (!$('#calendar-expectation-status')) return;
+  refreshAIUsefulness();
   const macroRefresh = refreshMacroExpectations();
   try {
     const data = await api('/api/market-intelligence/calendar-expectations');
@@ -599,6 +600,17 @@ async function refreshCalendarExpectations() {
     };
   } catch(error) { $('#calendar-expectation-status').textContent = `Expectations unavailable: ${error.message}`; }
   await macroRefresh;
+}
+
+async function refreshAIUsefulness() {
+  const anchor=$('#calendar-expectation-status'); if (!anchor) return;
+  let panel=$('#ai-usefulness');
+  if (!panel) { panel=document.createElement('section'); panel.id='ai-usefulness'; anchor.before(panel); }
+  try {
+    const data=await api('/api/market-intelligence/ai-usefulness?days=30'), c=data.counts;
+    panel.innerHTML=`<h3>AI usefulness reviews · last ${esc(data.period_days)} days</h3><p>${esc(c.outputs)} saved outputs · ${esc(c.abstained)} abstained · ${esc(c.invalid_or_failed)} invalid or failed · ${esc(c.reviewed)} reviewed / ${esc(c.outputs)} outputs · ${esc(c.owner_useful)} useful / ${esc(c.owner_review_denominator)} owner-reviewed. No accuracy or causal claim.</p>`+(data.outputs.slice(0,20).map(o=>`<article><p>${esc(o.state)} · ${esc(o.received_at)} · ${esc(o.model_version)} · prompt ${esc(o.prompt_version)} · cutoff ${esc(o.cutoff || 'unknown')}</p><p>${esc(o.output?.expectation || o.output?.statement || 'No expectation available')}</p><p>Outcome: ${esc(o.outcome_state)} · follow-up: ${esc(o.followup_state)} · ${(o.reviews || []).length} review(s)</p><label>Review <select data-ai-review="${esc(o.output_id)}"><option value="">Choose an assessment</option><option value="USEFUL">Useful</option><option value="PARTLY_USEFUL">Partly useful</option><option value="UNSUPPORTED_OR_INCORRECT">Unsupported or incorrect</option><option value="NOT_ENOUGH_EVIDENCE">Not enough evidence</option></select></label><label>Reason (optional) <input data-ai-reason="${esc(o.output_id)}" maxlength="2000"></label><button data-ai-save="${esc(o.output_id)}">Save review</button></article>`).join('') || '<p>Insufficient evidence: no saved AI outputs in this period.</p>');
+    panel.querySelectorAll('[data-ai-save]').forEach(button=>{button.onclick=async()=>{const id=button.dataset.aiSave, select=[...panel.querySelectorAll('[data-ai-review]')].find(x=>x.dataset.aiReview===id), reason=[...panel.querySelectorAll('[data-ai-reason]')].find(x=>x.dataset.aiReason===id); if(!select.value){button.textContent='Choose a review first';return;} try{await post('/api/market-intelligence/weekly-brief/ai-usefulness-review',{output_id:id,verdict:select.value,reason:reason.value});await refreshAIUsefulness();}catch(e){button.textContent='Unlock controls to save review';}};});
+  } catch(error) { panel.textContent='AI review history unavailable; existing calendar and expectations remain available.'; }
 }
 if ($('#reload-calendar-expectations')) $('#reload-calendar-expectations').onclick = refreshCalendarExpectations;
 if ($('#calendar-expectation-prepare')) $('#calendar-expectation-prepare').onsubmit = async event => {
