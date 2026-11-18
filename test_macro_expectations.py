@@ -16,10 +16,14 @@ class MacroExpectationTests(unittest.TestCase):
    m.execute(self.repo,self.now,None,None,idle=lambda:idle,memory=lambda:memory,generator=lambda *a,**k:self.fail('model invoked'))
   self.assertIsNone(self.repo.paper_record(m.aid(self.event,self.now)))
  def test_cited_draft_is_advisory_and_budget_cannot_retry(self):
-  r=self.run_fake({'decision':'PROPOSE','expectation':'CPI is scheduled; no numerical consensus available','citations':[{'source_id':'official','quote':self.event['source_quote']}]})
+  with patch.object(m,'relevant_sources',return_value=[{'source_id':'news','body':'Inflation has moderated','url':'https://example.test/'}]):
+   r=self.run_fake({'decision':'PROPOSE','expectation':'Inflation may moderate','failure_condition':'A contrary release','uncertainty':'Future inflation is unknown','citations':[{'source_id':'news','quote':'Inflation has moderated'}]})
   self.assertEqual(r['state'],'ADVISORY_DRAFT');self.assertEqual(r['trading_weight'],0);self.assertEqual(r['label'],'model-generated, advisory')
   r=self.run_fake({'decision':'ABSTAIN'});self.assertEqual(r['state'],'NO_UNRESERVED_EVENT')
   self.assertEqual(self.repo.paper_records(m.cal.ACCOUNT,'calendar-event',as_of=self.now.isoformat()),[])
+ def test_date_alone_cannot_support_proposal(self):
+  result=self.run_fake({'decision':'PROPOSE','expectation':'Rates will rise','failure_condition':'No rise','uncertainty':'Unknown','citations':[{'source_id':'official','quote':self.event['source_quote']}]})
+  self.assertEqual(result['state'],'FAILED_NO_AUTOMATIC_RETRY')
  def test_abstain_and_unsupported_citation(self):
   r=self.run_fake({'decision':'PROPOSE','expectation':'unsupported','citations':[{'source_id':'official','quote':'invented'}]});self.assertEqual(r['state'],'FAILED_NO_AUTOMATIC_RETRY')
  def test_eligibility_excludes_us_sasol_unconfirmed_and_outside_week(self):

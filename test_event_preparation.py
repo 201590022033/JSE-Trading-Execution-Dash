@@ -70,6 +70,29 @@ class EventPreparationTests(unittest.TestCase):
         self.assertEqual(projected['macro_result']['state'], 'INSUFFICIENT_EVIDENCE')
         self.assertIsNone(projected['macro_result']['output'])
 
+    def test_related_source_added_after_attempt_marks_input_stale(self):
+        event = self.packet['event']
+        self.repo.create_paper_account('macro-expectations-v1', {'mode':'PAPER'})
+        attempt = {'record_id':'old', 'event_id':event['record_id'], 'received_at':self.now.isoformat(),
+                   'input':{'sources':[{'source_id':event['source_receipt_id'], 'body':event['source_quote']}]}}
+        self.repo.save_paper_record('old','macro-expectations-v1','macro-expectation-attempt',self.now.isoformat(),attempt)
+        with patch('market_intelligence.event_preparation.relevant_sources', return_value=[{'source_id':'news', 'body':'SARB report', 'url':'https://example.test'}]):
+            projected = next(e for e in status(self.repo,self.now)['events'] if e['event_id']==event['record_id'])
+        self.assertEqual(projected['saved_input_source_state'],'NEW_RELATED_SOURCES_SINCE_ATTEMPT')
+        self.assertEqual(projected['related_sources'][0]['source_id'],'news')
+
+    def test_empty_quote_does_not_validate(self):
+        event = self.packet['event']
+        self.repo.create_paper_account('macro-expectations-v1', {'mode':'PAPER'})
+        attempt = {'record_id':'empty', 'event_id':event['record_id'], 'received_at':self.now.isoformat(),
+                   'input':{'sources':[{'source_id':'news','body':'Real text'}]}}
+        result = {'record_id':'empty-result','received_at':self.now.isoformat(),'state':'ADVISORY_DRAFT',
+                  'output':{'decision':'PROPOSE','expectation':'Claim','citations':[{'source_id':'news','quote':''}]}}
+        self.repo.save_paper_record('empty','macro-expectations-v1','macro-expectation-attempt',self.now.isoformat(),attempt)
+        self.repo.save_paper_record('empty-result','macro-expectations-v1','macro-expectation-result',self.now.isoformat(),result)
+        projected = next(e for e in status(self.repo,self.now)['events'] if e['event_id']==event['record_id'])
+        self.assertEqual(projected['macro_result']['state'],'CITATION_INVALID')
+
 
 if __name__ == '__main__':
     unittest.main()

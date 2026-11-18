@@ -9,7 +9,7 @@ planning turn. AI1 is ready for the dedicated implementation task.
 | AI0 roadmap and implementation prompts | Yes | Ten Markdown files and all local links verified | Not applicable | Dedicated AI task created |
 | AI1 runtime integration and reporting | Partial implementation | 97 focused tests passed | Read-only API check passed; no eligible share event | Browser unavailable; activation pending |
 | AI2 source-linked radar cards | Implemented | 185 focused checks and JS interaction harness pass | Read-only API check passed | Browser check and main-dashboard activation pending |
-| AI3 event preparation | Partial | 96 focused Python tests and two JS harnesses passed | Read-only API checked against trading | Browser acceptance pending |
+| AI3 event preparation | Implemented; acceptance partial | 99 focused Python tests and two JS harnesses passed | Read-only API checked against trading | DOM fixture passed; live browser acceptance pending |
 | AI4 usefulness and outcome review | Prompt ready | Pending | Pending | Pending |
 | AI5 unattended acceptance | Prompt ready | Pending | Pending | Pending |
 
@@ -39,10 +39,21 @@ that does not establish the actual release outcome.
 96 focused Python tests and the independent-panel and source-card JavaScript
 harnesses passed. All nine frozen file Git hashes match the pre-change HEAD;
 research_calendar.py has no diff. No browser acceptance has been performed.
-The required related-source and instrument-view connections, complete advisory
-failure/uncertainty schema, broader acceptance cases and visual checks remain
-open. AI3 is not complete and AI4 has not started. Earlier full-suite failures
-and AI1/AI2 runtime acceptance gaps remain open.
+Related sources are now shown on the event card, alongside saved packet data,
+warning receipt IDs and source-input freshness. The instrument research panel
+shows matching upcoming events and links to News & SENS. New macro proposals
+must cite non-calendar evidence and include a weakening condition and unknowns;
+older saved drafts retain their original fields and display missing values as
+not recorded. Empty quotes are rejected. Existing budgets and gates remain.
+
+A fresh read-only PostgreSQL API check returned HTTP 200 and zero model calls;
+SARB, CPI and retail each still had two packets and ABSTAIN results. No current
+matching news or SENS sources were returned for these three events. The 99
+focused Python tests and JS fixture checks passed; all nine frozen files match
+the starting Git revision. Browser inventory contains no browser window in
+this remote session; live browser acceptance and activation remain open. AI3
+is implemented but not fully accepted and AI4 has not started. Earlier
+full-suite failures and AI1/AI2 runtime acceptance gaps remain open.
 
 ## Dedicated implementation task
 

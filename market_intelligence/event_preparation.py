@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from . import research_calendar as calendar
 from .macro_calendar import records as macro_confirmations
 from .calendar_expectations import status as share_expectations
+from .macro_expectations import relevant_sources
 
 SAST = ZoneInfo('Africa/Johannesburg')
 LIMIT = 5000
@@ -48,20 +49,26 @@ def status(repo, now):
         event_attempts = [a for a in attempts if a.get('event_id') == event_id]
         latest_attempt = max(event_attempts, key=lambda a:a['received_at'], default=None)
         latest_result = results.get(latest_attempt['record_id'] + '-result') if latest_attempt else None
+        related = relevant_sources(repo, now, event) if event['event_key'].startswith(('SARB_MPC_', 'ZA_CPI_', 'ZA_RETAIL_')) else []
         source_state = 'NO_SAVED_MODEL_INPUT'
         if latest_attempt:
             event_sources = latest_attempt.get('input', {}).get('sources', [])
-            source_state = ('EVENT_SOURCE_MATCHES_SAVED_INPUT' if any(
+            source_matches = any(
                 s.get('source_id') == event['source_receipt_id'] and s.get('body') == event['source_quote']
-                for s in event_sources) else 'EVENT_SOURCE_NOT_IN_SAVED_INPUT')
+                for s in event_sources)
+            saved_sources = {(s.get('source_id'), s.get('body')) for s in event_sources}
+            source_state = ('EVENT_SOURCE_NOT_IN_SAVED_INPUT' if not source_matches else
+                'NEW_RELATED_SOURCES_SINCE_ATTEMPT' if any((s['source_id'], s['body']) not in saved_sources for s in related)
+                else 'EVENT_SOURCE_MATCHES_SAVED_INPUT')
         if latest_result:
             output = latest_result.get('output')
             output = output if isinstance(output, dict) else {}
+            latest_result = {**latest_result, 'output': output}
             citations = output.get('citations')
             citations = citations if isinstance(citations, list) else []
             sources = {s['source_id']: s for s in latest_attempt.get('input', {}).get('sources', [])}
             valid = all(isinstance(c, dict) and c.get('source_id') in sources and
-                        isinstance(c.get('quote'), str) and c['quote'] in sources[c['source_id']].get('body', '')
+                        isinstance(c.get('quote'), str) and bool(c['quote'].strip()) and c['quote'] in sources[c['source_id']].get('body', '')
                         for c in citations)
             if output.get('decision') == 'PROPOSE' and (not citations or not valid):
                 latest_result = {**latest_result, 'state': 'CITATION_INVALID', 'output': None}
@@ -88,7 +95,9 @@ def status(repo, now):
                 ('record_id','event_id','event_key','state','received_at','model','model_digest')}
                 if latest_attempt else None),
             'macro_result': latest_result, 'saved_input_source_state': source_state,
-            'failure_condition': None, 'uncertainty': None,
+            'related_sources': related,
+            'failure_condition': (latest_result.get('output') or {}).get('failure_condition') if latest_result else None,
+            'uncertainty': (latest_result.get('output') or {}).get('uncertainty') if latest_result else None,
             'share_proposals': [p for p in shares if p['event_id'] == event_id],
             'model_label': 'model-generated, advisory', 'model_calls_on_read': 0,
             'trading_weight': 0,
