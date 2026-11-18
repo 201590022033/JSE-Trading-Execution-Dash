@@ -20,7 +20,7 @@ def _rows(repo, account, kind, now):
     return records
 
 
-def status(repo, now):
+def status(repo, now, *, source_repo=None):
     """Project confirmed events and real receipts; never tick or run a model."""
     now = calendar._at(now)
     saved = calendar.status(repo, now)
@@ -62,7 +62,7 @@ def status(repo, now):
             if end >= start:
                 window = (start, end)
                 if window not in source_windows:
-                    source_windows[window] = radar.sources(repo, end, earliest=start)
+                    source_windows[window] = radar.sources(source_repo or repo, end, earliest=start)
                 retained = source_windows[window]
                 candidate_coverage = retained.coverage
             else:

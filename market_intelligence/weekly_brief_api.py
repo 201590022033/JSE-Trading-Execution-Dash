@@ -7,7 +7,7 @@ from shadow_learning import timestamp
 from .weekly_brief import ACCOUNT, VERSION, digest, import_brief, normalize_items, status, validate_matches, text
 
 
-def create_weekly_brief_blueprint(factory):
+def create_weekly_brief_blueprint(factory, event_factory=None):
     bp = Blueprint("weekly_brief", __name__)
 
     def allowed():
@@ -171,10 +171,13 @@ def create_weekly_brief_blueprint(factory):
     @bp.get('/api/market-intelligence/event-preparation')
     def read_event_preparation():
         from .event_preparation import status as preparation_status
-        repository = factory()
+        repository = (event_factory or factory)()
+        source = None
         try:
-            return jsonify(preparation_status(repository, datetime.now(timezone.utc)))
+            source = factory() if event_factory else None
+            return jsonify(preparation_status(repository, datetime.now(timezone.utc), source_repo=source))
         finally:
+            if source is not None: source.close()
             repository.close()
 
     @bp.get('/api/market-intelligence/ai-usefulness')

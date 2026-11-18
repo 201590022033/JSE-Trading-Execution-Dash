@@ -60,7 +60,7 @@ const context = {URL, URLSearchParams, Date, Math, Number, String, Set, Event:cl
   api:async url => {
     requests.push(url);
     if (url.endsWith('macro-health')) { if (macroFails) throw Error('offline'); return {events:[]}; }
-    if (url.endsWith('event-preparation')) return {events:[{event_id:'SARB_MPC_2026-11',state:'UPCOMING_CONFIRMED',windows:[{hours:168,state:'MISSED_BEFORE_CONFIRMATION',due_sast:'2026-11-12T00:00:00+02:00'}],packets:[{hours:168,state:'LATE_PACKET',coverage:'no 5-minute history',usd_zar_5m_rows:0,required_data:'USDZAR history',analogues:[]}],related_sources:[{body:'SARB related report',url:'https://example.test/report'}],macro_result:{state:'ABSTAIN',received_at:'2026-11-17'},share_proposals:[],saved_input_source_state:'NEW_RELATED_SOURCES_SINCE_ATTEMPT'}]};
+    if (url.endsWith('event-preparation')) return {events:[{event_id:'SARB_MPC_2026-11',event_key:'SARB_MPC_2026-11',title:'SARB',event_date:'2026-11-19',instrument_ids:[],source_quote:'Official event',source_url:'https://example.test/event',state:'UPCOMING_CONFIRMED',windows:[{hours:168,state:'MISSED_BEFORE_CONFIRMATION',due_sast:'2026-11-12T00:00:00+02:00'}],packets:[{hours:168,state:'LATE_PACKET',coverage:'no 5-minute history',usd_zar_5m_rows:0,required_data:'USDZAR history',analogues:[]}],related_sources:[{body:'SARB related report',url:'https://example.test/report'}],macro_result:{state:'ABSTAIN',received_at:'2026-11-17'},share_proposals:[],saved_input_source_state:'NEW_RELATED_SOURCES_SINCE_ATTEMPT'}]};
     if (url.startsWith('/api/market-intelligence/radar-sources/')) return {body:'Retained exact text'};
     if (url.startsWith('/api/market-intelligence/radar-sources')) {
       const cursor = {available_at:'2026-11-17T10:00:00Z',receipt_at:'2026-11-17T09:00:00Z',source_id:'history-1',source_receipt_id:'receipt-1'};
@@ -85,6 +85,9 @@ vm.runInNewContext(source.slice(start, end) + '\nthis.run = refreshAnticipatoryR
   assert.match(html, /MISSED_BEFORE_CONFIRMATION/);
   assert.match(html, /no 5-minute history/);
   assert.match(html, /SARB related report/);
+  data.calendar_upcoming=[];
+  await context.run();
+  assert.match(nodes['anticipatory-radar-items'].innerHTML, /SARB related report/);
   assert.match(html, /ABSTAIN/);
   assert.match(html, /NEW_RELATED_SOURCES_SINCE_ATTEMPT/);
   assert.match(html, /&lt;script&gt;bad&lt;\/script&gt;/);

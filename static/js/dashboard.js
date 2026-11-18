@@ -955,8 +955,13 @@ async function refreshAnticipatoryRadar() {
       return `<details><summary>Event preparation and warnings</summary><p>${esc(warning)}</p>${(current.windows || []).map(w => `<p>${esc(w.hours)}h · ${esc(w.state)} · ${esc(w.due_sast)} SAST${w.receipt_id ? ` · receipt ${esc(w.receipt_id)}` : ''}</p>`).join('')}${packets}${related}${candidates}${advisory}${shares}<p>Saved event-source input: ${esc(current.saved_input_source_state)}. Failure condition and uncertainty: ${esc(current.failure_condition || 'not recorded')} / ${esc(current.uncertainty || 'not recorded')}.</p></details>`;
     };
     const withPreparation = e => renderCalendarCard(e).replace(/<\/article>$/, renderPreparation(e) + '</article>');
-    const calendarCards=(d.calendar_upcoming || []).filter(e => !isSecondary(e)).map(withPreparation).join('');
-    const secondaryCards=(d.calendar_upcoming || []).filter(isSecondary).map(withPreparation).join('');
+    const radarCalendar=d.calendar_upcoming || [];
+    const radarEventIds=new Set(radarCalendar.map(e => e.record_id));
+    const additionalCalendar=preparation.events.filter(e => e.state === 'UPCOMING_CONFIRMED' && !radarEventIds.has(e.event_id))
+      .map(e => ({...e, record_id:e.event_id, instrument_ids:e.instrument_ids || []}));
+    const allCalendar=radarCalendar.concat(additionalCalendar);
+    const calendarCards=allCalendar.filter(e => !isSecondary(e)).map(withPreparation).join('');
+    const secondaryCards=allCalendar.filter(isSecondary).map(withPreparation).join('');
     const pastPrimary=preparation.events.filter(e => e.state === 'PAST_AWAITING_OBSERVATIONAL_FOLLOWUP' && /^(ZA_|SARB_)/.test(e.event_key || ''))
       .sort((a,b) => b.anchor_at.localeCompare(a.anchor_at)).slice(0,10).map(e => {
         const marker={...e, record_id:e.event_id};

@@ -66,6 +66,22 @@ class EventPreparationTests(unittest.TestCase):
         self.assertEqual(found['link_state'],'KEYWORD_CANDIDATE_REQUIRES_REVIEW')
         self.assertFalse(event['candidate_evidence_coverage']['hermes_truncated'])
 
+    def test_separate_retained_news_repository_is_joined_without_writes(self):
+        from market_intelligence.hermes import capture_news_snapshot
+        import json
+        source=SQLiteRepository(':memory:'); self.addCleanup(source.close)
+        raw=json.dumps({'data':{'llm_used':False,'ai_available':False,'items':[{
+            'headline':'SARB rates cliffhanger','summary':'SARB rates cliffhanger',
+            'url':'https://example.test/economy','timestamp':self.now.isoformat(),
+            'timestamp_kind':'published'}]}}).encode()
+        capture=capture_news_snapshot(source,raw,self.now)
+        with patch.object(self.repo,'save_paper_record',side_effect=AssertionError('event store write')), \
+             patch.object(source,'save_paper_record',side_effect=AssertionError('source store write')):
+            result=status(self.repo,self.now,source_repo=source)
+        event=next(e for e in result['events'] if e['event_key']=='SARB_MPC_2026-11')
+        self.assertTrue(any(x['source_receipt_id']==capture['capture_id'] for x in event['candidate_evidence']))
+        self.assertEqual(result['model_calls_on_read'],0)
+
     def test_invalid_saved_citation_is_not_presented_as_advice(self):
         event = self.packet['event']
         self.repo.create_paper_account('macro-expectations-v1', {'mode':'PAPER'})

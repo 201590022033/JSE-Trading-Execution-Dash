@@ -114,7 +114,10 @@ app.register_blueprint(create_learning_overview_blueprint(runtime_repository))
 from application.opportunities.ost_data_api import create_ost_blueprint
 app.register_blueprint(create_ost_blueprint(runtime_repository))
 from market_intelligence.weekly_brief_api import create_weekly_brief_blueprint
-app.register_blueprint(create_weekly_brief_blueprint(runtime_repository))
+def event_preparation_repository():
+    return runtime_repository(database_url=os.environ['EVENT_PREPARATION_DATABASE_URL'])
+app.register_blueprint(create_weekly_brief_blueprint(
+    runtime_repository, event_preparation_repository if os.environ.get('EVENT_PREPARATION_DATABASE_URL') else None))
 from application.opportunities.operator_api import create_operator_blueprint, has_access
 app.register_blueprint(create_operator_blueprint(runtime_repository, paper_config))
 from connected_portfolio_api import create_connected_blueprint
