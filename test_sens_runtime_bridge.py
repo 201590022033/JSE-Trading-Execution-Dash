@@ -5,6 +5,30 @@ from market_intelligence import anticipatory_radar as radar
 from market_intelligence.sens_runtime_bridge import sync
 
 class BridgeTests(unittest.TestCase):
+ def test_news_pages_with_tied_clocks_are_idempotent(self):
+  from market_intelligence.hermes import ACCOUNT
+  from market_intelligence.sens_runtime_bridge import transfer_news_page
+  source=SQLiteRepository(':memory:');target=SQLiteRepository(':memory:');self.addCleanup(source.close);self.addCleanup(target.close)
+  now=datetime.now(timezone.utc);source.create_paper_account(ACCOUNT,{'mode':'PAPER'})
+  for i in range(5001):
+   rid='hermes-news-input-'+str(i).zfill(64)
+   source.save_paper_record(rid,ACCOUNT,'hermes-news-input',now.isoformat(),{'capture_id':rid,'received_at':now.isoformat(),'articles':[]})
+  cursor=None;count=0
+  while True:
+   page=transfer_news_page(source,target,now,limit=200,cursor=cursor);count+=page['new_records'];cursor=page['next_cursor']
+   if not cursor:break
+  self.assertEqual(count,5001)
+  self.assertEqual(transfer_news_page(source,target,now,limit=200)['new_records'],0)
+ def test_news_page_conflict_rolls_back_entire_page(self):
+  from market_intelligence.hermes import ACCOUNT
+  from market_intelligence.sens_runtime_bridge import transfer_news_page
+  source=SQLiteRepository(':memory:');target=SQLiteRepository(':memory:');self.addCleanup(source.close);self.addCleanup(target.close)
+  now=datetime.now(timezone.utc);source.create_paper_account(ACCOUNT,{'mode':'PAPER'});target.create_paper_account(ACCOUNT,{'mode':'PAPER'})
+  a='hermes-news-input-'+('a'*64);b='hermes-news-input-'+('b'*64)
+  for rid in (a,b):source.save_paper_record(rid,ACCOUNT,'hermes-news-input',now.isoformat(),{'capture_id':rid,'received_at':now.isoformat(),'body':'source'})
+  target.save_paper_record(a,ACCOUNT,'hermes-news-input',now.isoformat(),{'capture_id':a,'received_at':now.isoformat(),'body':'different'})
+  with self.assertRaises(ValueError):transfer_news_page(source,target,now,limit=5)
+  self.assertIsNone(target.paper_record(b))
  def test_opt_in_news_delivery_preserves_identity_clock_and_is_idempotent(self):
   import json
   from market_intelligence.hermes import capture_news_snapshot
