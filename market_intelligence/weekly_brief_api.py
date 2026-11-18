@@ -300,9 +300,9 @@ def create_weekly_brief_blueprint(factory):
         try:
             if kind == 'ai-usefulness-review':
                 from .ai_usefulness import submit
-                if not isinstance(payload, dict) or set(payload) != {'output_id','verdict','reason'}:
+                if not isinstance(payload, dict) or set(payload) not in ({'output_id','verdict','reason'}, {'output_id','verdict','reason','request_id'}):
                     raise ValueError('Explicit review required')
-                return jsonify(submit(repository, payload['output_id'], payload['verdict'], payload['reason'], now)), 202
+                return jsonify(submit(repository, payload['output_id'], payload['verdict'], payload['reason'], now, request_id=payload.get('request_id'))), 202
             if kind == 'radar-review':
                 from .anticipatory_radar import review
                 if not isinstance(payload, dict):

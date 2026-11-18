@@ -39,4 +39,32 @@ class UsefulnessTests(unittest.TestCase):
                 self.assertEqual(client.post('/api/market-intelligence/weekly-brief/ai-usefulness-review',json=payload).status_code,401)
                 self.assertEqual(client.post('/api/market-intelligence/weekly-brief/ai-usefulness-review',json=payload,headers={'Authorization':'Bearer secret'}).status_code,202)
 
+    def test_changed_review_then_return_to_first_verdict(self):
+        with patch('market_intelligence.ai_usefulness.shares.status',return_value={'proposals':[]}):
+            ai.submit(self.repo,'a-result','USEFUL','',NOW,request_id='one')
+            ai.submit(self.repo,'a-result','UNSUPPORTED_OR_INCORRECT','',NOW+timedelta(seconds=1),request_id='two')
+            third=ai.submit(self.repo,'a-result','USEFUL','',NOW+timedelta(seconds=2),request_id='three')
+            state=ai.status(self.repo,NOW+timedelta(seconds=3))
+            retry=ai.submit(self.repo,'a-result','USEFUL','',NOW+timedelta(seconds=4),request_id='three')
+            with self.assertRaises(ValueError):
+                ai.submit(self.repo,'a-result','PARTLY_USEFUL','',NOW+timedelta(seconds=5),request_id='three')
+        self.assertEqual(third,retry)
+        self.assertEqual(len(state['outputs'][0]['reviews']),3)
+        self.assertEqual(state['counts']['owner_useful'],1)
+
+    def test_later_same_url_receipt_keeps_actual_cutoff_and_provider(self):
+        old=self.repo.paper_record('a'); old['input']['sources'][0]['url']='https://example.test/report'
+        with patch('market_intelligence.ai_usefulness._outputs',return_value=([{'output_id':'a-result','state':'ABSTAIN',
+            'received_at':NOW.isoformat(),'cutoff':NOW.isoformat(),'input_sources':old['input']['sources'],
+            'citation_state':'NOT_APPLICABLE','followup_state':'NOT_ASSESSED'}], {'a':old})), \
+            patch('market_intelligence.ai_usefulness.radar.sources',return_value=[
+                {'source_id':'late','receipt_id':'receipt','url':'https://example.test/report','body':'Later news',
+                 'available_at':(NOW+timedelta(hours=1)).isoformat(),'published_at':None},
+                {'source_id':'other','receipt_id':'other','url':'https://other.test/report','body':'Other provider',
+                 'available_at':(NOW+timedelta(hours=1)).isoformat(),'published_at':None}]):
+            state=ai.status(self.repo,NOW+timedelta(hours=2))
+        self.assertEqual([x['source_id'] for x in state['outputs'][0]['later_sources']],['late'])
+        self.assertEqual(state['outputs'][0]['cutoff'],NOW.isoformat())
+        self.assertEqual(state['counts']['followup_available'],1)
+
 if __name__ == '__main__': unittest.main()

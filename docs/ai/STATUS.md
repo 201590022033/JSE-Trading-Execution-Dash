@@ -74,6 +74,18 @@ source/price follow-up, citation and coverage denominators, bounded prompt
 comparison, full fixture browser workflow and wider tests are outstanding.
 AI5 has not started.
 
+AI4 follow-up: added selectable periods, explicit citation/follow-up counts,
+same-URL later source receipts with actual availability clocks, existing frozen
+share outcome/reference data and request IDs for separate review actions with
+retry deduplication. Same-URL follow-up is a lead for review, not proof that an
+announcement is about the event. The latest focused AI4/expectation/Hermes/
+price-context/frozen suite passed 135 tests. A read-only trading check found
+six macro attempts, six outcomes (four abstained, two invalid/failed), zero
+owner reviews, zero checked cited proposals and zero later same-URL receipts;
+no model call or synthetic production review was made. AI4 remains partial:
+the bounded prompt-version comparison, broader follow-up linking and full
+fixture-browser acceptance are still outstanding.
+
 ## Dedicated implementation task
 
 Created `AI — Local research integration and unattended operation` with thread
@@ -113,6 +125,32 @@ concurrent AI supervisors cannot both hold the same dispatch lock. Both pass.
 The collector login window timed out before the owner could access the desktop;
 the Radar monitor remained running. The session recovery steps are documented
 in `docs/strategy-radar/VIEWPOINT_SESSION_HANDOFF.md`.
+
+## AI1/AI2 browser follow-up — 18 November
+
+The owner requested no Llama run during development; no model test was made
+and temporary memory conditions are not a model failure. A read-only Flask API
+check using current source and localhost:5433/trading returned 0 eligible share
+events, 0 reservations, 0 results and 0 model calls on read. The configured
+profile is 3.75 GiB start, 500 MiB emergency, 330-second timeout and 600-second
+idle. An unattended generation remains unverified; it was not rerun here.
+
+The open live dashboard was inspected without restarting it or the collector.
+News & SENS displayed retained SENS and SARB data, but its older backend still
+reported a 7 GiB share threshold, lacked the event-preparation API, and the
+SARB retained-source button returned HTML instead of JSON. These are version
+mismatches, not evidence of a model run. The user's open OST and ViewPoint tabs
+were left alone.
+
+An isolated temporary localhost-only browser fixture using current code and a
+read-only trading connection displayed the real SARB quote, official-sync hash,
+preparation and retained SENS cards. The SARB source detail opened successfully,
+and the SASOL source handoff selected SASOL research. Only the temporary
+fixture server was stopped after validation. 159 focused radar, SENS and
+frozen-guard tests and both JS harnesses passed without a real model call.
+Activation of the updated backend and live UI verification remain pending a
+separately coordinated dashboard reload. The isolated test did not change the
+live frontend/backend mismatch.
 
 ## AI2 implementation checkpoint — 17 November
 
