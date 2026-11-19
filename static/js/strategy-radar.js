@@ -92,7 +92,10 @@ function mergeEntryRules(rules) {
   const indicatorClock = new Intl.DateTimeFormat('en-ZA', {
     timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'medium'
   });
-  const formatIndicatorTime = value => value ? indicatorClock.format(new Date(value)) + ' SAST' : 'Unavailable';
+  const formatIndicatorTime = value => {
+    const time = value ? new Date(value) : null;
+    return time && Number.isFinite(time.getTime()) ? indicatorClock.format(time) + ' SAST' : 'Unavailable';
+  };
   let indicatorRequest = 0;
   async function loadIndicators(instrument) {
     const request = ++indicatorRequest;
@@ -1021,6 +1024,8 @@ function mergeEntryRules(rules) {
   }).catch(() => {});
   let dismissedMonitorAlert='';
   let displayedMonitorAlert='';
+  let displayedMonitorEventId=null;
+  const alertState = state => ({DEVELOPING:'Approaching setup', ENTRY_MET:'Entry conditions met'})[state] || state;
   try { dismissedMonitorAlert=localStorage.getItem('strategy-radar-dismissed-alert') || ''; } catch (_) {}
   function showMonitorAlert(events) {
     const banner=document.getElementById('radar-alert-banner'), text=document.getElementById('radar-alert-banner-text');
@@ -1028,8 +1033,9 @@ function mergeEntryRules(rules) {
     const event=Array.isArray(events) ? events[0] : null;
     if (!event || !Number.isInteger(event.id) || !event.observed_at) { banner.hidden=true; return; }
     displayedMonitorAlert=`${event.id}:${event.observed_at}`;
+    displayedMonitorEventId=event.id;
     banner.hidden=displayedMonitorAlert===dismissedMonitorAlert;
-    text.textContent=`Latest recorded research alert: ${event.instrument} · ${event.state} · ${event.observed_at}. Open history for the trace; this is not a live price.`;
+    text.textContent=`Research alert · ${event.instrument} · ${alertState(event.state)} · ${formatIndicatorTime(event.observed_at)}`;
   }
   document.getElementById('radar-alert-dismiss')?.addEventListener('click',()=>{
     dismissedMonitorAlert=displayedMonitorAlert;
@@ -1039,6 +1045,11 @@ function mergeEntryRules(rules) {
   document.querySelector('#radar-alert-banner [data-open-tab="system"]')?.addEventListener('click',()=>{
     const details=document.getElementById('radar-monitor-history')?.closest('details');
     if (details) details.open=true;
+    const event = document.getElementById(`radar-alert-event-${displayedMonitorEventId}`);
+    if (event) {
+      event.open = true;
+      event.querySelector('summary').focus();
+    }
   });
   let monitorInitialized=false;
   async function loadRoster() {
@@ -1082,17 +1093,24 @@ function mergeEntryRules(rules) {
       if (!monitorInitialized) { document.getElementById('radar-monitor-interval').value=String(c.interval_seconds); document.getElementById('radar-monitor-profile').value=c.profile || 'intraday_5m_research_v1'; document.getElementById('radar-monitor-desktop').checked=!!c.desktop; document.getElementById('radar-monitor-autostart').checked=!!c.autostart; monitorInitialized=true; }
       output.textContent=`${c.enabled ? (result.worker_running ? 'Enabled · worker running' : 'Enabled · worker not running; enable again') : 'Paused'} · ${c.profile || 'intraday_5m_research_v1'} · ${c.last_status || 'not checked yet'} · last check ${c.last_check || 'never'} · ${c.last_error || 'no reported error'} · local retained evidence only`;
       const summary=document.getElementById('radar-monitor-summary'); if (summary) summary.textContent=output.textContent;
+      const opened = new Set([...history.querySelectorAll('details[open]')].map(item => item.id));
+      const focused = history.contains(document.activeElement) ? document.activeElement.closest('details')?.id : null;
       history.replaceChildren();
       if (!result.events.length) line(history,'p','No alert transitions recorded.');
       for (const event of result.events) {
         const details=document.createElement('details'); history.append(details);
-        line(details,'summary',`${event.instrument} · ${event.trace.strategy_id || 'profile unknown'} v${event.trace.strategy_version || '?'} · ${event.state} · ${event.observed_at} · desktop ${event.desktop_status} · ${event.trace.passed ?? '?'} / ${event.trace.applicable ?? '?'} passed, ${event.trace.unknown ?? '?'} unknown. Research only.`);
+        details.id = `radar-alert-event-${event.id}`;
+        details.open = opened.has(details.id);
+        const summary = line(details,'summary',`${event.instrument} · ${alertState(event.state)} · ${formatIndicatorTime(event.observed_at)} · ${event.trace.strategy_id || 'profile unknown'} v${event.trace.strategy_version || '?'} · ${event.trace.passed ?? '?'} / ${event.trace.applicable ?? '?'} passed, ${event.trace.unknown ?? '?'} unknown`);
+        if (details.id === focused) summary.focus({preventScroll: true});
+        const desktop = event.desktop_status === 'SUBMITTED_TO_WINDOWS' ? 'Submitted to Windows' : (event.desktop_status || 'UNKNOWN').replaceAll('_', ' ').toLowerCase();
+        line(details, 'p', `Desktop · ${desktop} · Research only`);
         for (const rule of (event.trace.rules || [])) {
           line(details,'p',`${rule.id}: ${rule.state} · ${rule.reason || 'reason unavailable'} · value ${rule.value ?? 'unknown'} · threshold ${rule.threshold ?? 'unknown'}`);
           for (const source of (rule.provenance || [])) {
             const selection=source.selection_policy==='VIEWPOINT_PREFERRED' ? ' · ViewPoint preferred' : source.selection_policy==='FALLBACK_SOURCE' ? ' · fallback source' : '';
             const conflict=source.field_state==='CONFLICT' ? ` · conflict retained: ${(source.alternatives || []).map(item=>`${item.source}=${item.value}`).join(', ') || 'other source value'}` : '';
-            line(details,'p',`${source.field || 'field'}: ${source.source || 'unknown source'} · source ${source.source_timestamp || 'unknown'} · received ${source.received_at || 'unknown'} · ${source.availability || 'unknown'}${selection}${conflict}`);
+            line(details,'p',`${source.field || 'field'}: ${source.source || 'unknown source'} · source ${formatIndicatorTime(source.source_timestamp)} · bar end ${formatIndicatorTime(source.bar_end)} · received ${formatIndicatorTime(source.received_at)} · ${source.availability || 'unknown'}${selection}${conflict}`);
           }
         }
       }

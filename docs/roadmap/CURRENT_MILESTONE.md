@@ -1,3 +1,7 @@
+## Unified roadmap R12 alert journey — 19 November 2026
+
+The unified R12 dashboard and Windows Notification History paths are verified. Real VOD and MTN entry-met alerts and an explicitly labelled delivery test reached Windows history. The dashboard preserves the opened transition across polls and shows source, bar and receipt clocks. Transient popup display remains unobserved. See [unified R12 evidence](R12_ALERT_JOURNEY_2026-11-19.md). R13 is next in this series.
+
 ## Unified roadmap R11 product costs and OST units — 19 November 2026
 
 R11 is complete on the running dashboard. The manual trade card shows normalized rand prices, entered cents, product quantity units, entry and exit fees and CFD financing where supplied. Live cash-share and CFD scenarios matched independent calculations. Unverified OST formats and unsupported product terms remain visible. See [R11 evidence and rollback](R11_PRODUCT_COSTS_AND_OST_UNITS_2026-11-19.md). R12 is next.
