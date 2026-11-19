@@ -35,6 +35,22 @@ class DownloadEvent:
 
 
 class ViewPointCollectorTests(unittest.TestCase):
+    def test_setup_enables_browser_sandbox(self):
+        with TemporaryDirectory() as folder:
+            service = SimpleNamespace(folder=Path(folder))
+            playwright = MagicMock()
+            browser = playwright.__enter__.return_value
+            context = browser.chromium.launch_persistent_context.return_value
+            context.pages = [MagicMock()]
+            with patch('application.strategy_radar.service.RadarService', return_value=service), \
+                    patch('playwright.sync_api.sync_playwright', return_value=playwright), \
+                    patch.object(collector, 'process_lock'), \
+                    patch.object(collector, '_wait_for_ost_launch', return_value=False), \
+                    patch('builtins.print'):
+                self.assertEqual(collector.setup(), 1)
+            self.assertTrue(browser.chromium.launch_persistent_context.call_args.kwargs['chromium_sandbox'])
+            context.close.assert_called_once_with()
+
     def test_normal_activation_does_not_send_duplicate_keyboard_input(self):
         control = MagicMock()
         collector._activate(control)

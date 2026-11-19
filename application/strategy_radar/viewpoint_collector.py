@@ -302,7 +302,7 @@ def setup():
     try:
         with process_lock(collector.service.folder / 'viewpoint-collector.lock'), sync_playwright() as browser:
             context = browser.chromium.launch_persistent_context(
-                str(collector.profile), channel='msedge', headless=False)
+                str(collector.profile), channel='msedge', headless=False, chromium_sandbox=True)
             try:
                 page = context.pages[0] if context.pages else context.new_page()
                 page.goto(OST, wait_until='domcontentloaded')
