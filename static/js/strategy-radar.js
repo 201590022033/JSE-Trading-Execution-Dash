@@ -690,6 +690,14 @@ function mergeEntryRules(rules) {
         else line(sector,'p','Non-conflicting breadth unavailable: no qualifying aligned observations.');
         if (data.provisional_breadth) line(sector,'p',`Provisional total including Zebra-selected conflicting closes: ${data.provisional_breadth.advancers} up · ${data.provisional_breadth.decliners} down · ${data.provisional_breadth.unchanged} unchanged. Not source consensus.`);
         for (const [label,item] of [['Sector ETF proxy',data.sector_proxy],['Broad ETF benchmark',data.broad_benchmark]]) line(sector,'p',item ? `${label}: ${item.instrument} ${item.return_percent.toFixed(2)}%${item.provisional ? ' · PROVISIONAL conflicting closes' : ''} · dated ETF closes, not an index; ${(item.observations || []).map(o=>`${o.session}: ${o.source}, received ${o.acquired_at}`).join(' · ')}` : `${label}: unavailable`);
+        if (data.constructed_proxy) {
+          const proxy = data.constructed_proxy;
+          line(sector, 'p', `${proxy.label} · ${proxy.return_percent.toFixed(2)}% · ${proxy.data_quality}${proxy.provisional ? ' · PROVISIONAL conflicting closes' : ''}.`);
+        } else if (data.research_benchmark?.basis === 'BROAD_MARKET_FALLBACK') {
+          line(sector, 'p', `Sector comparison fallback · ${data.research_benchmark.label}.`);
+        } else if (data.research_benchmark?.basis === 'NO_DATA') {
+          line(sector, 'p', 'No benchmark data for this sector comparison.');
+        }
         if (data.relative_percentage_points!=null) line(sector,'p',`Proxy versus broad ETF: ${data.relative_percentage_points.toFixed(2)} percentage points${data.relative_provisional ? ' · PROVISIONAL conflicting closes' : ''}.`);
         const details=document.createElement('details'); sector.append(details); line(details,'summary','Qualifying constituent sources');
         for (const member of data.qualified_members || []) line(details,'p',`${member.instrument}: ${(member.observations || []).map(o=>`${o.session} ${o.value} · ${o.source} · received ${o.acquired_at}`).join(' · ')}`);

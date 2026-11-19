@@ -424,8 +424,9 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
             except (OSError, ValueError, KeyError, TypeError, AttributeError):
                 return response({'state': 'ZEBRA_CACHE_UNAVAILABLE', 'instrument': instrument}, 404)
         from application.opportunities.zebra_screen_data import load_zebra_screen_data
-        from application.backtest_lab.zebra_field_windows import describe
-        data=load_zebra_screen_data(max_rows=600, instruments={instrument,'ETF_STX40','ETF_STXFIN','ETF_STXRES','ETF_STXIND'})
+        from application.backtest_lab.zebra_field_windows import benchmark_input_keys, describe
+        root = Path(__file__).resolve().parents[2]
+        data=load_zebra_screen_data(max_rows=600, instruments=benchmark_input_keys(root, {instrument}))
         if instrument not in data['instruments']:
             return response({'state':'UNAVAILABLE','instrument':instrument},404)
         # The benchmark selection sees the complete instrument catalog.

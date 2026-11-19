@@ -52,3 +52,11 @@ def classifications(instruments):
         else:
             result[key]={'sector':'Unclassified','industry':'Unspecified','source':None,'status':'UNCLASSIFIED'}
     return {'version':VERSION,'basis':'CURRENT_RESEARCH_GROUPS_NOT_HISTORICAL_CLASSIFICATIONS','instruments':result}
+
+
+def sector_members(labels, sector):
+    """Registered research shares in the sector, excluding funds and unknowns."""
+    if sector in (None, 'Funds', 'Unclassified'):
+        return []
+    return sorted(key for key, label in labels.items()
+                  if not key.startswith('ETF_') and label.get('sector') == sector)
