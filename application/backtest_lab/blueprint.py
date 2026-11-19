@@ -113,7 +113,10 @@ def momentum_desk_context(root, run):
 
 
 def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
+    from .saved_run_index import SavedRunIndex
     bp=Blueprint('backtest_lab',__name__)
+    saved_run_index = SavedRunIndex(_read)
+
     def folder():
         root=directory() if callable(directory) else directory if directory is not None else os.environ.get('LOCAL_BACKTEST_REPORT_DIR','')
         return Path(root)/'lab' if root else None
@@ -676,6 +679,22 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
                               'data_basis':m['data_basis'],'strategies':[s['id'] for s in run['strategies']]})
             except (OSError,ValueError,TypeError,KeyError,AttributeError): continue
         return response({'runs':found})
+    @bp.get('/api/v1/backtest-lab/runs/index')
+    def run_index():
+        root = folder()
+        if root is None or not root.is_dir():
+            return response({'state': 'UNAVAILABLE'}, 503)
+        identity_fields = ('instrument', 'product', 'strategy_id', 'strategy_version', 'timeframe_minutes')
+        selection = {key: request.args.get(key) for key in identity_fields}
+        if any(value is not None for value in selection.values()):
+            timeframe = selection['timeframe_minutes']
+            if not all(selection.values()) or not (timeframe == 'daily' or re.fullmatch(r'[1-9][0-9]{0,4}', timeframe)):
+                return response({'error': 'Supply the complete selected strategy identity.'}, 400)
+            selection['timeframe_minutes'] = None if timeframe == 'daily' else int(timeframe)
+        else:
+            selection = None
+        return response(saved_run_index.list(root, selection))
+
     @bp.get('/api/v1/backtest-lab/runs/<run_id>')
     def detail(run_id):
         root=folder()

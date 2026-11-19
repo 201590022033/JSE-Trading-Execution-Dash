@@ -35,6 +35,77 @@ class BacktestLabTests(unittest.TestCase):
             self.assertEqual(r.status_code,200);self.assertEqual(r.json['runs'][0]['run_id'],rid)
             self.assertEqual(client.get('/api/v1/backtest-lab/runs/'+rid).status_code,200)
 
+    def test_saved_run_index_verifies_every_file_and_invalidates_changed_cache_entries(self):
+        with tempfile.TemporaryDirectory() as root:
+            client = self.app(root)
+            url = '/api/v1/backtest-lab/runs/index'
+            self.assertEqual(client.get(url).status_code, 503)
+            rid = self.save(root)
+            lab = Path(root) / 'lab'
+            original = lab / (rid + '.json')
+            original_bytes = original.read_bytes()
+            corrupt = lab / ('a' * 64 + '.json')
+            corrupt.write_text('{broken', encoding='utf-8')
+            newer = json.loads(original_bytes)
+            newer['meta']['created_at'] = '2030-01-01T12:00:00+02:00'
+            newer_id = self.rehash(newer)
+            self.save(root, newer)
+            index = client.get(url)
+            self.assertEqual(index.status_code, 200)
+            self.assertEqual(index.headers['Cache-Control'], 'no-store')
+            self.assertFalse(index.json['live_execution'])
+            result, older = index.json['runs']
+            self.assertEqual([result['run_id'], older['run_id']], [newer_id, rid])
+            self.assertEqual(result['grade'], 'SYNTHETIC')
+            self.assertEqual(result['data_basis'], self.report['meta']['data_basis'])
+            self.assertIn('SOL', result['instruments'])
+            self.assertEqual(result['instruments']['SOL']['session_count'], len(self.report['bars']['SOL']))
+            self.assertTrue(result['titles_by_instrument']['SOL'].startswith('SOL '))
+            self.assertNotIn(newer_id, result['titles_by_instrument']['SOL'])
+            self.assertIsNone(result['matches_exact_identity'])
+            self.assertEqual(index.json['could_not_verify'][0]['run_file'], corrupt.name)
+            self.assertEqual(original.read_bytes(), original_bytes)
+            self.assertEqual(len(client.get('/api/v1/backtest-lab/runs').json['runs']), 2)
+            self.assertEqual(client.get('/api/v1/backtest-lab/runs/' + rid).status_code, 200)
+            original.write_bytes(original_bytes.replace(b'SYNTHETIC', b'ALTERED'))
+            changed = client.get(url).json
+            self.assertEqual([run['run_id'] for run in changed['runs']], [newer_id])
+            self.assertEqual({item['run_file'] for item in changed['could_not_verify']},
+                             {original.name, corrupt.name})
+
+    @staticmethod
+    def rehash(report):
+        meta = report['meta']
+        identity = {'bars': report['bars'], 'strategies': report['strategies'],
+                    'meta': {key: value for key, value in meta.items() if key != 'config_hash'}}
+        meta['config_hash'] = hashlib.sha256(json.dumps(
+            identity, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+        return meta['config_hash']
+
+    def test_saved_run_index_requires_full_exact_cash_share_identity(self):
+        with tempfile.TemporaryDirectory() as root:
+            legacy = json.loads(json.dumps(self.report))
+            legacy['meta'].update(grade='REAL', source_receipts=[{'instrument': 'SOL', 'product': 'cash_equity'}])
+            self.rehash(legacy)
+            exact = json.loads(json.dumps(legacy))
+            profile = exact['strategies'][0]
+            profile['timeframe'] = '1d'
+            exact_id = self.rehash(exact)
+            self.save(root, legacy)
+            self.save(root, exact)
+            self.save(root)
+            query = {'instrument': 'SOL', 'product': 'CASH_SHARE', 'timeframe_minutes': 'daily',
+                     'strategy_id': profile['strategy_profile_id'], 'strategy_version': profile['strategy_profile_version']}
+            client = self.app(root)
+            url = '/api/v1/backtest-lab/runs/index'
+            rows = client.get(url, query_string=query).json['runs']
+            self.assertEqual([run['run_id'] for run in rows if run['matches_exact_identity']], [exact_id])
+            for mismatch in ({'instrument': 'MTN'}, {'product': 'CFD'}, {'timeframe_minutes': '5'},
+                             {'strategy_version': '999'}):
+                rows = client.get(url, query_string={**query, **mismatch}).json['runs']
+                self.assertTrue(all(not run['matches_exact_identity'] for run in rows), mismatch)
+            self.assertEqual(client.get(url, query_string={'instrument': 'SOL'}).status_code, 400)
+
     def test_repeatable_output_and_valid_trade_profiles(self):
         other=build(*demo())
         self.assertEqual(json.dumps(self.report,sort_keys=True),json.dumps(other,sort_keys=True))

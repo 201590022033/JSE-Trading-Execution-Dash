@@ -3,6 +3,7 @@
 const $=id=>document.getElementById('bl-'+id), esc=x=>String(x??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=x=>'R '+Number(x||0).toLocaleString('en-ZA',{maximumFractionDigits:2}), num=x=>Number(x||0);
 let data=null, sectorData=null, windowData=null, strategy=0, selected=0, instrument=null, activated=false, runId=null;
+let savedRuns=[], indexRequest=0, resultRequest=0, previousHandoff;
 const api=async(url,options)=>{const r=await fetch(url,{cache:'no-store',...options});const body=await r.json();return {ok:r.ok,body};};
 async function showEventPreparation(key){
  const choice=$('research-choice'); if(!choice)return;
@@ -17,7 +18,7 @@ async function showEventPreparation(key){
 }
 document.getElementById('bl-windowed-load')?.addEventListener('click',async()=>{const out=document.getElementById('bl-windowed-status'),instrument=document.getElementById('instrument')?.value;if(!instrument){out.textContent='Select an instrument first.';return}out.textContent='Reading saved observations…';try{const r=await api('/api/v1/backtest-lab/windowed-technical/'+encodeURIComponent(instrument));if(!r.ok)throw new Error();const x=r.body.report,v=x.values,fmt=(n,d=2)=>n==null?'unavailable':Number(n).toFixed(d);out.textContent=instrument+' · last session '+x.as_of_session+' · '+x.source_policy+'. EMA20 '+fmt(v.ema20)+', EMA50 '+fmt(v.ema50)+', RSI '+fmt(v.rsi14_wilder,1)+', ATR14 '+fmt(v.atr14_wilder)+', prior 20-session high '+fmt(v.prior_high20)+', relative volume '+fmt(v.relative_volume20)+', relative return '+(v.relative_return20==null?'unavailable':fmt(v.relative_return20*100)+'%')+'. '+x.quality.invalid_ohlc_count+' invalid OHLC rows in history; ATR uses '+x.quality.atr_valid_same_source_rows+' valid same-source rows'+(x.quality.atr_seed_session?' from '+x.quality.atr_seed_session:'')+'. '+Object.values(x.unavailable_reasons).join('; ').replaceAll('_',' ')+'. Last-session source checks: '+(Object.entries(x.quality.latest_field_checks||{}).map(([f,q])=>f+' '+q.state.replaceAll('_',' ').toLowerCase()).join(', ')||'not yet compared')+'. Research only; no signal or order.'}catch(e){out.textContent='No valid saved public history and benchmark for '+instrument+'.'}});
 function benchmarkPeriods(days){const periods=[];for(const [day,x] of Object.entries(days||{}).sort(([a],[b])=>a.localeCompare(b))){const label=(x.instrument||'none')+' · '+x.basis+' · '+(x.mapping_knowledge||'')+(x.mapping?.evidence?' · evidence '+x.mapping.evidence+' · acquired '+(x.mapping.acquired_at||'unknown'):'');const last=periods.at(-1);if(last&&last.label===label)last.end=day;else periods.push({start:day,end:day,label});}return periods;}
-function band(){const m=data.meta; $('band').innerHTML='<b>'+esc(m.grade)+(m.grade==='SYNTHETIC'?' data: not real market prices.':' data: research assumptions and limitations apply.')+'</b> '+m.limitations.map(x=>'<span>'+esc(x.replaceAll('_',' '))+'</span>').join('')+'<span>Costs: '+esc(m.cost_basis)+'</span><span>Configuration: '+esc(m.config_hash.slice(0,12))+'</span>'+(m.source_receipts||[]).map(s=>'<span>'+esc(s.instrument)+(s.product?' ('+esc(s.product)+')':'')+' '+esc(s.provider)+' · captured '+esc(s.acquired_at)+' · '+esc(s.source_sha256.slice(0,12))+'</span>'+(s.supplemental_sources||[]).map(x=>'<span>'+esc(x.provider)+' from '+esc(x.first_session)+' · captured '+esc(x.acquired_at)+' · '+esc(x.capture_sha256.slice(0,12))+'</span>').join('')).join('')+(m.created_at_basis?.includes('NOT_WALL_CLOCK')?'<span>Displayed date is replay as-of, not run time.</span>':'')+Object.entries(m.sector_benchmarks||{}).map(([k,v])=>'<span>'+esc(k)+' benchmark '+esc(v.instrument||'none')+' · '+esc(v.as_of||'date unavailable')+' · '+esc(v.basis)+'</span>').join('')+Object.entries(m.sector_benchmarks_by_session||{}).map(([k,v])=>'<details><summary>'+esc(k)+' benchmark history</summary>'+benchmarkPeriods(v).map(p=>'<span>'+esc(p.start)+' to '+esc(p.end)+' · '+esc(p.label)+'</span>').join('')+'</details>').join('');}
+function band(){const m=data.meta; $('band').innerHTML='<b>'+esc(m.grade)+(m.grade==='SYNTHETIC'?' data: not real market prices.':' data: research assumptions and limitations apply.')+'</b> '+m.limitations.map(x=>'<span>'+esc(x.replaceAll('_',' '))+'</span>').join('')+'<span>Costs: '+esc(m.cost_basis)+'</span>'+(m.source_receipts||[]).map(s=>'<span>'+esc(s.instrument)+(s.product?' ('+esc(s.product)+')':'')+' '+esc(s.provider)+' · captured '+esc(s.acquired_at)+' · '+esc(s.source_sha256.slice(0,12))+'</span>'+(s.supplemental_sources||[]).map(x=>'<span>'+esc(x.provider)+' from '+esc(x.first_session)+' · captured '+esc(x.acquired_at)+' · '+esc(x.capture_sha256.slice(0,12))+'</span>').join('')).join('')+(m.created_at_basis?.includes('NOT_WALL_CLOCK')?'<span>Displayed date is replay as-of, not run time.</span>':'')+Object.entries(m.sector_benchmarks||{}).map(([k,v])=>'<span>'+esc(k)+' benchmark '+esc(v.instrument||'none')+' · '+esc(v.as_of||'date unavailable')+' · '+esc(v.basis)+'</span>').join('')+Object.entries(m.sector_benchmarks_by_session||{}).map(([k,v])=>'<details><summary>'+esc(k)+' benchmark history</summary>'+benchmarkPeriods(v).map(p=>'<span>'+esc(p.start)+' to '+esc(p.end)+' · '+esc(p.label)+'</span>').join('')+'</details>').join('');}
 function table(id,headers,rows){$(id).innerHTML='<thead><tr>'+headers.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody>';}
 function bars(id,items){const max=Math.max(1,...items.map(x=>x[1]));$(id).innerHTML=items.map(([label,value])=>'<div class="bl-bar-row"><span>'+esc(label)+'</span><div><div class="bl-bar" style="width:'+Math.max(0,100*value/max)+'%"></div></div><b>'+esc(value)+'</b></div>').join('')||'<p class="muted">No observations yet.</p>';}
 function lineChart(){const s=data.strategies[strategy],eq=s.run.equity.map(x=>({x:x.at.slice(0,10),v:num(x.equity)}));if(!eq.length){$('equity').innerHTML='';return;}let peak=num(data.meta.initial_cash),dd=[];eq.forEach(p=>{peak=Math.max(peak,p.v);dd.push(p.v/peak-1);});const lo=Math.min(...eq.map(x=>x.v)),hi=Math.max(...eq.map(x=>x.v)),worst=Math.min(...dd),x=i=>45+i/Math.max(1,eq.length-1)*740,y=v=>10+(hi-v)/Math.max(1,hi-lo)*150,yd=v=>190+(worst? v/worst*50:0);let svg='<line x1="45" y1="190" x2="785" y2="190" stroke="var(--line)"/>';svg+='<path d="'+eq.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(p.v).toFixed(1)).join(' ')+'" fill="none" stroke="var(--blue)" stroke-width="2"/>';svg+='<path d="M45 190 '+dd.map((v,i)=>'L'+x(i).toFixed(1)+' '+yd(v).toFixed(1)).join(' ')+' L785 190 Z" fill="var(--red)" opacity=".35"/><text x="45" y="257">'+esc(eq[0].x)+'</text><text x="785" y="257" text-anchor="end">'+esc(eq[eq.length-1].x)+'</text>';$('equity').innerHTML=svg;$('equity-note').textContent='Starting capital '+money(data.meta.initial_cash)+'. Drawdown is based on hypothetical portfolio equity.';}
@@ -33,25 +34,39 @@ function render(){if(!data)return;const s=data.strategies[strategy],tr=s.run.tra
 function selectStrategy(i){strategy=i;const focus=sectorData&&$('research-instrument').value,idx=focus?data.strategies[i].run.trades.findIndex(t=>t.instrument===focus):-1;selected=idx>=0?idx:0;instrument=focus&&data.bars[focus]?focus:(data.strategies[i].run.trades[0]?.instrument||Object.keys(data.bars)[0]);render();}
 function drawWindows(key){if(!windowData)return;const d=windowData.instruments.find(x=>x.instrument===key);if(!d)return;table('window-compare',['Strategy','Training signals / trades / net','Validation signals / trades / net','Holdout signals / trades / net','Training lead'],d.strategies.map(s=>'<tr><td>'+esc(s.name)+'</td>'+['training','validation','holdout'].map(w=>{const v=s.windows[w];return '<td>'+v.signals+' / '+v.trades+' / '+(v.trades?money(v.net):'—')+'</td>';}).join('')+'<td>'+(d.training_lead===s.strategy_id?'Selected from training':'—')+'</td></tr>'));}
 async function drawVariants(key,sector){try{const r=await api('/api/v1/backtest-lab/sector-exploration?sector='+encodeURIComponent(sector));if($('research-instrument').value!==key)return;if(!r.ok)throw new Error();const x=r.body.report;$('variants-note').textContent='Exploratory swing alternatives on retained Zebra history, with fixed shadow exits and hypothetical costs; no model or portfolio replay. '+x.windows.map(w=>w.name+' '+w.start+' to '+w.end).join('; ')+'.';table('variants-compare',['Variant','Training signals / completed / avg net at 25 bps','Validation','Holdout'],x.variants.map(v=>'<tr><td>'+esc(v.id.replaceAll('_',' '))+'</td>'+['training','validation','holdout'].map(w=>{const r=v.windows[w],f=r.funnel_by_instrument[key],v2=r.by_instrument[key];return '<td>'+(f?f.passed[f.passed.length-1]+' / '+(v2?.sample_count||0)+' / '+(v2?.mean_net_return_by_cost_bps['25']==null?'—':(100*v2.mean_net_return_by_cost_bps['25']).toFixed(2)+'%'):'No data')+'</td>';}).join('')+'</tr>'));}catch(e){$('variants-note').textContent='No saved rule-alternative comparison for this sector.';$('variants-compare').innerHTML='';}}
-function researchPick(key){if(!sectorData?.instruments[key]){ $('research-choice').textContent='Selected radar share is not present in this frozen run; no substitute share selected.'; for(const id of ['instrument-compare','window-compare','variants-compare']) $(id).innerHTML=''; return; }drawWindows(key);const d=sectorData.instruments[key],best=d.default;drawVariants(key,d.classification.sector);
+function researchPick(key){if(!sectorData?.instruments[key]){ $('research-choice').textContent='Selected radar share is not present in this saved result; no substitute share selected.'; for(const id of ['instrument-compare','window-compare','variants-compare']) $(id).innerHTML=''; return; }drawWindows(key);const d=sectorData.instruments[key],best=d.default;drawVariants(key,d.classification.sector);
  $('research-choice').textContent=key+' · '+d.classification.sector+' / '+d.classification.industry+' · '+(best?best.label+' — '+best.sample_count+' closed trades; exploratory, not validated.':'No closed trades: no default contender.');
  table('instrument-compare',['Strategy','Signals','Closed trades','Wins','Net result','Research label'],d.strategies.map(s=>'<tr><td>'+esc(s.name)+'</td><td>'+s.signals+'</td><td>'+s.trades+'</td><td>'+s.wins+'</td><td>'+(s.trades?money(s.net):'—')+'</td><td>'+esc(best?.strategy_id===s.id?best.label:s.trades?'Observed result':'No trades')+'</td></tr>'));
  if(best){const index=data.strategies.findIndex(s=>s.id===best.strategy_id);if(index>=0){strategy=index;const t=data.strategies[index].run.trades.findIndex(x=>x.instrument===key);selected=t>=0?t:0;instrument=key;render();}}
 }
-async function loadSectorResearch(id){try{const r=await api('/api/v1/backtest-lab/runs/'+encodeURIComponent(id)+'/sector-research');if(id!==runId)return;if(!r.ok)throw new Error();sectorData=r.body;const keys=Object.keys(sectorData.instruments).sort();$('research-instrument').innerHTML=keys.map(k=>'<option value="'+esc(k)+'">'+esc(k)+'</option>').join('');const handoff=window.strategyRadarHandoff, preferred=handoff?.instrument || document.getElementById('instrument')?.value;const receipts=(data?.meta?.source_receipts||[]).filter(x=>x.instrument===preferred);const exactCash=handoff?.product==='CASH_SHARE' && receipts.length>0 && receipts.every(x=>x.product==='cash_equity');if (handoff && (!keys.includes(preferred) || !exactCash)) { const option=document.createElement('option'); option.value=''; option.textContent=preferred+' · selected product unavailable or unverified in saved run'; $('research-instrument').prepend(option); $('research-instrument').value=''; } else $('research-instrument').value=keys.includes(preferred)?preferred:(keys.includes('SASOL')?'SASOL':keys[0]);
+async function loadSectorResearch(id,handoff=window.strategyRadarHandoff,share){try{const r=await api('/api/v1/backtest-lab/runs/'+encodeURIComponent(id)+'/sector-research');if(id!==runId)return;if(!r.ok)throw new Error();sectorData=r.body;const keys=Object.keys(sectorData.instruments).sort();$('research-instrument').innerHTML=keys.map(k=>'<option value="'+esc(k)+'">'+esc(k)+'</option>').join('');const preferred=handoff?.instrument || share || document.getElementById('instrument')?.value;const receipts=(data?.meta?.source_receipts||[]).filter(x=>x.instrument===preferred);const exactCash=handoff?.product==='CASH_SHARE' && receipts.length>0 && receipts.every(x=>x.product==='cash_equity');if (handoff && (!keys.includes(preferred) || !exactCash)) { const option=document.createElement('option'); option.value=''; option.textContent=preferred+' · selected product unavailable or unverified in saved run'; $('research-instrument').prepend(option); $('research-instrument').value=''; } else $('research-instrument').value=keys.includes(preferred)?preferred:(keys.includes('SASOL')?'SASOL':keys[0]);
  $('sector-basis').textContent=(sectorData.classifications_frozen_with_run?'Classification frozen with this run.':'Current research classifications applied to an older run.')+' Highest closed-trade net is a hypothesis lead, not a sector-only replay or proof of skill. The panels below still show the full portfolio.';
  table('sector-compare',['Sector','Instruments','Swing: trades / net','VCP: trades / net','Box: trades / net','Pullback: trades / net','Observed lead'],sectorData.sectors.map(g=>{const h=g.research_hypothesis,ids=['swing','vcp','box','pull'],all=[...new Set(g.strategies.flatMap(x=>x.instruments))].sort();return '<tr><td>'+esc(g.sector)+(all.includes('SASOL')?' · <a href="#sasol-timeline-panel">Sasol evidence</a>':'')+'</td><td>'+all.map(esc).join(', ')+'</td>'+ids.map(id=>{const s=g.strategies.find(x=>x.strategy_id===id);return '<td>'+(s?s.trades+' / '+money(s.net):'No trades')+'</td>';}).join('')+'<td>'+esc(data.strategies.find(x=>x.id===h.candidate_strategy_id)?.name||h.candidate_strategy_id)+'</td></tr>';}));researchPick($('research-instrument').value);showEventPreparation($('research-instrument').value);
  }catch(e){if(id===runId){sectorData=null;$('research-choice').textContent='Sector research unavailable for this run.';}}}
 async function loadWindows(id){windowData=null;try{const r=await api('/api/v1/backtest-lab/runs/'+encodeURIComponent(id)+'/sector-windows');if(id!==runId)return;if(!r.ok||r.body.state!=='AVAILABLE')throw new Error();windowData=r.body;$('window-compare-note').textContent='Post-hoc windows: '+windowData.windows.map(w=>w.name+' '+w.start+' to '+w.end).join('; ')+'. Training selects the lead; later windows are shown for every strategy. Existing shared-cash replay, not an independent sector backtest; boundary-crossing trades excluded.';drawWindows($('research-instrument').value);}catch(e){$('window-compare-note').textContent='Window comparison unavailable.';}}
-async function loadRun(id){const r=await api('/api/v1/backtest-lab/runs/'+encodeURIComponent(id));if(!r.ok){$('status').textContent='Frozen run unavailable.';return;}runId=id;data=r.body;sectorData=null;band();$('content').hidden=false;
- const handoff=window.strategyRadarHandoff;
+async function loadRun(id, isCurrent=()=>true, share, handoff=window.strategyRadarHandoff){
+ const r=await api('/api/v1/backtest-lab/runs/'+encodeURIComponent(id));
+ if(!isCurrent())return;
+ if(!r.ok){$('status').textContent='Saved result unavailable.';return;}
+ runId=id;data=r.body;sectorData=null;band();$('content').hidden=false;
  // A profile name alone is insufficient: legacy daily runs omit timeframe and
  // cannot be silently treated as evidence for a selected radar profile.
  const receipt=(data.meta.source_receipts||[]).filter(x=>x.instrument===handoff?.instrument);
  const eligible=handoff?.product==='CASH_SHARE' && data.meta.grade!=='SYNTHETIC' && receipt.length>0 && receipt.every(x=>x.product==='cash_equity') && !!data.bars?.[handoff.instrument];
  const exact=eligible?data.strategies.findIndex(s=>s.strategy_profile_id===handoff.strategy_id && s.strategy_profile_version===handoff.strategy_version && (handoff.timeframe_minutes===null?s.timeframe==='1d':Object.hasOwn(s,'timeframe_minutes') && s.timeframe_minutes===handoff.timeframe_minutes)):-1;
- $('status').textContent=handoff?(exact>=0?'Exact selected profile and instrument are present in this frozen run; inspect dates, costs and limitations. Historical research, not validation.':'This frozen run does not establish the selected instrument, product, profile, version and timeframe together. Its general results are not matched radar evidence.'):'Frozen research output; no trades are placed.';
- selectStrategy(exact>=0?exact:0);await loadSectorResearch(id);if(exact>=0 && runId===id && window.strategyRadarHandoff===handoff){instrument=handoff.instrument;render();}await loadWindows(id);}
+ $('status').textContent=handoff?(exact>=0?'Exact selected profile and instrument are present in this saved result; inspect dates, costs and limitations. Historical research, not validation.':'This saved result does not establish the selected instrument, product, profile, version and timeframe together. Its general results are not matched radar evidence.'):'Saved research output; no trades are placed.';
+ selectStrategy(exact>=0?exact:0);
+ if(!handoff && share && data.bars[share]){
+  instrument=share;
+  const tradeIndex=data.strategies[strategy].run.trades.findIndex(trade=>trade.instrument===share);
+  selected=tradeIndex;
+  render();
+ }
+ await loadSectorResearch(id,handoff,share);
+ if(!isCurrent())return;
+ if(exact>=0 && runId===id && window.strategyRadarHandoff===handoff){instrument=handoff.instrument;render();}
+ await loadWindows(id);
+}
 async function loadRealFunnel(){try{const r=await api('/api/v1/backtest-lab/swing-funnel');if(!r.ok){$('real-status').textContent='No historical funnel generated yet.';return;}const v=r.body.report;$('real-status').textContent=v.instrument+' · '+v.period.join(' to ')+' · '+v.share_source.provider+' OHLCV; '+v.benchmark_source.provider+' benchmark closes. Historical availability, calendar and adjustment assumptions apply.';table('real-funnel',['Year','Days checked',...v.rules,'Signals','Benchmark missing'],Object.entries(v.years).map(([year,c])=>'<tr><td>'+esc(year)+'</td><td>'+esc(c.checked)+'</td>'+c.passed.map(n=>'<td>'+esc(n)+'</td>').join('')+'<td>'+esc(c.signals)+'</td><td>'+esc(c.benchmark_missing)+'</td></tr>'));}catch(e){$('real-status').textContent='Historical funnel unavailable.';}}
 async function loadZebra(){try{const r=await api('/api/v1/backtest-lab/zebra-history');if(!r.ok)throw new Error();const z=r.body;$('zebra-status').textContent=z.observations+' retained closes · '+z.first_session+' to '+z.last_session+' · latest R'+z.latest_close.close+' ('+z.latest_close.source+'). Panel '+z.panel_id.slice(0,20)+'…';}catch(e){$('zebra-status').textContent='No verified historical handover is available yet.';}}
 async function loadRadarPrices(){try{const r=await api('/api/v1/backtest-lab/radar-price-capture');if(!r.ok)throw new Error();$('radar-prices').textContent='Last attempt '+r.body.finished_at+': '+(r.body.results.map(x=>x.instrument+' '+(x.state==='CAPTURED'?x.completed_sessions+' closes through '+x.last_completed_session:x.state)).join('; ')||'no linked shares selected');}catch(e){$('radar-prices').textContent='No radar price capture attempt available yet.';}}
@@ -59,10 +74,138 @@ async function loadProspective(){try{const r=await api('/api/v1/backtest-lab/pro
 async function loadHypotheses(){$('hypothesis-status').textContent='Loading retained research…';try{const r=await api('/api/v1/backtest-lab/hypothesis-coverage');if(!r.ok)throw new Error();$('hypothesis-status').textContent='Research examples only; sector groupings use current classifications.';table('hypothesis-coverage',['Family','Retained research examples','Reference captures','Status'],r.body.families.map(f=>'<tr><td>'+esc(f.id+' · '+f.hypothesis)+'</td><td>'+esc(f.component_examples.map(x=>x.instrument+' '+(x.families||[]).join('/')+' ('+x.verified_artifact_count+')').concat(f.listed_vehicle_runs.length?['NewGold listed ETF ('+f.listed_vehicle_runs.length+' runs)']:[]).concat(f.price_only_studies.length?['USD/ZAR price-only ('+f.price_only_studies.length+' studies)']:[]).join(', ')||'None retained')+'</td><td>'+esc(f.reference_captures)+'</td><td>'+esc(f.status.replaceAll('_',' ').toLowerCase())+' — '+esc(f.meaning)+'</td></tr>'));}catch(e){$('hypothesis-status').textContent='Hypothesis coverage is unavailable.';}}
 async function loadFxStudy(){try{const r=await api('/api/v1/backtest-lab/fx-component-studies');if(!r.ok||!r.body.reports.length){$('fx-status').textContent='No retained USD/ZAR component study.';return;}const report=r.body.reports.at(-1);$('fx-status').textContent='Gross observed-price returns, before costs; not a trade result. Holdout not evaluated. Training '+report.windows.train.join(' to ')+'; validation '+report.windows.validation.join(' to ')+'. ';const link=document.createElement('a');link.href='/api/v1/backtest-lab/fx-component-studies/'+encodeURIComponent(report.report_id);link.target='_blank';link.rel='noopener';link.textContent='View recorded signals and limitations';$('fx-status').append(link);table('fx-comparison',['Rule','Horizon','Training signals / checked','Training mean','Validation signals / checked','Validation mean'],report.trials.map(t=>{const f=x=>x==null?'No signals':x.toFixed(2)+'%';return '<tr><td>'+esc(t.id.replaceAll('_',' '))+'</td><td>'+esc(t.horizon)+' observed sessions</td><td>'+esc(t.results.train.signal_count+' / '+t.results.train.checked)+'</td><td>'+esc(f(t.results.train.mean_gross_return_pct))+'</td><td>'+esc(t.results.validation.signal_count+' / '+t.results.validation.checked)+'</td><td>'+esc(f(t.results.validation.mean_gross_return_pct))+'</td></tr>';}));}catch(e){$('fx-status').textContent='USD/ZAR study unavailable.';}}
 async function loadDailyForward(){if(!$('daily-forward-status'))return;try{const r=await api('/api/v1/backtest-lab/daily-forward-status');if(!r.ok)throw new Error();const d=r.body;if(d.state==='WAITING_FOR_FIRST_DAILY_RUN'){$('daily-forward-status').textContent='Waiting for the first daily run with forward monitoring.';return;}const cases=Object.entries(d.cases||{}).map(([k,v])=>{if(v.state==='UNAVAILABLE')return k+': saved receipt unavailable';const a=d.capture_attempts?.[k];return k+': latest '+(v.latest_session||'none')+', '+v.latest_partial+' partial states'+(Object.keys(v.latest_missing_inputs||{}).length?' (recent missing: '+Object.entries(v.latest_missing_inputs).map(([f,n])=>f+' '+n).join(', ')+')':'')+', '+v.matured_3+' three-observation outcomes'+(a?.reason?' ('+a.reason.replaceAll('_',' ').toLowerCase()+')':'');}).join('; ');$('daily-forward-status').textContent='Last forward check '+d.finished_at+' · '+d.state.replaceAll('_',' ').toLowerCase()+(cases?' · '+cases:'')+(d.error_type?' · '+d.error_type:'')+'. This describes the forward check, not the whole collector.';}catch(e){$('daily-forward-status').textContent='Daily forward status unavailable; retained research remains accessible.';}}
-async function activate(){if(activated)return;activated=true;loadDailyForward();loadProspective();loadHypotheses();loadFxStudy();loadRealFunnel();loadZebra();loadRadarPrices();try{const r=await api('/api/v1/backtest-lab/runs?index=filenames');if(!r.ok||!r.body.runs.length){$('status').textContent='No frozen run yet. Run python scripts/backtest_lab_run.py --demo.';return;}$('runs').innerHTML=r.body.runs.map(x=>'<option value="'+esc(x.run_id)+'">'+esc(x.grade)+' · '+esc(x.created_at)+' · '+esc(x.run_id.slice(0,12))+'</option>').join('');await loadRun(r.body.runs[0].run_id);}catch(e){$('status').textContent='Unable to load the Backtest Lab.';}}
-document.querySelector('nav button[data-tab="backtest-lab"]').addEventListener('click',activate);
-document.addEventListener('backtest-lab:refresh',()=>{activated=false;activate();});
-$('runs').addEventListener('change',e=>loadRun(e.target.value));$('strategies').addEventListener('click',e=>{if(e.target.dataset.index!==undefined)selectStrategy(+e.target.dataset.index);});
+function clearResult(){
+ runId=null;data=null;sectorData=null;windowData=null;
+ $('content').hidden=true;
+ $('stats').replaceChildren();
+ $('band').textContent='No saved result selected.';
+ $('run-details').hidden=true;
+}
+function renderRunDetails(summary){
+ const share=$('share').value, period=summary.instruments[share];
+ const rows=[
+  ['Result ID',summary.run_id],
+  ['Recorded date',summary.created_at],
+  ['Date basis',summary.created_at_basis||'Unavailable'],
+  ['Data basis',summary.data_basis],
+  ['Evidence grade',summary.grade],
+  ['Cost assumptions',summary.cost_basis],
+  ['Instruments',Object.keys(summary.instruments).join(', ')],
+  ['Strategies',summary.strategies.map(profile=>profile.id+' v'+profile.version).join(', ')],
+  [share+' input coverage',period.first_session ? period.first_session+' to '+period.last_session+' · '+period.session_count+' sessions' : 'Dates unavailable'],
+ ];
+ const metadata=document.createElement('dl');
+ for(const [label,value] of rows){
+  const term=document.createElement('dt'), detail=document.createElement('dd');
+  term.textContent=label;detail.textContent=value;metadata.append(term,detail);
+ }
+ const full=document.createElement('a');
+ full.href='/api/v1/backtest-lab/runs/'+encodeURIComponent(summary.run_id);
+ full.target='_blank';full.rel='noopener';full.textContent='Open complete saved result';
+ $('run-metadata').replaceChildren(metadata,full);
+ $('run-details').hidden=false;
+}
+async function selectResult(id){
+ const requestNumber=++resultRequest;
+ const isCurrent=()=>requestNumber===resultRequest;
+ const share=$('share').value;
+ const summary=savedRuns.find(run=>run.run_id===id&&Object.hasOwn(run.instruments,share));
+ clearResult();
+ if(!summary)return;
+ $('status').textContent='Opening saved result…';
+ const handoff=window.strategyRadarHandoff;
+ try{
+  await loadRun(id,isCurrent,share,handoff?.instrument===share ? handoff : null);
+  if(isCurrent()&&runId===id)renderRunDetails(summary);
+ }catch(error){
+  if(isCurrent()){
+   clearResult();
+   $('status').textContent='Saved result unavailable.';
+  }
+ }
+}
+function option(label,value){
+ const element=document.createElement('option');
+ element.textContent=label;element.value=value;
+ return element;
+}
+function selectShare(preferredRun){
+ const share=$('share').value;
+ const matches=savedRuns.filter(run=>Object.hasOwn(run.instruments,share));
+ $('runs').replaceChildren(...matches.map(run=>option(run.titles_by_instrument[share],run.run_id)));
+ $('run-choice').hidden=matches.length===0;
+ $('no-runs').hidden=!share||matches.length>0;
+ const preferred=matches.find(run=>run.run_id===preferredRun)||matches.find(run=>run.matches_exact_identity)||matches[0];
+ if(!preferred){
+  ++resultRequest;
+  clearResult();
+  $('status').textContent=share ? 'No saved results for '+share+'.' : 'No saved results available.';
+  return;
+ }
+ $('runs').value=preferred.run_id;
+ return selectResult(preferred.run_id);
+}
+async function activate(force=false){
+ const handoff=window.strategyRadarHandoff;
+ if(activated && previousHandoff===handoff && !force)return;
+ const first=!activated, changed=previousHandoff!==handoff;
+ activated=true;previousHandoff=handoff;
+ if(first||force){
+  loadDailyForward();loadProspective();loadHypotheses();loadFxStudy();loadRealFunnel();loadZebra();loadRadarPrices();
+ }
+ const currentShare=$('share').value,currentRun=$('runs').value;
+ const requestNumber=++indexRequest;
+ ++resultRequest;
+ clearResult();
+ $('share').disabled=true;
+ $('run-choice').hidden=true;
+ $('no-runs').hidden=true;
+ $('run-errors').hidden=true;
+ $('status').textContent='Checking saved results…';
+ const params=new URLSearchParams();
+ if(handoff?.instrument&&handoff.product&&handoff.strategy_id&&handoff.strategy_version){
+  for(const key of ['instrument','product','strategy_id','strategy_version'])params.set(key,handoff[key]);
+  params.set('timeframe_minutes',handoff.timeframe_minutes ?? 'daily');
+ }
+ try{
+  const [index,watchList]=await Promise.all([
+   api('/api/v1/backtest-lab/runs/index?'+params),
+   api('/api/v1/strategy-radar/watches').catch(()=>null),
+  ]);
+  if(requestNumber!==indexRequest)return;
+  if(!index.ok)throw Error('Saved result index unavailable');
+  savedRuns=index.body.runs;
+  const watched=watchList?.ok ? (watchList.body.watches||[]).map(watch=>watch.instrument) : [];
+  const requested=handoff?.product==='CASH_SHARE' ? handoff.instrument : null;
+  const shares=[...new Set([...watched,...savedRuns.flatMap(run=>Object.keys(run.instruments)),requested].filter(Boolean))].sort();
+  $('share').replaceChildren(...shares.map(share=>option(share,share)));
+  $('share').disabled=shares.length===0;
+  $('share').value=(changed&&requested)
+   || shares.find(share=>share===currentShare)
+   || requested
+   || watched[0]
+   || shares[0] || '';
+  const errors=$('run-errors'), list=errors.querySelector('ul');
+  list.replaceChildren();
+  for(const failure of index.body.could_not_verify){
+   const item=document.createElement('li');
+   item.textContent=failure.run_file+' · '+failure.reason;
+   list.append(item);
+  }
+  errors.hidden=!index.body.could_not_verify.length;
+  await selectShare(changed ? null : currentRun);
+ }catch(error){
+  if(requestNumber===indexRequest){
+   activated=false;
+   $('status').textContent='Unable to load saved results.';
+  }
+ }
+}
+document.querySelector('nav button[data-tab="backtest-lab"]').addEventListener('click',()=>activate());
+document.addEventListener('backtest-lab:refresh',()=>activate(true));
+$('share').addEventListener('change',()=>selectShare());
+$('runs').addEventListener('change',e=>selectResult(e.target.value));
+$('strategies').addEventListener('click',e=>{if(e.target.dataset.index!==undefined)selectStrategy(+e.target.dataset.index);});
 $('research-instrument').addEventListener('change',e=>{researchPick(e.target.value);showEventPreparation(e.target.value);});
 $('historical-ready').addEventListener('click',async()=>{const out=$('historical-ready-status');out.textContent='Checking retained histories…';try{const r=await api('/api/v1/swing-research/historical-readiness');if(!r.ok)throw new Error();const x=r.body,current=Object.values(x.instrument_freshness||{}).filter(v=>v.state==='CURRENT_COMPLETED_SESSION').length;out.textContent=x.state.replaceAll('_',' ').toLowerCase()+' · '+x.instruments.length+' share histories ('+current+' through the latest expected session) · benchmark through '+x.freshness.latest_benchmark_session+' · '+x.freshness.state.replaceAll('_',' ').toLowerCase()+'. Sectors: '+Object.entries(x.sectors).map(([s,keys])=>s+' ('+keys.length+' shares, '+x.sector_sessions[s]+' sessions)').join(', ')+'. Cloud hypothesis model '+(x.model_configured?'configured':'not configured')+'. Historical research only; no model called.';}catch(e){out.textContent='No complete retained research history is available; existing records remain unchanged.';}});
 $('rejected').addEventListener('change',rejectedTrace);

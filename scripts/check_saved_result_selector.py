@@ -1,0 +1,107 @@
+"""Exercise the Backtest Lab selector and Flask endpoints in headless Edge."""
+from copy import deepcopy
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from playwright.sync_api import expect, sync_playwright
+
+from test_backtest_lab import BacktestLabTests
+
+
+def check_selector():
+    root = Path(__file__).resolve().parents[1]
+    template = (root / 'templates/dashboard.html').read_text(encoding='utf-8')
+    lab = template[template.index('<section id="backtest-lab"'):template.index('<section id="portfolio"')]
+    html = (
+        '<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/lab.css">'
+        '<nav><button data-tab="backtest-lab">Backtest Lab</button></nav>' + lab +
+        '<script src="/lab.js"></script>'
+    )
+    script = (root / 'static/js/backtest-lab.js').read_text(encoding='utf-8')
+    stylesheet = (root / 'static/css/backtest-lab.css').read_text(encoding='utf-8')
+    BacktestLabTests.setUpClass()
+    fixture = BacktestLabTests()
+    visited = []
+    with TemporaryDirectory() as folder:
+        initial_id = fixture.save(folder)
+        exact = deepcopy(fixture.report)
+        exact['bars']['VOD'] = exact['bars']['SOL']
+        exact['meta'].update(grade='REAL', source_receipts=[{
+            'instrument': 'VOD', 'product': 'cash_equity', 'provider': 'FIXTURE',
+            'acquired_at': '2026-11-19T10:00:00+02:00', 'source_sha256': 'a' * 64,
+        }])
+        profile = exact['strategies'][0]
+        profile['timeframe'] = '1d'
+        exact_id = fixture.rehash(exact)
+        fixture.save(folder, exact)
+        client = fixture.app(folder)
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(
+                executable_path='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+                headless=True,
+            )
+            page = browser.new_page(viewport={'width': 390, 'height': 844})
+
+            def serve(route):
+                method = route.request.method
+                url = route.request.url
+                prefix = 'http://backtest-fixture.test'
+                if not url.startswith(prefix + '/'):
+                    route.abort()
+                    return
+                path = url[len(prefix):]
+                visited.append((method, path))
+                resources = {'/': (html, 'text/html'), '/lab.js': (script, 'text/javascript'),
+                             '/lab.css': (stylesheet, 'text/css')}
+                if path in resources:
+                    body, content_type = resources[path]
+                    route.fulfill(body=body, content_type=content_type)
+                elif path == '/api/v1/strategy-radar/watches':
+                    route.fulfill(json={'watches': [{'instrument': 'MTN'}, {'instrument': 'VOD'}]})
+                elif path.startswith('/api/v1/backtest-lab/'):
+                    response = client.get(path)
+                    route.fulfill(status=response.status_code, body=response.get_data(),
+                                  content_type=response.content_type)
+                else:
+                    route.fulfill(status=404, json={})
+
+            page.route('**/*', serve)
+            page.goto('http://backtest-fixture.test/')
+            page.get_by_role('button', name='Backtest Lab').click()
+            share = page.get_by_label('Share', exact=True)
+            expect(share).to_have_value('MTN')
+            expect(page.locator('#bl-status')).to_have_text('No saved results for MTN.')
+            expect(page.get_by_label('Saved result', exact=True)).to_be_hidden()
+            expect(page.get_by_role('button', name='Run a backtest for this share')).to_be_disabled()
+            share.select_option('VOD')
+            selector = page.get_by_label('Saved result', exact=True)
+            expect(selector.locator('option')).to_have_count(1)
+            expect(selector).to_have_value(exact_id)
+            expect(selector.locator('option')).to_contain_text('VOD')
+            expect(selector.locator('option')).not_to_contain_text(exact_id)
+            expect(page.locator('#bl-run-details')).to_be_visible()
+            page.locator('#bl-run-details summary').click()
+            expect(page.locator('#bl-run-metadata')).to_contain_text(exact_id)
+            share.select_option('SOL')
+            expect(selector.locator('option')).to_have_count(2)
+            selector.select_option(initial_id)
+            expect(page.locator('#bl-run-metadata')).to_contain_text(initial_id)
+            share.select_option('MTN')
+            expect(page.locator('#bl-content')).to_be_hidden()
+            expect(page.locator('#bl-run-details')).to_be_hidden()
+            page.evaluate('selection => {window.strategyRadarHandoff = Object.freeze(selection);}', {
+                'instrument': 'VOD', 'product': 'CASH_SHARE', 'strategy_id': profile['strategy_profile_id'],
+                'strategy_version': profile['strategy_profile_version'], 'timeframe_minutes': None,
+            })
+            page.get_by_role('button', name='Backtest Lab').click()
+            expect(share).to_have_value('VOD')
+            expect(selector).to_have_value(exact_id)
+            expect(page.locator('#bl-status')).to_contain_text('Exact selected profile and instrument')
+            browser.close()
+    assert all(method == 'GET' for method, _ in visited)
+    assert any(path.startswith('/api/v1/backtest-lab/runs/index?instrument=VOD') for _, path in visited)
+    print('PASS share-first filtering, MTN empty state, saved result disclosure and exact Radar handoff')
+
+
+if __name__ == '__main__':
+    check_selector()
