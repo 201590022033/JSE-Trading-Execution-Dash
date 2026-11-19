@@ -23,6 +23,7 @@ function mergeEntryRules(rules) {
   const radarEvidence = new Map();
   const sectorCache = new Map();
   let selectedWatch = null, currentWatches = [], radarGeneration = 0, radarView = 'swing';
+  let pendingRadarRefresh = null;
   let selectionGeneration = 0, lastPlan = null;
   let pinSlotStatus = document.getElementById('strategy-watch-pin-slot-status');
   let restoreSelection = window.uimSelection?.get() || null;
@@ -154,7 +155,10 @@ function mergeEntryRules(rules) {
     form.append(pinSlotStatus);
   }
   function showSelectionError(message) {
-    if (!selectedWatch) loadIndicators(null);
+    if (!selectedWatch) {
+      loadIndicators(null);
+      renderPlanSummary();
+    }
     document.getElementById('radar-selected-context').textContent=message;
     const badge=document.getElementById('radar-selected-badge'); if (badge) badge.textContent=message;
     const price=document.getElementById('radar-price'); if (price) price.textContent='Not available';
@@ -326,14 +330,22 @@ function mergeEntryRules(rules) {
     }
   }
   async function refreshRadar(watches) {
-    const generation = ++radarGeneration;
     const view = radarView;
-    const evaluations = view === 'swing'
-      ? await json('/api/v1/strategy-radar/swing').then(data => watches.map(w => [w.instrument, data.evaluations[w.instrument] || null])).catch(() => watches.map(w => [w.instrument, null]))
-      : await Promise.all(watches.map(async watch => {
-        try { return [watch.instrument,await json(`/api/v1/strategy-radar/shadow/${encodeURIComponent(watch.instrument)}?profile=intraday_5m_research_v1`)]; }
-        catch (_) { return [watch.instrument,null]; }
-      }));
+    const refreshKey = JSON.stringify([view, watches.map(watch => [watch.instrument, watch.benchmark])]);
+    if (pendingRadarRefresh?.key === refreshKey) return;
+    const generation = ++radarGeneration;
+    pendingRadarRefresh = {key: refreshKey, generation};
+    let evaluations;
+    try {
+      evaluations = view === 'swing'
+        ? await json('/api/v1/strategy-radar/swing').then(data => watches.map(w => [w.instrument, data.evaluations[w.instrument] || null])).catch(() => watches.map(w => [w.instrument, null]))
+        : await Promise.all(watches.map(async watch => {
+          try { return [watch.instrument,await json(`/api/v1/strategy-radar/shadow/${encodeURIComponent(watch.instrument)}?profile=intraday_5m_research_v1`)]; }
+          catch (_) { return [watch.instrument,null]; }
+        }));
+    } finally {
+      if (pendingRadarRefresh?.generation === generation) pendingRadarRefresh = null;
+    }
     if (generation !== radarGeneration) return;
     radarEvaluations.clear(); evaluations.forEach(([key,value]) => { radarEvaluations.set(key,value); });
     let restoredTime=null;
@@ -374,6 +386,20 @@ function mergeEntryRules(rules) {
       source:radarView==='swing' ? 'retained daily research history' : 'retained intraday research evidence',
       source_as_of:evaluation?.session || evaluation?.evaluated_at || null,
       selected_at:restoredTime || (restoredExpected?.instrument===selectedWatch ? restoredExpected.selected_at : null) || (same ? previous.selected_at : new Date().toISOString())});
+  }
+  function strategyContext(instrument, evaluation, product) {
+    const timeframe = radarView === 'swing' ? null : 5;
+    if (!evaluation?.strategy_id || !evaluation.strategy_version ||
+        evaluation.instrument !== instrument || evaluation.timeframe_minutes !== timeframe) return null;
+    return {
+      instrument, product, strategy_id: evaluation.strategy_id,
+      strategy_version: evaluation.strategy_version, timeframe_minutes: timeframe,
+      source_as_of: evaluation.session || evaluation.evaluated_at || null
+    };
+  }
+  function strategyIdentity(context) {
+    const timeframe = context.timeframe_minutes === null ? 'daily' : `${context.timeframe_minutes} min`;
+    return `${context.instrument} · ${context.strategy_id} v${context.strategy_version} · ${context.product} · ${timeframe}`;
   }
   function renderRadar() {
     const container = document.getElementById('radar-points'); container.replaceChildren();
@@ -606,7 +632,7 @@ function mergeEntryRules(rules) {
       finally { refresh.disabled=false; } };
     }
     for (const [label,destination] of [['Backtest','backtest-lab'],['Ask Panel','ask'],['News & SENS','market-ai'],['Technical','technical-view'],['Sector & fundamentals','sector'],['Costs','costs'],[watch.pinned?'Unpin':'Pin','pin']]) {
-      const button=line(actions,'button',label); button.type='button'; button.onclick=()=>handoff(destination,watch,evaluation);
+      const button=line(actions,'button',label); button.type='button'; button.onclick=()=>handoff(destination,watch);
     }
     try {
       if (product !== 'CASH_SHARE' || !evaluation?.strategy_id) throw new Error('Exact product/profile evidence not linked');
@@ -637,7 +663,7 @@ function mergeEntryRules(rules) {
       }
     } catch (_) { if (generation===selectionGeneration && selectedWatch===instrument) line(context,'p','Quote source and delay unavailable.'); }
   }
-  async function handoff(destination,watch,evaluation) {
+  async function handoff(destination,watch) {
     const status=document.getElementById('radar-handoff-status');
     if (destination==='pin') {
       const pinned=!watch.pinned;
@@ -653,12 +679,17 @@ function mergeEntryRules(rules) {
       catch (error) { status.textContent=error.message; } return;
     }
     const section=destination==='ask'||destination==='sector' ? 'backtest-lab' : destination;
+    if (selectedWatch !== watch.instrument) {
+      status.textContent = 'Select the share again before handing off.';
+      return;
+    }
+    const evaluation = radarEvaluations.get(watch.instrument);
     const product=document.getElementById('plan-product').value;
-    if (!evaluation?.strategy_id || !evaluation?.strategy_version) { status.textContent='Exact profile and version are unavailable; select a share with an available evaluation before handing off.'; return; }
-    const profile=evaluation.strategy_id;
-    const version=evaluation.strategy_version;
+    const strategy = strategyContext(watch.instrument, evaluation, product);
+    if (!strategy) { status.textContent='Exact profile and version are unavailable; select a share with an available evaluation before handing off.'; return; }
+    const {strategy_id: profile, strategy_version: version} = strategy;
     const shared=window.uimSelection?.get();
-    const typed=Object.freeze({instrument:watch.instrument, strategy_id:profile, strategy_version:version, product, timeframe_minutes:radarView === 'swing' ? null : 5, source_as_of:evaluation.session || evaluation.evaluated_at || null, selected_at:shared?.instrument===watch.instrument && shared?.product===product && shared?.strategy_id===profile && shared?.strategy_version===version && shared?.timeframe_minutes===(radarView === 'swing' ? null : 5) ? shared.selected_at : new Date().toISOString()});
+    const typed=Object.freeze({...strategy, selected_at:shared?.instrument===watch.instrument && shared?.product===product && shared?.strategy_id===profile && shared?.strategy_version===version && shared?.timeframe_minutes===strategy.timeframe_minutes ? shared.selected_at : new Date().toISOString()});
     window.strategyRadarHandoff=typed;
     const isCurrent=()=>selectedWatch===typed.instrument && document.getElementById('plan-product').value===typed.product && radarView===(typed.timeframe_minutes===null ? 'swing' : 'intraday') && radarEvaluations.get(typed.instrument)?.strategy_id===typed.strategy_id && radarEvaluations.get(typed.instrument)?.strategy_version===typed.strategy_version;
     if (destination==='costs') {
@@ -688,7 +719,7 @@ function mergeEntryRules(rules) {
         : destination==='market-ai'
           ? 'Issuer lookup is scoped to the exact selected share and product; general news panels may be broader.'
           : 'Exact radar context attached; verify destination controls before any research action.';
-    notice.textContent=`Radar handoff: ${typed.instrument} · ${typed.strategy_id} v${typed.strategy_version} · ${typed.product} · ${typed.timeframe_minutes == null ? 'daily' : typed.timeframe_minutes + ' min'} · selected ${typed.selected_at}. ${selectionStatus} This destination does not support automatic profile/version selection; verify it before running anything. No run or model request was started.`;
+    notice.textContent=`Radar handoff: ${strategyIdentity(typed)} · selected ${typed.selected_at}. ${selectionStatus} This destination does not support automatic profile/version selection; verify it before running anything. No run or model request was started.`;
     if (destination==='sector') {
       line(notice,'p',`${typed.instrument} sector: ${watch.sector || 'unknown'} · benchmark: ${watch.benchmark || 'unavailable'} · latest historical session ${watch.daily?.latest_session || 'unknown'} · ${watch.daily?.sessions ?? 0} sessions. Sector classification is research context, not a live fundamental or recommendation.`);
       const sources=watch.daily?.sources || {};
@@ -740,7 +771,13 @@ function mergeEntryRules(rules) {
         answer.textContent=`${result.text} · Model: ${result.model} · Advisory only.`;
       } catch(error) { answer.textContent=error.message; } finally { ask.disabled=false; } };
     }
-    if (destination==='backtest-lab' && radarView === 'swing') line(notice,'p','Daily radar comparison is not linked. Select and verify the profile in Backtest Lab before running.');
+    if (destination==='backtest-lab' && radarView === 'swing') {
+      const evidence = radarEvidence.get(typed.instrument);
+      const matched = evidenceMatches(evidence, typed.instrument, evaluation, typed.product, radarView);
+      line(notice, 'p', matched && evidence.backtests?.length
+        ? 'A retained fill study matches this selection. Check its costs, dates and limitations.'
+        : 'An exact-version daily comparison is unavailable here. Saved runs retain their own profiles and versions.');
+    }
     if (destination==='backtest-lab' && radarView === 'intraday') {
       const note=line(notice,'p','Run an explicit hypothetical next-bar comparison for this exact radar profile. It is not a fill simulation.');
       const label=line(notice,'label','Assumed round-trip cost (basis points) ');
@@ -752,7 +789,11 @@ function mergeEntryRules(rules) {
         run.disabled=true; output.textContent='Running the selected local comparison…';
         const report=await json('/api/v1/strategy-radar/shadow/replay',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instrument:typed.instrument,profile:typed.strategy_id,round_trip_cost_bps:cost.value})});
         if (!isCurrent()) throw new Error('Radar selection changed; result withheld.');
-        if (report.instrument!==typed.instrument || report.strategy_id!==typed.strategy_id || report.strategy_version!==typed.strategy_version) throw new Error('Returned profile does not match selected context; results withheld.');
+        if (report.instrument!==typed.instrument || report.strategy_id!==typed.strategy_id ||
+            report.strategy_version!==typed.strategy_version || report.timeframe_minutes!==typed.timeframe_minutes ||
+            report.research_only!==true || report.live_execution!==false) {
+          throw new Error('Returned profile does not match selected research context; results withheld.');
+        }
         radarEvidence.delete(typed.instrument); refreshRadar(currentWatches);
         output.textContent=`${report.instrument} · ${report.strategy_id} v${report.strategy_version}: candidate ${report.candidate.sample_count} samples, mean ${report.candidate.mean_net_bps ?? 'unavailable'} bps; baseline ${report.baseline.sample_count} samples, mean ${report.baseline.mean_net_bps ?? 'unavailable'} bps. ${report.unknown_clock_record_indices.length} records have unknown timing. Hypothetical next-bar comparison, not a fill or evidence of skill.`;
       } catch (error) { output.textContent=error.message; } finally {run.disabled=false;} };
@@ -825,10 +866,52 @@ function mergeEntryRules(rules) {
   });
   const planForm = document.getElementById('manual-plan-form');
   const planValue = key => document.getElementById(`plan-${key}`).value.trim();
+  function renderTradeStrategy(target) {
+    if (!selectedWatch) return;
+    const evaluation = radarEvaluations.get(selectedWatch);
+    const selected = strategyContext(selectedWatch, evaluation, planValue('product'));
+    const section = line(target, 'section', '');
+    section.id = 'radar-trade-strategy';
+    line(section, 'h5', 'Selected strategy');
+    if (!selected) {
+      line(section, 'p', 'Strategy evaluation unavailable.');
+      return;
+    }
+    line(section, 'p', strategyIdentity(selected));
+    if (selected.product !== 'CASH_SHARE') {
+      line(section, 'p', 'Strategy rules apply to the underlying cash share. Product-specific research is unavailable.');
+      return;
+    }
+    const plan = evaluation.component_plan;
+    const quality = evaluation.data_quality;
+    const evidence = plan ? 'Five-minute shadow research' : 'Historical daily research';
+    const flags = [quality?.stale && 'stale', quality?.provisional && 'provisional', quality?.partial && 'partial'].filter(Boolean);
+    line(section, 'p', [evidence, selected.source_as_of, ...flags].filter(Boolean).join(' · '));
+    const rules = evaluation.rules || [];
+    const entries = plan
+      ? rules.filter(rule => ['entry', 'trend', 'momentum'].includes(rule.id))
+      : mergeEntryRules(rules).filter(rule => ['breakout_or_reclaim', 'ema_uptrend', 'rsi_50_70'].includes(rule.id));
+    const volume = rules.find(rule => ['volume', 'volume_above_prior20'].includes(rule.id));
+    if (entries.length) {
+      const list = line(section, 'ul', '');
+      for (const rule of entries) line(list, 'li', `${rule.state} · ${rule.reason}`);
+    } else {
+      line(section, 'p', 'Entry conditions unavailable.');
+    }
+    line(section, 'p', volume ? `Volume · ${volume.state} · ${volume.reason}` : 'Volume condition unavailable.');
+    const researchPrice = (rule, price) => price == null ? rule : `${rule} · R${price}`;
+    line(section, 'p', plan
+      ? `Research stop · ${researchPrice(plan.stop, plan.stop_price)}. Research target · ${researchPrice(plan.target, plan.target_price)}.`
+      : 'Strategy stop and target are unspecified for this daily research profile.');
+    line(section, 'p', plan?.exit
+      ? `Research duration · ${plan.exit}.`
+      : 'Research horizons · 3, 4 and 5 sessions. Holding duration is unspecified.');
+  }
   function renderPlanSummary() {
     const target=document.getElementById('radar-plan-summary');
     if (!target) return;
     target.replaceChildren();
+    renderTradeStrategy(target);
     const table=document.createElement('table'); table.setAttribute('aria-label','Manual research scenario');
     const unit=planValue('price_unit')==='ZAR_CENTS' ? 'cents' : 'ZAR';
     const value=(key, suffix='') => planValue(key) ? `${planValue(key)}${suffix}` : 'Not available';

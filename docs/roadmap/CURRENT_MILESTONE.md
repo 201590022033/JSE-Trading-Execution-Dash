@@ -1,3 +1,7 @@
+## Unified roadmap R10 strategy-linked trade card — 19 November 2026
+
+R10 connects the selected share and exact strategy version to the manual trade card and the Backtest Lab handoff. VOD daily and five-minute selections were verified on the running dashboard. See [R10 evidence and rollback](R10_STRATEGY_TRADE_CARD_2026-11-19.md). R11 is next.
+
 ## Unified roadmap R09 single-component replay — 19 November 2026
 
 R09 compared the existing Sasol 2R control with a 1.5R target on the same retained Zebra history and cost model. Both produced three signals, three horizon exits and net P&L of −R4,814.83. The archived input reproduced the same report bytes and the running Backtester returned the study. See [R09 results and reproduction](R09_SASOL_TARGET_COMPARISON_2026-11-19.md). R10 is next.
