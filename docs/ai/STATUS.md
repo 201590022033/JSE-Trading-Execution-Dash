@@ -1,5 +1,9 @@
 # AI series status
 
+## Unified R15 live checkpoint — 19 November
+
+The running dashboard exposed the existing daily Qwen source-reading result with exact source and contract IDs, model digest, clocks and Mining context. A proposed date absent from the source was withheld. The macro expectation panel displayed its saved reservation and exact input ID. The current calendar paths reported zero eligible share and macro events. This verifies real receipt routing and rendering and leaves fresh Llama/share generation and cross-session unattended acceptance open. No current budget, schedule or process was changed. See [unified R15 verification](../roadmap/R15_AI_CONTEXT_AND_ROUTING_2026-11-19.md).
+
 ## Radar and AI usefulness routing — 18 November
 
 Grouped bounded first-page follow-up reads replace two queries per watch in the

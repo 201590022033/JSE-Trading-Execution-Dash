@@ -538,6 +538,26 @@ async function refreshMacroExpectations() {
     const macro = await api('/api/market-intelligence/macro-expectations');
     panel.innerHTML=`<h3>South African macro expectations</h3><p>${macro.eligible_count} eligible events | ${esc(macro.label)} | ${macro.free_gib ?? 'unknown'} GiB free (${macro.minimum_free_gib} GiB required) | ${esc(macro.model || 'model unknown')} | idle ${Math.floor(macro.idle_seconds ?? 0)}s (600s required)</p>`+macro.events.map(e=>`<p>${esc(e.event_key)} | ${esc(e.state)}${e.next_attempt_number === 2 ? ' | one retry available' : ''}</p>`).join('')+`<p>Last attempt: ${esc(macro.latest_result?.state === 'ABSTAIN' ? 'Model abstained; no expectation proposed' : (macro.latest_result?.reason || macro.latest_attempt?.reason || 'No attempt; '+macro.readiness_state))}</p>`+(macro.latest_result?.output ? `<p>${esc(macro.latest_result.output.expectation || 'ABSTAIN')}</p><pre>${esc(JSON.stringify(macro.latest_result.output.citations))}</pre>` : '');
     if (macro.latest_result) { const latest=macro.latest_result; panel.insertAdjacentHTML('beforeend', `<p>Latest result: ${esc(latest.state)} | ${esc(latest.event_key || 'event unavailable')} | ${esc(when(latest.received_at))}</p>`); }
+    const attempt = macro.latest_attempt;
+    if (attempt) {
+      const matchingResult = macro.latest_result?.record_id === attempt.record_id + '-result' ? macro.latest_result : null;
+      const input = attempt.input || {};
+      const sourceRows = (input.sources || []).map(source => {
+        let link = '';
+        try {
+          const url = new URL(source.url);
+          if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password) {
+            link = ` · <a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">Review source</a>`;
+          }
+        } catch (_) {}
+        return `<p>Input ${esc(source.source_id)} · received ${esc(source.available_at ? when(source.available_at) : 'unavailable')} · published ${esc(source.published_at ? when(source.published_at) : 'unavailable')}${link}</p>`;
+      }).join('');
+      panel.insertAdjacentHTML('beforeend', `<details><summary>Inspect saved macro model cycle</summary>
+        <p>${esc(input.event?.title || attempt.event_key)} · ${esc((input.event?.instrument_ids || []).join(', ') || 'Market context')} · ${esc(attempt.model || 'Model unavailable')} · ${esc(matchingResult?.state || 'Outcome unavailable for this reservation')}</p>
+        <p>Reservation ${esc(attempt.record_id)} · recorded ${esc(when(attempt.received_at))}</p>
+        <p>Input hash ${esc(attempt.input_sha256 || 'unavailable')} · result ${esc(matchingResult?.record_id || 'unavailable')}</p>
+        ${sourceRows || '<p>Saved source inputs unavailable.</p>'}</details>`);
+    }
     panel.insertAdjacentHTML('beforeend', macro.last_worker_check ? `<p>Last worker check: ${esc(when(macro.last_worker_check.checked_at))} | ${esc(macro.last_worker_check.state || macro.last_worker_check.readiness_state || 'unknown')} ${esc(macro.last_worker_check.reason || '')}</p>` : '<p>No worker check receipt yet.</p>');
   } catch (error) { panel.textContent = `Macro expectations unavailable: ${error.message}`; }
   return panel;
@@ -907,6 +927,30 @@ async function refreshAnticipatoryRadar() {
     const windows = d.windows.filter(w => w.active);
     const assessmentText=a => !a ? 'Qwen assessment not yet available.' : a.state==='MODEL_RECHECK_MATCH' ? 'Qwen initially missed this source link, then matched it in a separate individual recheck. Both answers are retained.' : a.state==='MODEL_ASSESSMENT_AVAILABLE' ? (a.type_origin==='RETAINED_HOST_SOURCE_KIND' ? `Experimental Qwen match; source type ${readable(a.display_type)} comes from retained source information. Check the source.` : `Experimental Qwen assessment: ${readable(a.display_type)}; check the source. This is not a forecast.`) : a.state==='MODEL_DISAGREES_WITH_HOST_SOURCE_LINK' ? 'The retained source supports the issuer, topic or calendar entry, but Qwen did not match it. Check the source.' : a.state==='MODEL_DID_NOT_MATCH' ? 'Qwen did not match its source-specific question; the source remains available.' : 'Qwen assessment unavailable or needs source review; the source remains available.';
     const eventText=a => !a ? 'Event reading has not yet checked this source.' : a.state!=='EVENT_RESPONSE_RECORDED' ? 'Event reading failed; the retained source remains available.' : !a.parsed?.has_future_event ? (a.fallback ? `Qwen found no event, but the source wording “${a.fallback.source_wording}” is a separate lead for review.` : 'Qwen found no specific future event in this excerpt; check the source if needed.') : `Experimental Qwen suggestion: ${a.parsed.event_phrase}. The event and any date need review.${a.parsed.date_issue ? ' A proposed date could not be established from the excerpt.' : ''}`;
+    const latest = d.model.latest_result;
+    const latestSource = latest?.source_id ? [
+      ...(d.source_leads || []), ...(d.sens_discovery?.sources || []), ...(d.watches || [])
+    ].find(item => item.source_id === latest.source_id) : null;
+    const linkedWatch = latest?.publication?.watch_id
+      ? (d.watches || []).find(item => item.record_id === latest.publication.watch_id && item.source_id === latest.source_id) : null;
+    const modelName = latest?.model || (latest?.model_digest && latest.model_digest === d.model.qualification?.model_digest
+      ? d.model.qualification.model : null);
+    const checkedTime = value => value ? when(value) : 'unavailable';
+    const savedReading = latest?.event_contract_id ? `<article id="radar-saved-model-reading">
+      <h3>Saved model source reading</h3>
+      <p>${esc(modelName || 'Model name unavailable')} · ${esc(readable(latest.state))} · model-generated, advisory</p>
+      <p>${esc(latestSource?.event_details?.headline || latestSource?.headline || latestSource?.quote?.split('\n')[0] || 'Saved source preview unavailable')}</p>
+      <p>Instrument ${esc((latestSource?.instrument_ids || []).join(', ') || 'unmapped')} · sector topic ${esc((latestSource?.topic_sectors || []).join(', ') || 'unavailable')} · event ${esc(latest.parsed?.event_phrase || 'unavailable')}</p>
+      <p>${esc(latest.error_type || (latest.parsed?.date_issue ? 'Model-proposed date unsupported by the retained source. Event date unavailable.' :
+        latest.parsed?.has_future_event === false ? 'No specific future event extracted.' : 'Source interpretation requires review.'))}</p>
+      ${sourceLink(latestSource?.source_url, 'Review model input source')}
+      <details${$('#radar-saved-model-reading details')?.open ? ' open' : ''}><summary>Inspect model inputs and clocks</summary>
+        <p>Source ID ${esc(latest.source_id || 'unavailable')} · receipt ID ${esc(latestSource?.source_receipt_id || 'unavailable')}</p>
+        <p>Source received ${esc(checkedTime(latestSource?.available_at || latestSource?.source_available_at))} · published ${esc(checkedTime(latestSource?.published_at))} · evidence cutoff ${esc(checkedTime(linkedWatch?.causal_cutoff))}</p>
+        <p>Started ${esc(checkedTime(latest.request_started_at))} · completed ${esc(checkedTime(latest.request_completed_at))} · saved ${esc(checkedTime(latest.received_at))} · calls ${esc(latest.model_calls ?? (latest.model_calls_upper_bound == null ? 'unavailable' : 'at most ' + latest.model_calls_upper_bound))}</p>
+        <p>Result ${esc(latest.record_id)} · contract ${esc(latest.event_contract_id)} · model digest ${esc(latest.model_digest || 'unavailable')}</p>
+        <p>Publication ${esc(readable(latest.publication?.state))} · trading weight ${esc(latest.trading_weight ?? 'unavailable')}</p>
+      </details></article>` : '';
     const renderRadarWatch=w => {
       const followups=(w.related_sources || []).map(f => {
         const method=f.match_basis==='ASSISTANT_REVIEWED_EVENT_LINK' ? 'assistant-reviewed event link' : f.match_basis==='INDIVIDUAL_EVENT_TERMS' ? 'individual event terms' : f.match_basis==='SHARED_EVENT_WORDS' ? 'shared words' : 'exact phrase';
@@ -994,6 +1038,7 @@ async function refreshAnticipatoryRadar() {
     }).join('');
     $('#anticipatory-radar-items').innerHTML = (preparation.unavailable ? '<p role="status">Event preparation is unavailable; calendar and source records remain visible.</p>' : '') + calendarCards + (pastPrimary ? `<details><summary>Recent South African event dates</summary>${pastPrimary}</details>` : '') + (secondaryCards ? `<details><summary>Secondary US events</summary>${secondaryCards}</details>` : '') + windows.map(w => `<article><h3>${esc(w.title)} · ${w.hours}h preparation</h3><p>${esc(w.instrument_ids.join(', ') || 'Market context')} · ${esc(readable(w.model_state))}</p><p>${esc(w.source_quote)}</p><p class="muted">Saved ${esc(when(w.observed_at))} · actual lead ${num(w.lead_hours)} hours · ${esc(readable(w.time_precision))}</p>${sourceLink(w.source_url, 'Event source ↗')}</article>`).join('') + d.watches.slice(0,40).map(renderRadarWatch).join('') + sensState + sensCards + sourceCards || '<p>No recent source leads or upcoming calendar events. Source collection continues on its saved schedule.</p>';
     const sourcePanel = $('#anticipatory-radar-items');
+    if (savedReading) sourcePanel.insertAdjacentHTML('afterbegin', savedReading);
     const showRetainedSource = async button => {
       const card = button.closest('article');
       let output = card.querySelector('.retained-source-detail');

@@ -1,3 +1,7 @@
+## Unified roadmap R15 model cycle and context — 19 November 2026
+
+R15 exposes a real scheduled Qwen source-reading cycle and the saved macro reservation on the running dashboard. The report retains model, source and result identity, clocks and explicit uncertainty. Dashboard reads made zero model calls. The current calendar paths had no eligible event for a fresh generation. See [R15 verification](R15_AI_CONTEXT_AND_ROUTING_2026-11-19.md). R16 is next.
+
 ## Unified roadmap R14 retained news themes — 19 November 2026
 
 R14 adds read-only theme comparisons across two seven-day receipt windows. The selected-share view shows source coverage, story grouping, direct issuer mentions and reviewable source links. Live SARB/rand and MTN transaction cases were verified. See [R14 evidence](R14_RETAINED_NEWS_THEMES_2026-11-19.md). R15 is next.
