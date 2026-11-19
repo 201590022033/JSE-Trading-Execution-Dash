@@ -187,11 +187,11 @@ function mergeEntryRules(rules) {
       }
     }
   }
-  const indicatorPanel = document.createElement('section');
+  const indicatorPanel = document.createElement('details');
   indicatorPanel.id = 'radar-selected-indicators';
   indicatorPanel.hidden = true;
   document.getElementById('radar-selected-actions').after(indicatorPanel);
-  const indicatorTitle = line(indicatorPanel, 'h4', 'Research indicators');
+  const indicatorTitle = line(indicatorPanel, 'summary', 'Research indicators');
   indicatorTitle.id = 'radar-indicator-title';
   indicatorPanel.setAttribute('aria-labelledby', indicatorTitle.id);
   const indicatorRefresh = line(indicatorPanel, 'button', 'Refresh indicators');
@@ -335,7 +335,8 @@ function mergeEntryRules(rules) {
       }
       if (!document.getElementById('radar-points').contains(document.activeElement)) renderRadar();
       refreshRadar(currentWatches);
-      state.textContent = `${currentWatches.length} visible radar choice${currentWatches.length === 1 ? '' : 's'} (max 6) · ${retainedWatches.length} retained outside radar · no automatic price feed`;
+      state.textContent = `${currentWatches.length} watched · ${retainedWatches.length} retained`;
+      state.title = 'Up to five ranked shares and one manual pin. Other watches stay in the retained list.';
       status.textContent = data.watches.length ? `Showing Top 5 plus at most one manual pin. Other watch records remain retained below; ranking generated ${data.ranking_receipt?.source_generated_at || 'time unavailable'}. Provider acquisition times are retained per source.` : 'No daily watches yet. A successful Top 5 screen or a pin starts one.';
       for (const watch of currentWatches) {
         const card = document.createElement('article'); card.className = 'radar-watch';
@@ -526,6 +527,15 @@ function mergeEntryRules(rules) {
     return `${context.instrument} · ${context.strategy_id} v${context.strategy_version} · ${context.product} · ${timeframe}`;
   }
   function renderRadar() {
+    const counts = document.getElementById('radar-counts');
+    const evaluated = currentWatches.map(watch => radarEvaluations.get(watch.instrument));
+    counts.replaceChildren();
+    for (const [label, count, css] of [
+      ['Developing', evaluated.filter(item => item?.state === 'DEVELOPING').length, 'developing'],
+      ['Entry met', evaluated.filter(item => item?.state === 'ENTRY_MET').length, 'met'],
+      ['Data limited', evaluated.filter(item => !item || item.state === 'UNKNOWN' || item.unknown > 0 ||
+        item.data_quality?.stale || item.data_quality?.partial).length, 'limited']
+    ]) line(counts, 'span', `${label} (${count})`).className = 'radar-count-' + css;
     const container = document.getElementById('radar-points'); container.replaceChildren();
     const empty=document.getElementById('radar-empty-message'); empty.hidden = currentWatches.length > 0;
     empty.textContent='No watched shares yet.';
@@ -765,7 +775,9 @@ function mergeEntryRules(rules) {
       }
     }
     else line(trace,'p','Strategy trace and volume unavailable.');
-    const actions=document.getElementById('radar-selected-actions'); actions.replaceChildren();
+    const actions=document.getElementById('radar-selected-actions');
+    const moreActionsWereOpen = actions.querySelector('.radar-secondary-actions')?.open;
+    actions.replaceChildren();
     if (instrument === 'MTN') {
       const refresh=line(actions,'button','Refresh ShareData quote'); refresh.type='button';
       refresh.onclick=async()=>{ refresh.disabled=true; try {
@@ -774,8 +786,20 @@ function mergeEntryRules(rules) {
       } catch (_) { line(context,'p','ShareData quote unavailable or source date unverified.'); }
       finally { refresh.disabled=false; } };
     }
-    for (const [label,destination] of [['Backtest','backtest-lab'],['Ask Panel','ask'],['News & SENS','market-ai'],['Technical','technical-view'],['Sector & fundamentals','sector'],['Costs','costs'],[watch.pinned?'Unpin':'Pin','pin']]) {
-      const button=line(actions,'button',label); button.type='button'; button.onclick=()=>handoff(destination,watch);
+    const primaryActions = line(actions, 'div', '');
+    primaryActions.className = 'radar-primary-actions';
+    actions.prepend(primaryActions);
+    const moreActions = line(actions, 'details', '');
+    moreActions.className = 'radar-secondary-actions';
+    moreActions.open = !!moreActionsWereOpen;
+    line(moreActions, 'summary', 'More actions');
+    for (const [parent, label, destination] of [
+      [primaryActions,'Backtest','backtest-lab'], [primaryActions,'Ask Panel','ask'],
+      [primaryActions,'News & SENS','market-ai'], [primaryActions,'Costs','costs'],
+      [moreActions,'Technical','technical-view'], [moreActions,'Sector & fundamentals','sector'],
+      [moreActions,watch.pinned?'Unpin':'Pin','pin']
+    ]) {
+      const button=line(parent,'button',label); button.type='button'; button.onclick=()=>handoff(destination,watch);
     }
     try {
       if (product !== 'CASH_SHARE' || !evaluation?.strategy_id) throw new Error('Exact product/profile evidence not linked');
@@ -1055,14 +1079,10 @@ function mergeEntryRules(rules) {
   function renderPlanSummary() {
     const target=document.getElementById('radar-plan-summary');
     if (!target) return;
+    const detailsWereOpen = target.querySelector('.radar-plan-basis')?.open;
     target.replaceChildren();
-    renderTradeStrategy(target);
     const product = planProducts[planValue('product')];
     const mapping = product?.ost_mapping_state;
-    line(target, 'p', `${product?.label || planForm.querySelector('#plan-product').selectedOptions[0].textContent} · ${mapping === 'PARTIAL_VERIFIED' ? 'OST format verified for some fields' : 'OST field format unverified'}.`);
-    if (product && !product.calculator) {
-      line(target, 'p', `Cost estimate unavailable · required terms: ${product.required_terms.map(term => term.replaceAll('_', ' ')).join(', ')}.`);
-    }
     const table=document.createElement('table'); table.setAttribute('aria-label','Manual research scenario');
     const unit=planValue('price_unit')==='ZAR_CENTS' ? 'cents' : 'ZAR';
     const value=(key, suffix='') => planValue(key) ? `${planValue(key)}${suffix}` : 'Not available';
@@ -1079,17 +1099,32 @@ function mergeEntryRules(rules) {
     const zar = amount => amount == null ? 'Not available' : `R${amount}`;
     const quantityUnit = product?.quantity_unit?.replaceAll('_', ' ');
     const rows = [
+      ['Estimated costs at target', zar(costs)], ['Projected net at target', zar(net)],
       ['Entry', price('entry')], ['Stop', price('stop_trigger')], ['Target', price('target')],
       ['Quantity', value('quantity', quantityUnit ? ` ${quantityUnit}` : '')],
+      ['Hold', value('holding_horizon')]
+    ];
+    const costRows = [
       ['Entry fees', zar(fee(estimate || stop, 'entry'))],
       ['Target exit fees', zar(fee(estimate, 'exit'))], ['Stop exit fees', zar(fee(stop, 'exit'))],
       ['Financing', planValue('product') === 'CFD' ? zar((estimate || stop)?.net_financing_cost) : 'Outside this estimate'],
-      ['Estimated costs at target', zar(costs)], ['Projected net at target', zar(net)],
-      ['Estimated loss at stop', zar(stop?.estimated_loss)], ['Hold', value('holding_horizon')]
+      ['Estimated loss at stop', zar(stop?.estimated_loss)]
     ];
     for (const [name,text] of rows) { const row=document.createElement('tr'); const heading=line(row,'th',name); heading.scope='row'; line(row,'td',text); table.append(row); }
     target.append(table);
-    line(target, 'p', lastPlan ? 'Scenario estimate · current account tariffs unverified.' : 'Account tariffs are unverified. Calculate to see scenario estimates.');
+    line(target, 'p', lastPlan ? 'Scenario estimate · account tariffs unverified.' : 'Account tariffs unverified.');
+    const basis = line(target, 'details', '');
+    basis.className = 'radar-plan-basis';
+    basis.open = !!detailsWereOpen;
+    line(basis, 'summary', 'Fee breakdown and strategy basis');
+    const costTable = line(basis, 'table', '');
+    costTable.setAttribute('aria-label', 'Fee breakdown');
+    for (const [name,text] of costRows) { const row=line(costTable,'tr',''); const heading=line(row,'th',name); heading.scope='row'; line(row,'td',text); }
+    line(basis, 'p', mapping === 'PARTIAL_VERIFIED' ? 'OST format verified for some fields.' : 'OST field format unverified.');
+    if (product && !product.calculator) {
+      line(basis, 'p', `Cost estimate unavailable · required terms: ${product.required_terms.map(term => term.replaceAll('_', ' ')).join(', ')}.`);
+    }
+    renderTradeStrategy(basis);
   }
   function updatePlanProduct() {
     const product = planValue('product');

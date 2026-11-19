@@ -221,7 +221,9 @@
     checkButton.addEventListener('click', () => check(id));
     bar.append(output, freshness, checkButton);
     const buttons = [checkButton];
-    tab.prepend(bar); controls[id] = {nav, output, buttons};
+    if (id === 'market-overview') tab.append(bar);
+    else tab.prepend(bar);
+    controls[id] = {nav, output, buttons};
     nav.addEventListener('click', () => { check(id); loadFreshness(); });
     check(id);
   });

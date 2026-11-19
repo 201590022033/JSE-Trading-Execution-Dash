@@ -1,3 +1,7 @@
+## Unified roadmap R17 dashboard hierarchy and handoffs — 19 November 2026
+
+R17 aligns the live dashboard with the agreed Radar, decision card and context hierarchy. Costs and four primary actions are visible before supporting disclosures. Keyboard selection and collapse, the 390 px layout, and real same-share Backtest, Ask Panel and News handoffs were verified. See [R17 mockup comparison](R17_DASHBOARD_HIERARCHY_2026-11-19.md). R18 is next.
+
 ## Unified roadmap R16 AI follow-up and recovery — 19 November 2026
 
 R16 verified the dashboard handoff from the retained daily Qwen reading to its exact watch, and showed two linked macro failure/retry pairs with separate review and outcome coverage. Fresh calendar generation was ineligible at verification. See [R16 evidence](R16_AI_FOLLOWUP_AND_RECOVERY_2026-11-19.md). The unified roadmap continues through R17 and R18.

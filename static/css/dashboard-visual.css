@@ -114,3 +114,46 @@ nav button:focus-visible,button:focus-visible,select:focus-visible{outline:3px s
 .radar-alert-banner { display:flex; flex-wrap:wrap; align-items:center; gap:.75rem; margin:.75rem 0; padding:.8rem 1rem; border:2px solid #c27b13; border-radius:.6rem; background:#fff5db; color:#402900; }
 .radar-alert-banner[hidden] { display:none; }
 .radar-alert-banner span { flex:1 1 20rem; font-weight:600; }
+
+/* R17: present the decision and investigation before supporting disclosures. */
+#market-overview > .tab-data-status{margin-top:14px}
+.radar-alert-banner{gap:8px;padding:6px 12px;border:1px solid #986b30;background:#251e15;color:#ffdfaa}
+.radar-alert-banner button{min-height:32px;padding:4px 9px}
+.uim-market-strip{column-gap:18px;row-gap:5px}
+#uim-market-clock{white-space:normal;overflow-wrap:anywhere}
+.radar-layout{align-items:start}
+.radar-detail{background:radial-gradient(ellipse at 95% 0%,#0c3939 0,transparent 44%),linear-gradient(150deg,#0b202d,#071825)}
+.radar-detail h3{border-left:4px solid #22eacb;padding-left:10px}
+#radar-counts{display:flex;flex-wrap:wrap;gap:5px 12px}
+#radar-counts span::before{content:'';display:inline-block;width:8px;height:8px;margin-right:5px;border:1px solid currentColor;border-radius:50%}
+.radar-count-developing::before{color:#31d5cf}.radar-count-met::before{color:#50e7a1;background:currentColor}.radar-count-limited::before{color:#ffd16a}
+.radar-detail .radar-actions{display:flex;flex-direction:column;align-items:stretch}
+.radar-primary-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.radar-primary-actions button{min-width:0;min-height:44px;font-weight:650}
+.radar-primary-actions button:first-child{background:#16cdb7;color:#062623;border-color:#46f7e1}
+.radar-secondary-actions,.radar-plan-basis,#radar-selected-indicators{margin-top:8px;font-size:12px}
+.radar-secondary-actions summary,.radar-plan-basis summary,#radar-selected-indicators > summary{cursor:pointer;color:#9bece2}
+.radar-secondary-actions button{margin:6px 6px 0 0}
+#radar-plan-summary table{margin:0;table-layout:fixed}
+#radar-plan-summary th{width:52%;text-align:left;letter-spacing:0;text-transform:none;font-size:12px}
+#radar-plan-summary td{font-weight:650}
+#radar-plan-summary > table tr:nth-child(2){border-bottom:2px solid #39636a}
+#radar-plan-summary > table tr:nth-child(-n+2) th{color:#a9f2e8}
+.uim-context-row{align-items:start}
+@media(min-width:1100px){
+ .strategy-radar-shell>details[open]>summary{left:18px;top:14px;width:calc((100% - 14px) / 2.03 - 36px);max-width:none;flex-wrap:nowrap}
+ .strategy-radar-shell>details>summary::after{font-size:12px}
+ .radar-visual{padding-top:59px}
+ .radar-toolbar{gap:8px}
+}
+@media(max-width:760px){
+ body>header{padding:10px 12px;gap:5px}
+ body>header .eyebrow{display:none}
+ body>header .pill{margin:0;font-size:10px}
+ .radar-primary-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .uim-market-strip{padding:8px 10px}
+ #uim-market-clock{font-size:10px;line-height:1.25}
+ .radar-price-row{min-height:0}
+ .strategy-radar-shell>details>summary{gap:7px}
+ .radar-detail,.radar-visual,.uim-context-card{min-width:0}
+}
