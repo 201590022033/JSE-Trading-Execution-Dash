@@ -118,7 +118,28 @@ def status(service):
     if not path.exists():
         return {'jobs': [], 'state': 'NOT_STARTED'}
     import sqlite3
+    import json
     from contextlib import closing
     with closing(sqlite3.connect(f'{path.as_uri()}?mode=ro', uri=True)) as db:
-        rows = db.execute('SELECT id,state,attempt,updated FROM jobs ORDER BY updated DESC LIMIT 50').fetchall()
-    return {'state': 'AVAILABLE', 'jobs': [dict(zip(('id', 'state', 'attempt', 'updated'), row)) for row in rows]}
+        rows = db.execute('SELECT id,state,attempt,updated,spec,result FROM jobs ORDER BY updated DESC,id DESC LIMIT 50').fetchall()
+    jobs = []
+    for identity, state, attempt, updated, spec_json, result_json in rows:
+        try:
+            spec = json.loads(spec_json)
+            result = json.loads(result_json) if result_json else {}
+            if not isinstance(spec, dict) or not isinstance(result, dict):
+                raise ValueError('invalid job')
+        except (ValueError, TypeError):
+            spec, result = {}, {}
+        lane = spec.get('lane') if spec.get('lane') in ('viewpoint', 'sens', 'backtester') else 'legacy'
+        limit = 1 if lane == 'backtester' else 3 if lane in ('sens', 'viewpoint') else None
+        job = {'id': identity, 'state': state, 'attempt': attempt, 'updated': updated,
+               'lane': lane, 'max_attempts': limit,
+               'retry_available': state == 'FAILED' and limit is not None and attempt < limit}
+        if lane == 'backtester':
+            job['instrument'] = spec.get('instrument')
+        if state == 'FAILED':
+            job['error_type'] = result.get('error_type') or result.get('state')
+            job['returncode'] = result.get('returncode')
+        jobs.append(job)
+    return {'state': 'AVAILABLE', 'jobs': jobs}

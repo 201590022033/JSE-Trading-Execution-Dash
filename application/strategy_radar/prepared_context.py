@@ -110,6 +110,7 @@ def build_packet(service, *, reason, now, news_report=None, news_status=None, ev
         raise ValueError('registered imported instrument required')
 
     from .intraday_store import IntradayCache, merge_bars, five_minute_updates
+    from .intraday_indicators import indicator_snapshot, daily_indicator_snapshot
 
     watches = [item for item in service.store.list_watches()
                if item.get('in_top5') or item.get('pinned')][:MAX_CHOICES]
@@ -141,11 +142,13 @@ def build_packet(service, *, reason, now, news_report=None, news_status=None, ev
             'daily_as_of': daily_as_of,
             'daily_latest_session': daily.get('latest_session') or daily.get('as_of_session'),
             'daily_cache_error': daily_error,
+            'daily_indicators': daily_indicator_snapshot(daily.get('history') or {}, as_of=now),
             'intraday': {
                 'available_bars': len(bars),
                 'bars': [_compact_bar(bar) for bar in bars[-MAX_BARS_PER_CHOICE:]],
                 'unknown_clock_count': len(merged.get('unknown_clock_records') or []),
                 'latest_five_minute_update': updates[-1] if updates else None,
+                'five_minute_indicators': indicator_snapshot(records, as_of=now),
             },
         })
 

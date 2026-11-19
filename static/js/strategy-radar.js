@@ -148,6 +148,14 @@ function mergeEntryRules(rules) {
               json(`/api/v1/strategy-radar/quotes/${encodeURIComponent(watch.instrument)}`).catch(() => null)
             ]);
             evidence.replaceChildren();
+            for (const [label, snapshot] of [['Daily Zebra', data.daily_indicators], ['Five-minute ViewPoint / retained', data.five_minute_indicators]]) {
+              if (!snapshot) continue;
+              line(evidence, 'p', `${label} indicators · completed bar ${snapshot.latest_bar_end || 'unavailable'} · research history, not a live quote`);
+              for (const [name, indicator] of Object.entries(snapshot.indicators || {})) {
+                const values = Object.entries(indicator.values || {}).map(([key, value]) => `${key}=${typeof value === 'number' ? Number(value.toFixed(3)) : value}`).join(', ');
+                line(evidence, 'p', `${name}: ${indicator.available ? values : indicator.reason || 'unavailable'} · ${indicator.bars_used || 0} bars · ${indicator.version || 'not calculated'}`);
+              }
+            }
             for (const field of ['bid','ask','last']) {
               const value = quote?.fields?.[field]?.selected;
               line(evidence, 'p', value ? `${field}: R${value.value} · ${value.kind} · source ${value.provider} · source time ${value.source_time || 'unknown'} · received ${value.received_at} (${Math.floor(value.receipt_age_seconds / 60)} minutes ago)` : `${field}: unavailable`);
@@ -810,7 +818,7 @@ function mergeEntryRules(rules) {
       const title=document.createElement('h4'); title.textContent='Work roster'; panel.append(title);
       const refresh=document.createElement('button'); refresh.type='button'; refresh.textContent='Refresh job status';
       refresh.addEventListener('click',loadRoster); panel.append(refresh);
-      const sens=document.createElement('button'); sens.type='button'; sens.textContent='Process retained SENS'; panel.append(sens);
+      const sens=document.createElement('button'); sens.type='button'; sens.textContent='Run SENS tick (existing AI rules apply)'; panel.append(sens);
       const label=document.createElement('label'); label.textContent='Backtester instrument ';
       const instrument=document.createElement('input'); instrument.maxLength=16; instrument.placeholder='MTN'; label.append(instrument); panel.append(label);
       const backtest=document.createElement('button'); backtest.type='button'; backtest.textContent='Queue one deterministic research cycle'; panel.append(backtest);
@@ -830,7 +838,7 @@ function mergeEntryRules(rules) {
     try {
       const result=await json('/api/v1/strategy-radar/work-roster'); output.replaceChildren();
       if (!result.jobs.length) line(output,'p','No roster jobs recorded yet.');
-      result.jobs.forEach(job=>line(output,'p',`${job.state} · attempt ${job.attempt} · ${job.updated}`));
+      result.jobs.forEach(job=>line(output,'p',`${job.lane || 'legacy'}${job.instrument ? ` · ${job.instrument}` : ''} · ${job.state} · attempt ${job.attempt}${job.max_attempts ? `/${job.max_attempts}` : ''}${job.retry_available ? ' · retry eligible' : ''}${job.error_type ? ` · ${job.error_type}` : ''}${job.returncode != null ? ` · exit ${job.returncode}` : ''} · ${job.updated}`));
     } catch(error) { output.textContent=`Work roster unavailable: ${error.message}`; }
   }
   async function loadMonitor() {

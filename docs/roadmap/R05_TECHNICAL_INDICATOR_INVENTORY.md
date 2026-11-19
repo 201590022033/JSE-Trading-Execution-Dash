@@ -1,0 +1,24 @@
+# R05 — Technical indicator reconciliation
+
+Checked against the current checkout on 19 November 2026. This is an implementation inventory, not a claim that the live radar calculates every entry. `technical_feature_registry.py` owns the research registry; `intraday_features.py` extends it for HR11. The separate `domain/features/technical.py` registry supplies legacy/candidate strategy features. Frozen HR7 and HR11 artifacts are unchanged.
+
+| Requested family | Existing calculation and parameters | Current registry / use | Important limitation |
+| --- | --- | --- | --- |
+| RSI | HR7 `asset_specific_technicals.py`, reused by `intraday_features._continuous`; 14 periods | Intraday `intraday_continuous` output; legacy RSI separately in `data_pipeline.py` | Standalone daily `rsi` research entry says planned; legacy and HR7 variants must not be conflated. |
+| EMA | `intraday_features._continuous`, 12/26, using `research_indicators._ema` | Intraday `intraday_continuous` outputs fast, slow and spread; several backtest component engines also implement EMA | Standalone daily `ema_structure` entry says planned. No current radar-cache-to-indicator consumer established. |
+| Stochastic | `intraday_features._continuous`, 14-bar high/low %K and three-value %D | Intraday group; legacy `domain/features/technical.py` has a different close-only stochastic | The standalone daily OHLC entry says planned. ViewPoint displayed `(14,n,3,3)`; equivalence to this implementation has not been verified. |
+| Ichimoku | `ichimoku_features.calculate_ichimoku`, default 9/26/52 with displacement 26; 78 bars | Implemented `ichimoku` in the existing daily and intraday research registries | Needs OHLC capability; a chart comparison and current radar integration remain open. No future bars may be used. |
+| MACD, Bollinger, ATR, ADX/DMI, relative strength, relative volume, session context | `research_indicators.calculate_expanded_indicators` | Ten daily registry entries implemented in total, including Ichimoku, Fibonacci and candlesticks | Fields have differing warmups and OHLC, benchmark, volume or session requirements. |
+| Intraday session structure | `intraday_features.extend_registry` | `intraday_session` adds highs/lows, opening range, VWAP and session gap context | Session boundaries and observed volume are required where relevant. |
+
+The registry has 30 daily definitions: 10 marked implemented and 20 marked planned. Its intraday extension has 32 definitions: 12 marked implemented and the same 20 planned. Planned names are accumulation/distribution, Aroon, CCI, Chaikin money flow, Donchian, EMA structure, Keltner, MFI, OBV, parabolic SAR, price gap, realized volatility, ROC, RSI, SMA structure, stochastic, Supertrend, support/resistance, swing structure and Williams %R. Some of these names have partial outputs inside the implemented intraday groups; a planned standalone entry does not prove the math is absent everywhere. Conversely, an available group does not mean every output is present for every data sample.
+
+## Existing consumers and wiring gap
+
+`hr11_research.py` calls `intraday_features.compute_features`; tests exercise its historical/prefix behavior. The live Strategy Radar reads `intraday_store.py` through `shadow_service.py` and `intraday_evaluation.py`; those paths do not call the HR11 registry. `prepared_context.py` includes the latest source-bearing five-minute update but does not calculate this indicator registry. Consequently, retained table bars and a registry are present, but a live radar indicator refresh is not established. R06 must connect the existing cache to calculations and expose individual results without creating another feed.
+
+`compute_features` currently returns an empty feature set for any stale/missing close or within-session gap across its supplied history. It also computes OHLC and volume capability across the full supplied input. R06 must use relevant valid windows and report per-indicator availability so an unrelated historical gap or missing volume does not erase a usable price-only calculation; do not invent missing sessions or label partial windows complete. Preserve actual bar and receipt clocks, definitions, source revisions and evidence of which inputs were used. Do not change frozen HR7/HR11 results or market/trading controls.
+
+## Acceptance and next step
+
+The standalone names remain unmodified to preserve existing contracts; the explicit mapping above identifies the existing implementation and the gap rather than introducing a competing registry. R06 should expose requested indicator snapshots for the selected share from retained completed bars, independently report each unavailable component, and compare settings against ViewPoint without assuming numeric parity. This inventory is rolled back by removing this document; code and data are unaffected.
