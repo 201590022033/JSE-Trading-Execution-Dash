@@ -1309,6 +1309,9 @@ function mergeEntryRules(rules) {
         const instruments = Object.entries(collection.instruments || {}).map(([instrument, status]) => `${instrument} ${status}`);
         output.textContent += ` · ViewPoint ${collection.state || 'unknown'} · checked ${formatIndicatorTime(collection.checked_at)}`;
         if (instruments.length) output.textContent += ` · ${instruments.join(', ')}`;
+        for (const [instrument, failure] of Object.entries(collection.errors || {})) {
+          if (failure?.stage) output.textContent += ` · ${instrument}: ${failure.stage}${failure.error ? ` (${failure.error})` : ''}`;
+        }
         if (collection.error?.stage) output.textContent += ` · last browser step ${collection.error.stage}`;
       }
       const summary=document.getElementById('radar-monitor-summary'); if (summary) summary.textContent=output.textContent;

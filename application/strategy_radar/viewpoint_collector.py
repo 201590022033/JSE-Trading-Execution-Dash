@@ -105,7 +105,7 @@ def _step(stage, action):
     from playwright.sync_api import Error
     try:
         return action()
-    except (Error, OSError, ValueError) as exc:
+    except (AssertionError, Error, OSError, ValueError) as exc:
         raise ExportFailure(stage, exc) from exc
 
 
@@ -141,9 +141,22 @@ def _export(page, symbol):
     _step('verify five minute symbol', lambda: chart.wait_for(state='visible', timeout=15000))
     _step('open data table', lambda: _activate(page.get_by_role('button', name='Table View', exact=True)))
     _step('verify table symbol', lambda: dialog.get_by_role('heading', name=f'Symbol: {symbol}', exact=True).wait_for(state='visible'))
-    if not dialog.get_by_role('columnheader', name='Volume', exact=True).count():
-        _step('enable volume', lambda: _activate(dialog.get_by_role('switch', name='Show Additional Columns'), key='Space'))
-    _step('verify volume', lambda: dialog.get_by_role('columnheader', name='Volume', exact=True).wait_for(state='visible'))
+    volume = dialog.get_by_role('columnheader', name='Volume', exact=True)
+    if not volume.is_visible():
+        columns = dialog.get_by_role('switch', name='Show Additional Columns')
+        checked = _step('read volume setting', lambda: columns.get_attribute('aria-checked'))
+        if checked == 'true':
+            from playwright.sync_api import TimeoutError
+            try:
+                volume.wait_for(state='visible', timeout=1500)
+            except TimeoutError:
+                _step('reset additional columns', lambda: _activate(columns, key='Space'))
+                from playwright.sync_api import expect
+                _step('verify additional columns off', lambda: expect(columns).to_have_attribute('aria-checked', 'false', timeout=2500))
+                _step('enable volume', lambda: _activate(columns, key='Space'))
+        else:
+            _step('enable volume', lambda: _activate(columns, key='Space'))
+    _step('verify volume', lambda: volume.wait_for(state='visible', timeout=5000))
     download = _step('download table', lambda: _download_table(page, dialog))
     name = download.suggested_filename
     match = _EXPORT.fullmatch(name)
@@ -192,7 +205,7 @@ class ViewPointCollector:
         retry = [key for key, error in first.get('errors', {}).items()
                  if first.get('state') == 'CHECKED'
                  and first.get('instruments', {}).get(key) == 'EXPORT_UNAVAILABLE'
-                 and error.get('stage') == 'verify five minute symbol'
+                 and error.get('stage') in {'verify five minute symbol', 'verify volume'}
                  and error.get('error') == 'TimeoutError']
         if not retry or monotonic() >= deadline:
             return first
@@ -218,7 +231,7 @@ class ViewPointCollector:
                     result['retry_state'] = attempt.get('state')
                     break
                 error = attempt.get('errors', {}).get(key, {})
-                if (error.get('stage'), error.get('error')) != ('verify five minute symbol', 'TimeoutError'):
+                if error.get('error') != 'TimeoutError' or error.get('stage') not in {'verify five minute symbol', 'verify volume'}:
                     break
         return result
 

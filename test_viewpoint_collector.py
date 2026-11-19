@@ -135,6 +135,33 @@ class ViewPointCollectorTests(unittest.TestCase):
         self.assertEqual(raised.exception.detail['stage'], 'verify native filename')
         download.path.assert_not_called()
 
+    def test_delayed_volume_header_does_not_toggle_enabled_columns(self):
+        page = self.export_page()
+        dialog = page.get_by_role('dialog', name='Data Table')
+        volume, switch = MagicMock(), MagicMock()
+        volume.is_visible.return_value = False
+        switch.get_attribute.return_value = 'true'
+        dialog.get_by_role.side_effect = lambda role, **kwargs: {
+            'columnheader': volume, 'switch': switch,
+        }.get(role, MagicMock())
+        download = MagicMock(suggested_filename='invalid.csv')
+        with patch.object(collector, '_download_table', return_value=download):
+            with self.assertRaises(collector.ExportFailure):
+                collector._export(page, 'MTN.JSE')
+        switch.click.assert_not_called()
+        self.assertEqual([call.kwargs['timeout'] for call in volume.wait_for.call_args_list], [1500, 5000])
+
+        from playwright.sync_api import TimeoutError
+        volume.wait_for.reset_mock(side_effect=True)
+        volume.wait_for.side_effect = [TimeoutError('header missing'), None]
+        with patch('playwright.sync_api.expect') as expect, \
+                patch.object(collector, '_download_table', return_value=download):
+            with self.assertRaises(collector.ExportFailure):
+                collector._export(page, 'MTN.JSE')
+        expect.assert_called_once_with(switch)
+        expect.return_value.to_have_attribute.assert_called_once_with('aria-checked', 'false', timeout=2500)
+        self.assertEqual(switch.click.call_count, 2)
+
     def test_successful_collection_retains_raw_bytes_and_native_lineage(self):
         raw = (b'"Date","Open","High","Low","Close","Volume"\n'
                b'"2026-11-13T14:40:00.000Z","23450","23460","23440","23455","12345"\n')

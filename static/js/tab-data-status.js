@@ -13,6 +13,7 @@
   const controls = {};
   const freshnessAreas = {};
   let freshnessSnapshot = null;
+  let freshnessFailure = '';
   let freshnessRequest = null;
   let refreshAfterRequest = false;
   const downloadMessages = new Map();
@@ -53,8 +54,14 @@
     host.replaceChildren();
     const sources = freshnessSnapshot?.areas?.[area] || [];
     if (!sources.length) {
-      host.textContent = 'Source freshness unavailable.';
+      host.textContent = freshnessFailure || 'No source freshness records returned for this area.';
       return;
+    }
+    if (freshnessFailure) {
+      const warning = document.createElement('p');
+      warning.setAttribute('role', 'status');
+      warning.textContent = `${freshnessFailure} Showing the last successful check at ${new Date(freshnessSnapshot.checked_at).toLocaleString('en-ZA', {timeZone:'Africa/Johannesburg'})} SAST.`;
+      host.append(warning);
     }
     for (const source of sources) {
       const row = document.createElement('div');
@@ -149,9 +156,12 @@
           const response = await fetch('/api/v1/data-freshness', {cache:'no-store', signal:AbortSignal.timeout(20000)});
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           freshnessSnapshot = await response.json();
+          freshnessFailure = '';
           for (const area of Object.keys(freshnessAreas)) renderFreshness(area);
         } catch (error) {
-          for (const host of Object.values(freshnessAreas)) host.textContent = `Freshness status unavailable: ${error.message}`;
+          freshnessFailure = error.name === 'TimeoutError'
+            ? 'The latest freshness check timed out.' : `The latest freshness check failed (${error.message}).`;
+          for (const area of Object.keys(freshnessAreas)) renderFreshness(area);
         }
       } while (refreshAfterRequest);
     })().finally(() => { freshnessRequest = null; });

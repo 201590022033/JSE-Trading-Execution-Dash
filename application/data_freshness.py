@@ -108,8 +108,10 @@ def build_dashboard_freshness(now, *, news_feed, screen_status, screen_items,
                                action='refresh-news', note='Existing dashboard stale threshold: 24 hours.')
     if news_clock['expires_at'] and now >= datetime.fromisoformat(news_clock['expires_at']):
         news_clock['state'] = 'STALE'
-    elif news_state in ('AVAILABLE', 'PARTIAL'):
+    elif last_success and news_state in ('AVAILABLE', 'PARTIAL'):
         news_clock['state'] = 'FRESH'
+    elif not last_success and news_state in ('AVAILABLE', 'PARTIAL'):
+        news_clock['state'] = 'UNKNOWN'
     areas['market-ai'].append(news_clock)
 
     if event_radar:
@@ -198,12 +200,37 @@ def build_dashboard_freshness(now, *, news_feed, screen_status, screen_items,
                 basis='Four-day receipt expiry plus current-session coverage',
                 note='Research-data receipt status is unavailable.'))
 
+    from application.strategy_radar.intraday_aggregation import derive_30m_records
     for row in radar_inputs or []:
         key = row['instrument']
         bars = row.get('bars') or []
         for interval in (5, 30):
             clock = intraday_clock(f'viewpoint-{interval}m:{key}', f'ViewPoint {interval}-minute bars · {key}',
                                    bars, key, interval, now, action='manual-source')
+            if interval == 30:
+                # Recent aligned buckets are sufficient for the freshness
+                # window. Keep native 30-minute evidence independent.
+                cutoff = now - timedelta(days=7)
+                buckets = {}
+                for bar in bars:
+                    if bar.get('interval_minutes') != 5 or bar.get('source') != 'IRESS_VIEWPOINT_TABLE_CSV':
+                        continue
+                    try:
+                        start = _aware(datetime.fromisoformat(bar['bar_start']))
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    if start >= cutoff:
+                        bucket = start.replace(minute=start.minute // 30 * 30, second=0, microsecond=0)
+                        buckets.setdefault(bucket, []).append(bar)
+                derived_bars = []
+                for bucket in sorted(buckets, reverse=True):
+                    derived_bars = derive_30m_records(buckets[bucket], as_of=now)
+                    if derived_bars:
+                        break
+                derived = intraday_clock(f'viewpoint-derived-30m:{key}', f'ViewPoint derived 30-minute bars · {key}',
+                                         derived_bars, key, 30, now, action='manual-source')
+                if derived['last_seen_at'] and (not clock['last_seen_at'] or derived['last_seen_at'] > clock['last_seen_at']):
+                    clock = derived
             areas['market-overview'].append(clock)
             areas['technical-view'].append(clock.copy())
             areas['backtest-lab'].append(clock.copy())
