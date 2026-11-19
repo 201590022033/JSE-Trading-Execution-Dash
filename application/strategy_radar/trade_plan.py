@@ -1,8 +1,9 @@
 """Product-aware manual plan estimates; research only, never submits orders."""
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_FLOOR, ROUND_HALF_UP
 from application.backtest_lab.share_cost_estimate import estimate as estimate_share
 from application.backtest_lab.cfd_cost_estimate import estimate_cfd
 
+MAX_QUANTITY = 100000000
 SUPPORTED = {'CASH_SHARE', 'CFD'}
 PRODUCT_GAPS = {
     'ETF':['ETF-specific tariff, tax and instrument terms'],
@@ -38,6 +39,76 @@ def _price(payload, field):
     return value/Decimal(100) if unit=='ZAR_CENTS' else value
 
 
+def _stop_side_message(entry, stop, direction):
+    if entry is None or stop is None:
+        return None
+    if stop == entry:
+        return 'Stop equals entry. Enter a different stop price.'
+    if direction == 'LONG' and stop > entry:
+        return 'Stop is above entry for a long.'
+    if direction == 'SHORT' and stop < entry:
+        return 'Stop is below entry for a short.'
+    return None
+
+
+def _suggest_size(base, payload, entry, stop, contract_value, estimate_stop, costs_key):
+    """Budget price risk in whole units and price the same stop with existing costs."""
+    if 'risk_budget' not in payload or base.get('size_suggestion_message'):
+        return
+    missing = [label for value, label in (
+        (entry, 'entry price'), (stop, 'stop price'),
+        (payload['risk_budget'], 'risk budget'),
+    ) if value in (None, '')]
+    if missing:
+        base['size_suggestion_message'] = f"Enter {' and '.join(missing)} for a size suggestion."
+        return
+    if contract_value is None:
+        base['size_suggestion_message'] = 'Confirm the one-share CFD contract size.'
+        return
+    try:
+        budget = _num(payload['risk_budget'], 'Risk budget', nonnegative=True)
+        cap_raw = payload.get('notional_cap')
+        cap = None if cap_raw in (None, '') else _num(cap_raw, 'Notional cap', nonnegative=True)
+    except ValueError as error:
+        base['size_suggestion_message'] = str(error) + '.'
+        return
+
+    risk_per_unit = abs(entry - stop) * contract_value
+    quantity = (budget / risk_per_unit).to_integral_value(rounding=ROUND_FLOOR)
+    if not quantity:
+        base['size_suggestion_message'] = 'The risk budget is too small for this stop distance.'
+        return
+    uncapped_quantity = quantity
+    if cap is not None:
+        quantity = min(quantity, (cap / (entry * contract_value)).to_integral_value(rounding=ROUND_FLOOR))
+    if not quantity:
+        base['size_suggestion_message'] = 'The notional cap is too small for one unit at this entry price.'
+        return
+    if quantity > MAX_QUANTITY:
+        base['size_suggestion_message'] = 'The suggested quantity exceeds the calculator limit. Enter a lower budget or notional cap.'
+        return
+
+    costs = None
+    if estimate_stop is not None:
+        try:
+            costs = Decimal(estimate_stop(quantity)[costs_key])
+        except ValueError as error:
+            base['size_suggestion_message'] = str(error) + '.'
+            return
+    price_risk = quantity * risk_per_unit
+    base['size_suggestion'] = {
+        'quantity': str(quantity),
+        'quantity_unit': 'shares' if base['product'] == 'CASH_SHARE' else 'contracts',
+        'risk_per_unit_zar': format(risk_per_unit, 'f'),
+        'price_risk_zar': _money(price_risk),
+        'estimated_costs_zar': _money(costs) if costs is not None else None,
+        'estimated_loss_zar': _money(price_risk + costs) if costs is not None else None,
+        'notional_cap_applied': quantity < uncapped_quantity,
+    }
+    if costs is None:
+        base['size_suggestion_message'] = 'Enter financing and other CFD costs for an estimated loss including costs.'
+
+
 def build_trade_plan(payload):
     """Return an explicit partial or calculated manual decision plan.
 
@@ -50,6 +121,7 @@ def build_trade_plan(payload):
     the separately documented R57.50 observed scenario, not an account quote.
     Cash uses 0.5% published scenario and zero spread unless specified. Prices
     supplied for CFD are executable fill assumptions; no spread is added.
+    Optional risk_budget and notional_cap are in rand, independent of price units.
     """
     if not isinstance(payload,dict): raise ValueError('object required')
     product=str(payload.get('product') or '').upper()
@@ -73,18 +145,22 @@ def build_trade_plan(payload):
     base['prices_zar']={k:str(v) if v is not None else None for k,v in values.items()}
     qty_raw=payload.get('quantity')
     qty=None if qty_raw is None or qty_raw=='' else _num(qty_raw,'quantity',positive=True)
-    if qty is not None and (qty!=qty.to_integral_value() or qty>100000000): raise ValueError('whole positive quantity required')
+    if qty is not None and (qty!=qty.to_integral_value() or qty>MAX_QUANTITY): raise ValueError('whole positive quantity required')
     base['quantity']=str(qty) if qty is not None else None
     entry,stop,limit,target=(values[k] for k in ('entry','stop_trigger','stop_limit','target'))
     for key,value in (('entry',entry),('quantity',qty),('stop_trigger',stop),('target',target)):
         if value is None: base['missing'].append(key)
-    if entry is not None:
-        if stop is not None and ((direction=='LONG' and stop>=entry) or (direction=='SHORT' and stop<=entry)):
+    stop_issue = _stop_side_message(entry, stop, direction)
+    if stop_issue:
+        if 'risk_budget' not in payload:
             raise ValueError('stop trigger must be on the risk side of entry')
+        base['size_suggestion_message'] = stop_issue
+        base['missing'].append('valid stop trigger')
+    if entry is not None:
         if target is not None and ((direction=='LONG' and target<=entry) or (direction=='SHORT' and target>=entry)):
             raise ValueError('target must be on the profit side of entry')
     if limit is not None and stop is None: raise ValueError('stop limit requires a separate stop trigger')
-    if limit is not None and ((direction=='LONG' and limit>stop) or (direction=='SHORT' and limit<stop)):
+    if limit is not None and not stop_issue and ((direction=='LONG' and limit>stop) or (direction=='SHORT' and limit<stop)):
         raise ValueError('stop limit is on the wrong side of trigger')
     trail=str(payload.get('trailing_mode') or 'NONE').upper()
     if trail not in ('NONE','PRICE','PERCENT'): raise ValueError('unsupported trailing mode')
@@ -114,7 +190,7 @@ def build_trade_plan(payload):
                 target_result=estimate_share(qty,entry,target,rate,spread)
                 base['target_estimate']=target_result
                 base['cash_required']=_money(Decimal(target_result['buy_notional'])+Decimal(target_result['entry_costs']['total']))
-            if stop is not None:
+            if stop is not None and not stop_issue:
                 stop_result=estimate_share(qty,entry,stop,rate,spread)
                 base['stop_estimate']={'gross_pnl':stop_result['gross_profit'],'net_pnl':stop_result['net_profit'],
                     'estimated_loss':_money(max(Decimal(0),-Decimal(stop_result['net_profit']))),
@@ -122,26 +198,30 @@ def build_trade_plan(payload):
                     'fill_assumption':'STOP_TRIGGER_NOT_GUARANTEED'}
                 if base['cash_required'] is None:
                     base['cash_required']=_money(Decimal(stop_result['buy_notional'])+Decimal(stop_result['entry_costs']['total']))
+        _suggest_size(base, payload, entry, stop, Decimal(1),
+                      lambda units: estimate_share(units, entry, stop, rate, spread),
+                      'estimated_costs_including_spread')
     else:
         size=payload.get('contract_size')
-        if size is None or size=='':base['missing'].append('contract_size')
-        elif _num(size,'contract_size',positive=True)!=1:
+        contract_size = _num(size, 'contract_size', positive=True) if size not in (None, '') else None
+        if contract_size is None:base['missing'].append('contract_size')
+        elif contract_size!=1:
             base['missing'].append('supported one-share-per-contract CFD terms')
         for item in ('financing','extra_cost'):
             if payload.get(item) is None or payload.get(item)=='':base['missing'].append(item)
         fee=_num(payload.get('fee_per_leg','57.50'),'fee_per_leg',nonnegative=True)
         financing=_num(payload['financing'],'financing') if payload.get('financing') not in (None,'') else None
         extra=_num(payload['extra_cost'],'extra_cost',nonnegative=True) if payload.get('extra_cost') not in (None,'') else None
-        ready=size not in (None,'') and _num(size,'contract_size',positive=True)==1 and financing is not None and extra is not None
+        ready=contract_size==1 and financing is not None and extra is not None
+        side=direction.lower()
         base['assumptions']=['One share per CFD contract when explicitly confirmed',
                              f'Symmetric CFD brokerage assumption R{fee} per leg; R57.50 is an observed scenario, not a verified current tariff',
                              'Entry and exit are assumed executable fills; spread is included in those fills, never added again',
                              'Stop-trigger fill assumes execution at trigger; gaps and stop-limit non-fill can increase loss']
         base['limitations']=['CFD_FEES_AND_ACCOUNT_TERMS_UNVERIFIED','FINANCING_AND_EXTRA_COST_USER_SUPPLIED','NO_TAX_ON_GAINS']
         if ready and entry is not None and qty is not None:
-            side=direction.lower()
             if target is not None: base['target_estimate']=estimate_cfd(qty,entry,target,side,financing,extra,fee)
-            if stop is not None:
+            if stop is not None and not stop_issue:
                 estimate=estimate_cfd(qty,entry,stop,side,financing,extra,fee)
                 base['stop_estimate']={**estimate,'estimated_loss':_money(max(Decimal(0),-Decimal(estimate['net_pnl']))),
                                        'fill_assumption':'STOP_TRIGGER_NOT_GUARANTEED'}
@@ -151,5 +231,10 @@ def build_trade_plan(payload):
                 if rate>1: raise ValueError('margin_rate must be at most 1')
                 base['margin_required']=_money(qty*entry*rate)
                 base['assumptions'].append('Margin uses supplied fraction of entry notional, excludes fees and account buffers')
+        estimate_stop = None
+        if ready:
+            estimate_stop = lambda units: estimate_cfd(units, entry, stop, side, financing, extra, fee)
+        _suggest_size(base, payload, entry, stop, contract_size if contract_size == 1 else None,
+                      estimate_stop, 'total_costs')
     base['state']='COMPLETE' if not base['missing'] else 'NEEDS_INPUT'
     return base
