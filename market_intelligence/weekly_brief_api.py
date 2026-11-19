@@ -79,6 +79,21 @@ def create_weekly_brief_blueprint(factory, event_factory=None):
         finally:
             repository.close()
 
+    @bp.get('/api/market-intelligence/news-themes')
+    def read_news_themes():
+        if request.remote_addr not in ('127.0.0.1', '::1'):
+            return jsonify(error='Local dashboard only'), 403
+        from .news_themes import summarize
+        repository = factory()
+        try:
+            return jsonify(summarize(repository, datetime.now(timezone.utc),
+                                     instrument=request.args.get('instrument'),
+                                     end_day=request.args.get('end')))
+        except (ValueError, OverflowError) as exc:
+            return jsonify(error=str(exc)), 400
+        finally:
+            repository.close()
+
     @bp.get("/api/market-intelligence/anticipatory-radar")
     def read_anticipatory_radar():
         from .anticipatory_radar import status as radar_status

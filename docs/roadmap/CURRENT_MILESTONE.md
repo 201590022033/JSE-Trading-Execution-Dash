@@ -1,3 +1,7 @@
+## Unified roadmap R14 retained news themes — 19 November 2026
+
+R14 adds read-only theme comparisons across two seven-day receipt windows. The selected-share view shows source coverage, story grouping, direct issuer mentions and reviewable source links. Live SARB/rand and MTN transaction cases were verified. See [R14 evidence](R14_RETAINED_NEWS_THEMES_2026-11-19.md). R15 is next.
+
 ## Unified roadmap R13 issuer and macro news context — 19 November 2026
 
 R13 connects the selected share to retained issuer SENS and news, calendar evidence, its sector and benchmark, and any exact-share event hypotheses. The dashboard also shows nearby South African macro evidence with source links and explicit coverage gaps. See [R13 verification](R13_ISSUER_AND_MACRO_CONTEXT_2026-11-19.md). R14 is next.

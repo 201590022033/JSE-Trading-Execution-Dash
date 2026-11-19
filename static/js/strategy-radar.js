@@ -75,6 +75,52 @@ function mergeEntryRules(rules) {
     eventContextCache = {at: Date.now(), promise};
     return promise;
   }
+  const themeCache = new Map();
+  function renderNewsThemes(container, instrument, open) {
+    const details = line(container, 'details', '');
+    details.className = 'radar-news-themes';
+    line(details, 'summary', 'Retained news themes');
+    const panel = line(details, 'div', '');
+    async function load() {
+      if (!details.open || panel.textContent) return;
+      panel.textContent = 'Reading retained source coverage…';
+      try {
+        let cached = themeCache.get(instrument);
+        if (!cached || Date.now() - cached.at >= 60000) {
+          const promise = json(`/api/market-intelligence/news-themes?instrument=${encodeURIComponent(instrument)}`);
+          cached = {at: Date.now(), promise};
+          themeCache.set(instrument, cached);
+        }
+        const report = await cached.promise;
+        const {window, coverage} = report;
+        panel.replaceChildren();
+        line(panel, 'p', `${window.start} to ${window.end} SAST · recent window starts ${window.recent_start}${window.partial_end_day ? ' · last day partial' : ''}`);
+        line(panel, 'p', `${coverage.retained_rows} retained records · ${coverage.distinct_urls} distinct URLs · ${coverage.distinct_stories} story groups · ${coverage.previous_analyzed} previous / ${coverage.recent_analyzed} recent items analyzed`);
+        line(panel, 'p', 'Stories grouped by canonical URL and repeated headline. Coverage is limited to the retained archive.');
+        if (coverage.analysis_truncated || coverage.hermes_truncated || coverage.sens_truncated || coverage.invalid_rows) {
+          line(panel, 'p', 'Coverage is partial. Some retained items were invalid or outside the scan bound.');
+        }
+        for (const theme of report.themes) {
+          const topic = line(panel, 'details', '');
+          line(topic, 'summary', `${theme.label} · ${theme.previous} previous → ${theme.recent} recent`);
+          const share = (count, total) => total ? `${(100 * count / total).toFixed(1)}%` : 'unavailable';
+          line(topic, 'p', `Share of analyzed stories · ${share(theme.previous, coverage.previous_analyzed)} previous → ${share(theme.recent, coverage.recent_analyzed)} recent`);
+          line(topic, 'p', `${instrument} direct mentions · ${theme.issuer_previous} previous → ${theme.issuer_recent} recent`);
+          const sources = Object.entries(theme.sources).map(([kind, count]) => `${kind} ${count}`);
+          line(topic, 'p', sources.length ? sources.join(' · ') : 'No matching retained items.');
+          for (const item of theme.evidence) {
+            const row = line(topic, 'p', `${item.kind} · ${item.headline} · matched “${item.term}”${item.issuer_mentioned ? ` · names ${instrument}` : ''} · published ${formatIndicatorTime(item.published_at)} · received ${formatIndicatorTime(item.received_at)}`);
+            appendSourceLink(row, item.url, 'Review source');
+          }
+        }
+      } catch (_) {
+        themeCache.delete(instrument);
+        panel.textContent = 'Retained theme analysis unavailable.';
+      }
+    }
+    details.addEventListener('toggle', load);
+    details.open = open;
+  }
   function renderMacroContext(panel, events, instrument, product) {
     panel.replaceChildren();
     const macroEvents = events.filter(event => /^(SARB_MPC_|ZA_)/.test(event.event_key));
@@ -621,6 +667,7 @@ function mergeEntryRules(rules) {
     const events=document.getElementById('radar-events-context');
     if (events) {
       const macroWasOpen = events.querySelector('details')?.open;
+      const themesWereOpen = events.querySelector('.radar-news-themes')?.open;
       events.replaceChildren();
       events.closest('section').querySelector('h3').textContent = `${instrument} news and events`;
       line(events, 'p', `Sector ${watch.sector || 'unavailable'} · research benchmark ${watch.benchmark || 'unavailable'}`);
@@ -629,6 +676,7 @@ function mergeEntryRules(rules) {
       macro.open = !!macroWasOpen;
       line(macro, 'summary', 'South African macro context');
       const macroBody = line(macro, 'div', 'Checking retained macro events…');
+      if (product === 'CASH_SHARE') renderNewsThemes(events, instrument, !!themesWereOpen);
       const current = () => generation===selectionGeneration && selectedWatch===instrument && document.getElementById('plan-product').value===product;
       eventContext().then(packet => {
         if (current()) renderMacroContext(macroBody, packet.events, instrument, product);
