@@ -34,4 +34,4 @@ The rerun matched the checked-in artifact byte for byte. After the dashboard-onl
 - **HR and Radar.** Prospectively retain the daily selected receipts through the exact decision and benchmark cutoffs, including alternatives and actual clocks. Assess real charges, corporate actions and fills before an admission decision. This daily retrospective is separate from the HR11 intraday real-data admission task.
 - **Independent acceptance.** Broker tariff and field semantics, Windows banner visibility, eligible unattended AI review and later outcome receipts, and scheduled observation of the updated SENS bridge require their own evidence. These are still tracked in the R18 handover. No paid provider or model call and no broker order was triggered.
 
-Rollback is a revert of the two sweep commits and a dashboard restart. Preserve the running browser session and existing receipts. The collector changes activate on a normal subsequent collector launch.
+Rollback is a revert of the sweep commits and a dashboard restart. Preserve the running browser session and existing receipts. The collector changes activate on a normal subsequent collector launch.

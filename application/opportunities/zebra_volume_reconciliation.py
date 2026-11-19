@@ -48,7 +48,7 @@ def reconcile_volume(rows, *, as_of=None):
         for provider, value in observations.items():
             history = provider_windows.setdefault(provider, deque(maxlen=20))
             provider_prior = (median(history) or mean(history)) if len(history) == 20 else None
-            if prior is not None and provider_prior is not None:
+            if prior and provider_prior:
                 comparisons[provider]['sessions'] += 1
                 comparisons[provider]['rule_flips'] += (selected > prior) != (value > provider_prior)
             history.append(value)
