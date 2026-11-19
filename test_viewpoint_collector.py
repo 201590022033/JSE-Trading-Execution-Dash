@@ -156,10 +156,32 @@ class ViewPointCollectorTests(unittest.TestCase):
             self.assertEqual(rows[0]['fields']['volume'], '12345')
             self.assertEqual(json.loads(rows[0]['raw_payload'])['file_name'], name)
             self.assertEqual(result['evidence']['MTN']['sha256'], digest)
+            self.assertEqual(repeated['evidence']['MTN']['received_at'], result['evidence']['MTN']['received_at'])
             self.assertEqual(result['evidence']['MTN']['latest_bar_end'], '2026-11-13T14:45:00+00:00')
             with closing(sqlite3.connect(service.folder / 'intraday.sqlite3')) as database:
                 self.assertEqual(database.execute('SELECT data FROM raw_responses WHERE digest=?',
                                                  (digest,)).fetchone()[0], raw)
+
+    def test_same_export_promotes_only_newly_completed_bar(self):
+        from datetime import datetime, timezone
+
+        raw = (b'Date,Open,High,Low,Close,Volume\n'
+               b'2026-11-13T14:40:00.000Z,23450,23460,23440,23455,12345\n'
+               b'2026-11-13T14:45:00.000Z,23455,23465,23440,23460,12345\n')
+        name = 'MTN.JSE (20261113164500000 _ 20261113164000000).csv'
+        with TemporaryDirectory() as folder:
+            subject = collector.ViewPointCollector(SimpleNamespace(folder=Path(folder)))
+            with patch.object(collector, 'mappings', return_value={'MTN': 'MTN'}), \
+                    patch.object(collector, '_export', return_value=(name, raw)), \
+                    patch.object(collector, 'datetime') as clock:
+                clock.now.side_effect = [datetime(2026, 11, 13, 14, minute, tzinfo=timezone.utc)
+                                         for minute in (46, 51, 51)]
+                for expected in ('IMPORTED', 'IMPORTED', 'ALREADY_RETAINED'):
+                    result = subject.export_watches(self.export_page(), [{'instrument': 'MTN'}])
+                    self.assertEqual(result['instruments']['MTN'], expected)
+            rows = collector.IntradayCache(subject.service.folder / 'intraday.sqlite3').read('MTN')
+            self.assertEqual(len(rows), 3)
+            self.assertEqual(sum(not row['provisional'] for row in rows), 2)
 
     def test_retention_failure_does_not_prevent_benchmark_collection(self):
         raw = (b'"Date","Open","High","Low","Close","Volume"\n'

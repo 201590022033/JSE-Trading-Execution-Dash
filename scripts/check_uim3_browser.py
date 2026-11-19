@@ -31,9 +31,11 @@ with sync_playwright() as p:
    if f.is_relative_to(root/'static') and f.is_file():return r.fulfill(status=200,content_type=mimetypes.guess_type(f.name)[0] or 'application/octet-stream',body=f.read_bytes())
    return r.abort()
   if u.path=='/api/v1/strategy-radar/catalog':return r.fulfill(json={'instruments':['MTN','VOD']})
+  if u.path=='/api/v1/strategy-radar/evidence/MTN':
+   return r.fulfill(json={'instrument':'MTN','product':'CASH_SHARE','strategy_id':'jse_swing_3_5d',
+    'strategy_version':'1.1.0','timeframe_minutes':None,'input_review':{'state':'INSUFFICIENT_POINT_IN_TIME_INPUT'}})
   if u.path in snap:return r.fulfill(json=snap[u.path])
   if u.path=='/api/v1/strategy-radar/market-status':return r.fulfill(json={'operational_status':'UNKNOWN','schedule':{'status':'OPEN','reason':'synthetic'},'all_share':{'status':'HISTORICAL_BAR','value':'123','unit':'points','provider_symbol':'^J203.JO','source_session':'2026-11-06','received_at':'2026-11-09T12:00:00Z'},'top_40':{'status':'UNAVAILABLE'},'as_of':'2026-11-09T13:00:00Z'})
-  if u.path=='/api/v1/strategy-radar/research-proposal/MTN':return r.fulfill(json={'state':'CONDITIONAL_REFERENCE','freshness':'STALE','strategy_id':'jse_swing_3_5d','strategy_version':'1.1.0','session':'2026-11-06','currency':'ZAR','entry_reference':100,'stop_reference':90,'target_reference':120,'risk_reward_before_costs':2,'source_symbol':'MTN','source_bars':100,'source_sha256':'synthetic','evaluated_at':'2026-11-09','source_fields':{'close':{'sources':['SYNTHETIC_A'],'first_received_at':'2026-11-09','last_received_at':'2026-11-09','field_states':['CONFLICT_NO_CONSENSUS'],'conflicts':[{'session':'2026-11-06','selected_value':100,'selected_source':'SYNTHETIC_A','alternatives':[{'source':'SYNTHETIC_B','value':99}]}]}},'assumptions':[],'limitations':['Synthetic fixture']})
   if u.path=='/api/v1/strategy-radar/sector/MTN':return r.fulfill(json={'sector':'Telecommunications','state':'PARTIAL','reference_session':'2026-11-05','session':'2026-11-06','coverage':{'qualified':1,'total':2},'universe_version':'v1','classification_version':'v1','breadth':{'advancers':0,'decliners':1,'unchanged':0},'universe':['MTN','VOD'],'sector_proxy':None,'broad_benchmark':None,'qualified_members':[]})
   if u.path=='/api/market-intelligence/issuer-events/MTN':
    if 'product=CFD' in u.query:return r.fulfill(json={'state':'UNAVAILABLE','reason':'PRODUCT_UNSUPPORTED','events':[]})
@@ -42,11 +44,11 @@ with sync_playwright() as p:
 
   return r.fulfill(status=503,json={'error':'offline'})
  page.route('**/*',route);page.goto('http://localhost:37777/',wait_until='load');page.locator('#radar-points button').first.wait_for();page.locator('#radar-points button').first.click();page.wait_for_timeout(900)
- market=page.locator('.uim-market-strip').inner_text();sector=page.locator('#radar-sector-context').inner_text();events=page.locator('#radar-events-context').inner_text();proposal=page.locator('#radar-research-proposal').text_content();price=page.locator('#radar-price-source').inner_text()
+ market=page.locator('.uim-market-strip').inner_text();sector=page.locator('#radar-sector-context').inner_text();events=page.locator('#radar-events-context').inner_text();evidence=page.locator('#radar-evidence-summary').text_content();price=page.locator('#radar-price-source').inner_text()
  assert 'UNKNOWN' in market and 'scheduled, not live' in market and 'daily 2026-11-06' in market and 'source time/delay unknown' in market,market
  assert 'PARTIAL' in sector and '1/2' in sector and 'not historical JSE membership' in sector,sector
  assert 'Reviewed fixture' in events and 'DATE_REVIEWED' in events and 'Expected fixture' in events and 'EXPECTED_UNCONFIRMED' in events and 'DIRECT_ISSUER_MENTION' in events and 'AI_PRIMARY_SOURCE_REVIEW' in events and 'published unavailable' in events and 'Some calendar associations could not be verified' in events,events
- assert 'CONDITIONAL_REFERENCE' in proposal and 'STALE' in proposal and 'SYNTHETIC_B' in proposal and 'Conditional, not confirmed' in proposal and 'Not a current price, fill or order' in proposal,proposal
+ assert 'Exact daily backtest needs qualified Zebra history' in evidence,evidence
  badge=page.locator('#radar-selected-badge').inner_text();assert all(s in badge for s in ['STALE historical','PROVISIONAL conflicting sources','PARTIAL fields']),badge
  context=page.locator('#radar-selected-context').text_content();assert all(s in context for s in ['SYNTHETIC_A','SYNTHETIC_B','synthetic-hash']),context
  page.get_by_text('Recent issuer SENS and news',exact=True).click()
@@ -63,12 +65,6 @@ with sync_playwright() as p:
  page.locator('#plan-product').select_option('CFD');page.locator('#radar-events-context').get_by_text('PRODUCT_UNSUPPORTED',exact=False).wait_for(timeout=5000);page.locator('#plan-product').select_option('CASH_SHARE')
  page.locator('#radar-price').get_by_text('Conflicting quote',exact=True).wait_for(timeout=5000)
  assert 'selected candidate ZAR 101' in page.locator('#radar-price-source').inner_text()
- def partial_proposal(r):r.fulfill(json={'state':'PARTIAL','freshness':'STALE','strategy_id':'jse_swing_3_5d','strategy_version':'1.1.0','session':'2026-11-06','currency':'ZAR','entry_reference':100,'stop_reference':None,'target_reference':None,'source_symbol':'MTN','evaluated_at':'2026-11-09','source_fields':{},'missing':['insufficient HLC'],'assumptions':[],'limitations':['Synthetic fixture']})
- page.route('**/api/v1/strategy-radar/research-proposal/MTN?*',partial_proposal)
- page.locator('#plan-product').select_option('CFD');page.locator('#plan-product').select_option('CASH_SHARE')
- page.get_by_text('Historical research proposal',exact=True).click()
- page.locator('#radar-research-proposal').get_by_text('PARTIAL',exact=False).wait_for(timeout=5000)
- partial=page.locator('#radar-research-proposal').text_content();assert 'Reference close 100' in partial and 'stop unavailable' in partial and 'target unavailable' in partial,partial
  state={'mode':'NO_MATCH'}
  def event_mode(r):
   if state['mode']=='NO_MATCH':r.fulfill(json={'state':'NO_MATCH','events':[]})

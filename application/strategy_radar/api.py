@@ -416,18 +416,22 @@ def create_radar_blueprint(factory):
         if not local(): return jsonify(error='Local dashboard only'),403
         from .shadow_service import evaluate_watch, retained_comparisons, retained_fill_backtests
         from .historical_research import historical_research
+        from .exact_daily_review import retained_review
         try:
             service=factory(); profile=request.args.get('profile','intraday_5m_research_v1')
             if profile=='jse_swing_3_5d':
                 from .swing_radar import evaluate_watches
-                trace=evaluate_watches(service)[instrument]
+                trace=evaluate_watches(service,instrument=instrument)[instrument]
             else:
                 trace=evaluate_watch(service,instrument,profile)
+            frozen = {} if request.args.get('view') == 'summary' else {'historical_research': historical_research(instrument)}
             return jsonify(instrument=instrument,strategy_id=profile,strategy_version=trace['strategy_version'],
                            timeframe_minutes=trace['timeframe_minutes'],product='CASH_SHARE',
                            comparisons=retained_comparisons(service,instrument,profile,trace['strategy_version']),
                            backtests=retained_fill_backtests(instrument,profile,trace['strategy_version']),
-                           historical_research=historical_research(instrument),
+                           input_review=retained_review(instrument, profile, trace['strategy_version'],
+                                                        trace['timeframe_minutes'], trace.get('benchmark_instrument')),
+                           **frozen,
                            status='EXACT_PROFILE_EVIDENCE_ONLY',live_execution=False)
         except KeyError: return jsonify(error='Watch unavailable'),404
         except (ValueError,TypeError,OSError): return jsonify(error='Evidence unavailable'),422

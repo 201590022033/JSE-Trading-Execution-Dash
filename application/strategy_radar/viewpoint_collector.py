@@ -109,20 +109,35 @@ def _step(stage, action):
         raise ExportFailure(stage, exc) from exc
 
 
+def _dismiss(dialog):
+    from playwright.sync_api import TimeoutError
+
+    close = dialog.get_by_role('button', name='close', exact=True)
+    try:
+        _activate(close)
+        dialog.wait_for(state='hidden')
+    except TimeoutError:
+        if dialog.is_visible():
+            dialog.press('Escape')
+            dialog.wait_for(state='hidden')
+
+
 def _export(page, symbol):
     dialog = page.get_by_role('dialog', name='Data Table')
     if dialog.is_visible():
-        _step('close prior table', lambda: _activate(dialog.get_by_role('button', name='close', exact=True)))
+        _step('close prior table', lambda: _dismiss(dialog))
     chart = page.get_by_role('img', name=re.compile(
         r'5 minute candle chart displays price over time for symbol ' + re.escape(symbol) + r'\b'))
+    search = page.get_by_role('dialog', name='Search for security')
     if not chart.is_visible():
-        search = page.get_by_role('dialog', name='Search for security')
         if not search.is_visible():
             _step('open security search', lambda: _activate(page.get_by_role('button', name='Security Search', exact=True)))
         field = search.get_by_role('combobox', name='Input Search Text')
         _step('clear security search', lambda: field.fill(''))
         _step('type security symbol', lambda: field.press_sequentially(symbol))
         _step('select exact security', lambda: _activate(search.get_by_role('list', name='Results').get_by_text(symbol, exact=True)))
+    elif search.is_visible():
+        _step('close Search for security dialog', lambda: _dismiss(search))
     _step('verify five minute symbol', lambda: chart.wait_for(state='visible', timeout=15000))
     _step('open data table', lambda: _activate(page.get_by_role('button', name='Table View', exact=True)))
     _step('verify table symbol', lambda: dialog.get_by_role('heading', name=f'Symbol: {symbol}', exact=True).wait_for(state='visible'))
@@ -221,13 +236,13 @@ class ViewPointCollector:
         stage = 'prepare chart'
         try:
             page.bring_to_front()
-            for name in ('Search for security', 'Data Table'):
-                dialog = page.get_by_role('dialog', name=name)
-                if dialog.is_visible():
-                    stage = f'close {name} dialog'
-                    _activate(dialog.get_by_role('button', name='close', exact=True))
             charts = page.get_by_role('img', name=re.compile('5 minute candle chart'))
             if not charts.is_visible():
+                for name in ('Search for security', 'Data Table'):
+                    dialog = page.get_by_role('dialog', name=name)
+                    if dialog.is_visible():
+                        stage = f'close {name} dialog'
+                        _dismiss(dialog)
                 stage = 'open periodicity menu'
                 _activate(page.get_by_role('button', name='Periodicity', exact=True))
                 stage = 'select 5 minute interval'
@@ -249,13 +264,19 @@ class ViewPointCollector:
                                                  accept_operator_conventions=True)
                     digest = sha256(raw).hexdigest()
                     stage = 'retain evidence'
-                    old = [row for row in cache.read(instrument) if row.get('source_raw_sha256') == digest]
-                    if not old or (any(row['provisional'] for row in old)
-                                   and not any(row['provisional'] for row in records)):
-                        cache.put_batch(records, raw, evidence=True)
-                    result[instrument] = 'IMPORTED' if not old else 'ALREADY_RETAINED'
+                    old = [row for row in cache.read(instrument)
+                           if row.get('source_raw_sha256') == digest and row.get('bar_end')]
+                    retained = {(row['bar_end'], row['provisional']) for row in old}
+                    new_rows = [row for row in records
+                                if (row['bar_end'], row['provisional']) not in retained
+                                and (row['bar_end'], False) not in retained]
+                    if new_rows:
+                        cache.put_batch(new_rows, raw, evidence=True)
+                    result[instrument] = 'IMPORTED' if new_rows else 'ALREADY_RETAINED'
                     evidence[instrument] = {'file_name': name, 'sha256': digest,
-                                            'records': len(records), 'received_at': now.isoformat(),
+                                            'records': len(records),
+                                            'checked_at': now.isoformat(),
+                                            'received_at': now.isoformat() if new_rows else max(row['received_at'] for row in old),
                                             'latest_bar_end': max(row['bar_end'] for row in records)}
                 except (Error, OSError, ValueError, sqlite3.Error) as exc:
                     errors[instrument] = exc.detail if isinstance(exc, ExportFailure) else _failure(exc, stage)

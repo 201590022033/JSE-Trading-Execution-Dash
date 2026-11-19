@@ -1,0 +1,163 @@
+{
+  "benchmark": "ETF_STX40",
+  "checked_at": "2026-11-19T14:14:26+02:00",
+  "field_counts": {
+    "benchmark_close": {
+      "MISSING": 8,
+      "QUALIFIED": 131
+    },
+    "close": {
+      "QUALIFIED": 139
+    },
+    "high": {
+      "QUALIFIED": 115,
+      "ZEBRA_SELECTED_DISPUTED": 24
+    },
+    "low": {
+      "QUALIFIED": 113,
+      "ZEBRA_SELECTED_DISPUTED": 26
+    },
+    "open": {
+      "QUALIFIED": 139
+    },
+    "volume": {
+      "ZEBRA_SELECTED_DISPUTED": 139
+    }
+  },
+  "input_sha256": {
+    "ETF_STX40": "b9710692eb6a2efed9f794a3d3b5125cf0a78b184ecaca0a4486c934d7d48ea6",
+    "VOD": "02da344415891d7ef5683b86fb20ad3aa4f8008dc02a72872454cf13cd26f78a"
+  },
+  "instrument": "VOD",
+  "live_execution": false,
+  "longest_qualified_run": 131,
+  "on_time_sessions": 0,
+  "on_time_warmup_windows": 0,
+  "product": "CASH_SHARE",
+  "qualified_sessions": 131,
+  "research_only": true,
+  "retrospective_comparison": {
+    "cost_basis": "HYPOTHETICAL_NOT_BROKER_VERIFIED",
+    "costs": {
+      "fee_bps_per_side": 8,
+      "minimum_fee_zar": 60,
+      "slippage_bps_per_side": 5,
+      "spread_bps": 20
+    },
+    "decision_sessions": 29,
+    "fill_basis": "NEXT_SESSION_CLOSE_PROXY",
+    "hold_sessions": 3,
+    "initial_cash_zar": 1000000,
+    "input_manifest_sha256": "224c2624b415bde5a8ae612488c2fddc56ed86c782c590007a4c455a27273d5a",
+    "limitations": [
+      "RECONSTRUCTED_AVAILABILITY",
+      "ZEBRA_SELECTED_DISPUTED_FIELDS_ALLOWED",
+      "UNVERIFIED_CORPORATE_ACTION_BASIS",
+      "NO_UNSEEN_VALIDATION",
+      "NO_PROMOTION"
+    ],
+    "max_notional_zar": 100000,
+    "risk_budget_zar": 5000,
+    "state": "DESCRIPTIVE_REPLAY",
+    "trials": [
+      {
+        "closed_trades": 3,
+        "engine_config_hash": "b6220b7a7f9da71b9aa807185cc9493d7acd981d55533d6c73df51503c1f88e1",
+        "exit_reasons": {
+          "GAP_STOP": 1,
+          "HORIZON_CLOSE": 2
+        },
+        "net_pnl_zar": "1902.68",
+        "signals": 4,
+        "target_r": "2"
+      },
+      {
+        "closed_trades": 3,
+        "engine_config_hash": "1186b8cfcbdbd5c7dbfa6faada1a4a5e724568047cf6f2520db7f2eee815bf3c",
+        "exit_reasons": {
+          "GAP_STOP": 1,
+          "HORIZON_CLOSE": 2
+        },
+        "net_pnl_zar": "1902.68",
+        "signals": 4,
+        "target_r": "1.5"
+      }
+    ],
+    "unknown_decision_sessions": 0,
+    "window": [
+      "2026-05-04",
+      "2026-11-06"
+    ]
+  },
+  "schema": "exact-daily-input-review-v1",
+  "sessions": 139,
+  "state": "INSUFFICIENT_POINT_IN_TIME_INPUT",
+  "strategy_id": "jse_swing_3_5d",
+  "strategy_version": "1.1.2",
+  "timeframe_minutes": null,
+  "volume_reconciliation": {
+    "latest_disagreement": {
+      "observations": [
+        {
+          "acquired_at": "2026-11-19T05:31:44.070272+00:00",
+          "field_source_sha256": "450129e009b8a65ade8cc4d17ad45a01a51217e4bcc87d2b81aa22f31ec35628",
+          "source": "SHAREDATA",
+          "source_sha256": "ecf4df8360e0ade36a61564fb3d7749be875001d717923620ab10385b2135d99",
+          "value": 2936099.0
+        },
+        {
+          "acquired_at": "2026-11-19T05:32:42.258364+00:00",
+          "field_source_sha256": "7d135a34abdbf3deab72dd232be52b4c5367752f595d36824b1508b190ccb552",
+          "source": "EODHD",
+          "source_sha256": "8e9cbfc41d4ba4e423ff88b6ed9dedf4a095a6ba806b966a2a053fec7b5a25be",
+          "value": 2289513.0
+        }
+      ],
+      "selection_state": "CONFLICT_NO_CONSENSUS",
+      "session": "2026-11-18"
+    },
+    "pairs": [
+      {
+        "equal": 0,
+        "matched_sessions": 139,
+        "median_difference_pct": 6.632,
+        "other_source": "EODHD",
+        "selected_higher": 139,
+        "selected_source": "SHAREDATA"
+      },
+      {
+        "equal": 0,
+        "matched_sessions": 138,
+        "median_difference_pct": 3.826,
+        "other_source": "YAHOO",
+        "selected_higher": 138,
+        "selected_source": "SHAREDATA"
+      }
+    ],
+    "provider_volume_definition": "UNVERIFIED",
+    "scope": "RETAINED_PROVIDER_VALUES_AND_CLOCKS",
+    "selected_sources": {
+      "SHAREDATA": 139
+    },
+    "volume_rule": "CURRENT_VOLUME_ABOVE_PRIOR_20_MEDIAN",
+    "volume_rule_sensitivity": {
+      "EODHD": {
+        "rule_flips": 12,
+        "sessions": 119
+      },
+      "SHAREDATA": {
+        "rule_flips": 0,
+        "sessions": 119
+      },
+      "YAHOO": {
+        "rule_flips": 6,
+        "sessions": 118
+      }
+    }
+  },
+  "warmup_sessions": 100,
+  "window": [
+    "2026-05-04",
+    "2026-11-18"
+  ]
+}

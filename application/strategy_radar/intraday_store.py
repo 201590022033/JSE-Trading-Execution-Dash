@@ -143,6 +143,7 @@ def merge_bars(records):
     output = []
     for (instrument, interval, start, end), items in sorted(groups.items()):
         fields = {}
+        sort_keys = {id(item): (item['received_at'], json.dumps(item, sort_keys=True)) for item in items}
         for field in FIELDS:
             per_source = {}
             for item in items:
@@ -150,7 +151,7 @@ def merge_bars(records):
                     per_source.setdefault(item['source'], []).append(item)
             latest, revisions = [], []
             for source, entries in sorted(per_source.items()):
-                entries.sort(key=lambda x: (x['received_at'], json.dumps(x, sort_keys=True)))
+                entries.sort(key=lambda item: sort_keys[id(item)])
                 latest.append(entries[-1])
                 revisions.extend({'source': source, 'value': x['fields'][field],
                                   'received_at': x['received_at'], 'source_timestamp': x['source_timestamp']}

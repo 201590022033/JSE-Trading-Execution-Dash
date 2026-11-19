@@ -412,6 +412,7 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
         if not re.fullmatch(r'[A-Z0-9_]{2,16}', instrument):
             return response({'state':'INVALID_INSTRUMENT'},400)
         from application.opportunities.zebra_screen_data import load_zebra_screen_data
+        from application.opportunities.zebra_volume_reconciliation import reconcile_volume
         from application.backtest_lab.zebra_field_windows import describe
         data=load_zebra_screen_data(max_rows=600, instruments={instrument,'ETF_STX40','ETF_STXFIN','ETF_STXRES','ETF_STXIND'})
         if instrument not in data['instruments']:
@@ -421,6 +422,7 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
         return response({'state':'AVAILABLE','instrument':instrument,
             'version':result['version'],'availability':result['availability'],
             'gap_policy':result['gap_policy'],'history':result['instruments'][instrument],
+            'volume_reconciliation':reconcile_volume(data['instruments'][instrument]['rows']),
             'row_limit':600,
             'research_only':True})
     def read_zebra():

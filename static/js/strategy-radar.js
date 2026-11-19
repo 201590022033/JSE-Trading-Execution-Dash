@@ -166,7 +166,50 @@ function mergeEntryRules(rules) {
       appendSourceLink(row, linkedEvent.source_url, 'Linked calendar source');
     }
   }
+  function evidenceUrl(instrument, profile, summary = false) {
+    return `/api/v1/strategy-radar/evidence/${encodeURIComponent(instrument)}?profile=${encodeURIComponent(profile)}${summary ? '&view=summary' : ''}`;
+  }
+  function evidenceText(evidence) {
+    if (evidence.backtests?.length) return `Exact fill evidence · ${evidence.backtests[0].contender.sample_count} closed trades`;
+    if (evidence.input_review?.state === 'INSUFFICIENT_POINT_IN_TIME_INPUT') {
+      return evidence.input_review.retrospective_comparison?.state === 'DESCRIPTIVE_REPLAY'
+        ? 'Zebra replay available · point-in-time evidence pending' : 'Exact daily backtest needs qualified Zebra history';
+    }
+    if (evidence.comparisons?.length) return 'Exact shadow comparison available';
+    return 'No retained backtest for this exact setup';
+  }
+  function renderInputReview(parent, review) {
+    const detail = line(parent, 'details', '');
+    line(detail, 'summary', 'Retained input review');
+    line(detail, 'p', `${review.instrument} with ${review.benchmark} · ${review.window.join(' to ')} · checked ${formatIndicatorTime(review.checked_at)}`);
+    line(detail, 'p', `${review.qualified_sessions} of ${review.sessions} sessions had usable Zebra-selected inputs, including disclosed disagreements. ${review.on_time_warmup_windows} decision windows had all ${review.warmup_sessions} sessions available by next open.`);
+    const fields = line(detail, 'ul', '');
+    for (const [field, counts] of Object.entries(review.field_counts)) {
+      line(fields, 'li', `${field.replaceAll('_', ' ')} · ${Object.entries(counts).map(([state, count]) => `${count} ${state.replaceAll('_', ' ').toLowerCase()}`).join(', ')}`);
+    }
+    const replay = review.retrospective_comparison;
+    if (replay?.state === 'DESCRIPTIVE_REPLAY') {
+      line(parent, 'h4', 'Zebra daily comparison');
+      line(parent, 'p', `${replay.window.join(' to ')} · ${replay.decision_sessions} evaluated sessions · hypothetical costs · reconstructed availability · next-session close fill proxy`);
+      for (const trial of replay.trials) {
+        line(parent, 'p', `${trial.target_r}R · ${trial.signals} signals · ${trial.closed_trades} closed trades · net R${trial.net_pnl_zar}`);
+      }
+    }
+    const volume = review.volume_reconciliation;
+    if (volume?.pairs?.length) {
+      const sources = line(parent, 'details', '');
+      line(sources, 'summary', 'Zebra volume reconciliation');
+      for (const pair of volume.pairs) {
+        line(sources, 'p', `${pair.selected_source} vs ${pair.other_source} · ${pair.matched_sessions} overlaps · ${pair.selected_higher} higher · median difference ${pair.median_difference_pct ?? 'unavailable'}%`);
+      }
+      for (const [provider, item] of Object.entries(volume.volume_rule_sensitivity)) {
+        line(sources, 'p', `${provider} · ${item.rule_flips} volume-rule changes across ${item.sessions} comparable sessions`);
+      }
+      line(sources, 'p', 'Provider volume definitions remain unverified.');
+    }
+  }
   function renderFrozenHistory(parent, sections) {
+    if (!sections) return;
     const detail = line(parent, 'details', '');
     line(detail, 'summary', 'Frozen HR7–HR11 research');
     line(detail, 'p', 'Historical study profiles and horizons. Exact Radar backtests are listed separately.');
@@ -631,26 +674,6 @@ function mergeEntryRules(rules) {
     }
     const generation=++selectionGeneration;
     const instrument=watch.instrument, product=document.getElementById('plan-product').value, evaluation=radarEvaluations.get(instrument);
-    const proposal=document.getElementById('radar-research-proposal');
-    if (proposal) {
-      proposal.textContent='Checking retained historical geometry…';
-      if (radarView!=='swing' || evaluation?.strategy_id!=='jse_swing_3_5d' || evaluation?.strategy_version!=='1.1.0') proposal.textContent='Historical proposal unavailable for this profile or version.';
-      else json(`/api/v1/strategy-radar/research-proposal/${encodeURIComponent(instrument)}?product=${encodeURIComponent(product)}`).then(result=>{
-        if (generation!==selectionGeneration || selectedWatch!==instrument || radarView!=='swing' || document.getElementById('plan-product').value!==product) return;
-        proposal.replaceChildren();
-        if (result.state==='UNAVAILABLE') { proposal.textContent=`Historical proposal unavailable: ${result.reason || 'required evidence unavailable'}. ${(result.missing || []).join(', ')}. ${(result.limitations || []).join(' · ')}`; return; }
-        line(proposal,'p',`Historical research reference · ${result.state} · ${result.freshness || 'freshness unknown'} · ${result.strategy_id} v${result.strategy_version} · session ${result.session || 'unknown'} · expected ${result.expected_session || 'unknown'} · ${result.currency || 'unit unavailable'}. Not a current price, fill or order.`);
-        line(proposal,'p',`Reference close ${result.entry_reference ?? 'unavailable'} · stop ${result.stop_reference ?? 'unavailable'} · target ${result.target_reference ?? 'unavailable'} · risk/reward ${result.risk_reward_before_costs ?? 'unavailable'} before costs.`);
-        line(proposal,'p',`Source ${result.source_symbol || 'unavailable'} · ${result.source_bars ?? result.qualified_hlc_sessions ?? 0} contiguous selected HLC sessions · window ${result.window_start_session || 'unavailable'} to ${result.window_end_session || 'unavailable'} · input SHA-256 ${result.source_sha256 || 'unavailable'} · evaluated ${result.evaluated_at}. ${result.reason || ''} ${(result.missing || []).join(', ')}`);
-        if (result.data_quality) line(proposal,'p',`Retained data checks: ${result.data_quality.invalid_session_rows ?? 0} invalid session rows · duplicate sessions ${(result.data_quality.duplicate_sessions || []).join(', ') || 'none'} · declared latest ${result.data_quality.invalid_declared_latest ? 'invalid' : 'not invalid'}. Ambiguous rows are excluded, not filled.`);
-        for (const [field, source] of Object.entries(result.source_fields || {})) {
-          line(proposal,'p',`${field}: ${(source.sources || []).join(', ') || 'source unavailable'} · received ${source.first_received_at} to ${source.last_received_at} · ${(source.field_states || []).join(', ')}.`);
-          for (const conflict of source.conflicts || []) line(proposal,'p',`Conflict ${conflict.session}: selected ${conflict.selected_value} from ${conflict.selected_source} · alternatives ${JSON.stringify(conflict.alternatives || [])} · ${conflict.alternatives_omitted_count || 0} unqualified alternatives omitted. Conditional, not confirmed.`);
-          if (source.observations?.length) { const detail=document.createElement('details'); proposal.append(detail); line(detail,'summary',`${field} observation provenance`); for (const observation of source.observations) line(detail,'p',JSON.stringify(observation)); }
-        }
-        line(proposal,'p',(result.assumptions || []).concat(result.limitations || []).join(' · '));
-      }).catch(()=>{if (generation===selectionGeneration && selectedWatch===instrument && radarView==='swing' && document.getElementById('plan-product').value===product) proposal.textContent='Historical proposal unavailable; data could not be read.';});
-    }
     document.getElementById('radar-selected-title').textContent = `${instrument} · ${document.getElementById('plan-product').selectedOptions[0].textContent}`;
     const badge=document.getElementById('radar-selected-badge');
     if (badge) badge.textContent=evaluation ? `${evaluation.strategy_id || 'Profile unavailable'}${evaluation.strategy_version ? ' v'+evaluation.strategy_version : ''} · ${evaluation.state || 'UNKNOWN'} · ${evaluation.passed ?? '?'} / ${evaluation.applicable ?? '?'} passed · ${evaluation.unknown ?? '?'} unknown${evaluation.data_quality?.calendar_unverified ? ' · CALENDAR UNVERIFIED' : ''}${evaluation.data_quality?.stale ? ' · STALE historical' : ''}${evaluation.data_quality?.provisional || evaluation.benchmark_quality?.provisional ? ' · PROVISIONAL conflicting sources' : ''}${evaluation.data_quality?.partial ? ' · PARTIAL fields' : ''}` : 'Profile evaluation unavailable';
@@ -801,20 +824,24 @@ function mergeEntryRules(rules) {
     ]) {
       const button=line(parent,'button',label); button.type='button'; button.onclick=()=>handoff(destination,watch);
     }
-    try {
-      if (product !== 'CASH_SHARE' || !evaluation?.strategy_id) throw new Error('Exact product/profile evidence not linked');
-      let evidence=radarEvidence.get(instrument);
-      if (!evidenceMatches(evidence,instrument,evaluation,product,radarView)) evidence=await json(`/api/v1/strategy-radar/evidence/${encodeURIComponent(instrument)}?profile=${encodeURIComponent(evaluation.strategy_id)}`);
-      if (!evidenceMatches(evidence,instrument,evaluation,product,radarView)) throw new Error('Evidence identity mismatch');
-      radarEvidence.set(instrument,evidence);
-      if (!document.getElementById('radar-points').contains(document.activeElement)) renderRadar();
-      if (generation!==selectionGeneration || selectedWatch!==instrument || document.getElementById('plan-product').value!==product) return;
-      renderFrozenHistory(context, evidence.historical_research);
-      if (!evidence.comparisons.length && !evidence.backtests?.length) line(context,'p','No retained comparison or backtest for this exact profile and version.');
-      if (document.getElementById('plan-product').value!=='CASH_SHARE' && evidence.backtests?.length) line(context,'p','Cash-share backtests are not evidence for the selected product.');
-      for (const item of (document.getElementById('plan-product').value==='CASH_SHARE' ? evidence.backtests || [] : [])) line(context,'p',`Matched frozen backtest: ${item.label.replaceAll('_',' ').toLowerCase()} · ${item.contender.name} · ${item.contender.sample_count} closed trades · trade dates ${item.contender.first_entry_session} to ${item.contender.last_exit_session} · net R${item.contender.net_pnl} · ${item.candidate_count} matched contenders · run ${item.run_id} · ${item.grade} · as of ${item.created_at || 'unavailable'} · cost basis ${item.cost_basis}. Limitations: ${item.limitations.join(', ')}. Exploratory, not validated.`);
-      for (const item of evidence.comparisons.slice(0,3)) line(context,'p',`Retained shadow ${item.description.replaceAll('_',' ').toLowerCase()} · candidate ${item.candidate.sample_count} samples, mean ${item.candidate.mean_net_bps ?? 'unknown'} bps · baseline ${item.baseline.sample_count} samples, mean ${item.baseline.mean_net_bps ?? 'unknown'} bps · cost ${item.round_trip_cost_bps} bps · as of ${item.replay_as_of} · hash ${item.report_sha256} · ${item.unknown_clock_count} unknown-clock records. Hypothetical next-bar comparison, not a fill backtest; groups can differ and small samples are inconclusive.`);
-    } catch (_) { if (generation===selectionGeneration && selectedWatch===instrument) line(context,'p','Exact product/profile/timeframe evidence unavailable or mismatched.'); }
+    const evidenceSummary = document.getElementById('radar-evidence-summary');
+    const cachedEvidence = radarEvidence.get(instrument);
+    const hasCachedEvidence = evidenceMatches(cachedEvidence, instrument, evaluation, product, radarView);
+    evidenceSummary.textContent = hasCachedEvidence ? evidenceText(cachedEvidence)
+      : product === 'CASH_SHARE' && evaluation?.strategy_id
+        ? 'Checking exact setup evidence…' : 'No evidence linked for this product and profile.';
+    if (product === 'CASH_SHARE' && evaluation?.strategy_id && !hasCachedEvidence) {
+      json(evidenceUrl(instrument, evaluation.strategy_id, true)).then(evidence => {
+        if (generation !== selectionGeneration || selectedWatch !== instrument ||
+            document.getElementById('plan-product').value !== product) return;
+        if (!evidenceMatches(evidence, instrument, evaluation, product, radarView)) throw new Error('Evidence identity mismatch');
+        radarEvidence.set(instrument, evidence);
+        evidenceSummary.textContent = evidenceText(evidence);
+        if (!document.getElementById('radar-points').contains(document.activeElement)) renderRadar();
+      }).catch(() => {
+        if (generation === selectionGeneration) evidenceSummary.textContent = 'Exact setup evidence unavailable.';
+      });
+    }
     try {
       if (product !== 'CASH_SHARE') throw new Error('Exact product quote unavailable');
       const quote=await json(`/api/v1/strategy-radar/quotes/${encodeURIComponent(instrument)}?view=swing`);
@@ -938,12 +965,24 @@ function mergeEntryRules(rules) {
         answer.textContent=`${result.text} · Model: ${result.model} · Advisory only.`;
       } catch(error) { answer.textContent=error.message; } finally { ask.disabled=false; } };
     }
-    if (destination==='backtest-lab' && radarView === 'swing') {
-      const evidence = radarEvidence.get(typed.instrument);
-      const matched = evidenceMatches(evidence, typed.instrument, evaluation, typed.product, radarView);
-      line(notice, 'p', matched && evidence.backtests?.length
-        ? 'A retained fill study matches this selection. Check its costs, dates and limitations.'
-        : 'An exact-version daily comparison is unavailable here. Saved runs retain their own profiles and versions.');
+    if (destination === 'backtest-lab' && typed.product === 'CASH_SHARE') {
+      const research = line(notice, 'div', '');
+      const status = line(research, 'p', 'Reading retained evidence for this setup…');
+      json(evidenceUrl(typed.instrument, typed.strategy_id)).then(evidence => {
+        if (!research.isConnected || window.strategyRadarHandoff !== typed || !isCurrent()) return;
+        if (!evidenceMatches(evidence, typed.instrument, evaluation, typed.product, radarView)) throw new Error('Evidence identity mismatch');
+        status.textContent = evidenceText(evidence);
+        if (evidence.input_review) renderInputReview(research, evidence.input_review);
+        for (const item of evidence.backtests || []) {
+          line(research, 'p', `Fill study ${item.contender.name} · ${item.contender.sample_count} closed trades · net R${item.contender.net_pnl} · ${item.cost_basis} · ${item.grade} · run ${item.run_id}`);
+        }
+        for (const item of (evidence.comparisons || []).slice(0, 3)) {
+          line(research, 'p', `Hypothetical next-bar study · candidate ${item.candidate.sample_count} samples, ${item.candidate.mean_net_bps ?? 'unavailable'} mean net bps · baseline ${item.baseline.sample_count} samples, ${item.baseline.mean_net_bps ?? 'unavailable'} mean net bps · assumed cost ${item.round_trip_cost_bps} bps · ${item.report_sha256}`);
+        }
+        renderFrozenHistory(research, evidence.historical_research);
+      }).catch(() => {
+        if (research.isConnected && isCurrent()) status.textContent = 'Exact setup evidence unavailable.';
+      });
     }
     if (destination==='backtest-lab' && radarView === 'intraday') {
       const note=line(notice,'p','Run an explicit hypothetical next-bar comparison for this exact radar profile. It is not a fill simulation.');
