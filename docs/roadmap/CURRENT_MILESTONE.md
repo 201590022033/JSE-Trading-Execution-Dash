@@ -1,3 +1,7 @@
+## Unified roadmap R09 single-component replay — 19 November 2026
+
+R09 compared the existing Sasol 2R control with a 1.5R target on the same retained Zebra history and cost model. Both produced three signals, three horizon exits and net P&L of −R4,814.83. The archived input reproduced the same report bytes and the running Backtester returned the study. See [R09 results and reproduction](R09_SASOL_TARGET_COMPARISON_2026-11-19.md). R10 is next.
+
 ## Unified roadmap R08 historical and sector research — 19 November 2026
 
 R08 is complete on the running local dashboard. The selected-share context connects the current Radar strategy and benchmark to retained sector results and explicitly identifies missing frozen HR7–HR11 and exact-profile matches. VOD was verified in the browser. See [R08 evidence and rollback](R08_HISTORICAL_SECTOR_RESEARCH_2026-11-19.md). R09 is next.
