@@ -1,0 +1,9 @@
+# R07 dashboard indicators — 19 November 2026
+
+R07 is complete. The selected-share Strategy Radar card now shows daily Zebra and five-minute retained indicators, with parameters, completed-bar time in SAST, versions, and latest close/high/low input sources and receipt times. Indicators report insufficient contiguous completed bars or required fields independently. Refresh reads the existing same-origin intraday API. Responses from earlier selections cannot replace the current share's indicators.
+
+Base revision `a47cd52`. The running dashboard served the updated `static/js/strategy-radar.js` directly. A separate headless Edge session allowed only loopback GET requests during verification. Selecting VOD showed numeric daily values including RSI 80.078 and EMA 174.396 / 167.792 from the 18 November 17:00 SAST completed bar. The latest daily OHLC inputs shown for close/high/low were ShareData. VOD's five-minute snapshot advanced to 09:25 SAST and showed a three-bar contiguous input window. Clicking Refresh indicators returned HTTP 200 for VOD and rendered the result. Selecting NTU showed the unavailable-indicator state. The System tab showed completed ViewPoint and VOD Backtester work after a roster refresh.
+
+`node --check static/js/strategy-radar.js`, `git diff --check` and 71 focused collector, roster, intraday, context and indicator tests passed. The full offline runner executed 2,258 tests with five failures, 22 errors and one skip. Reported issues included existing Hermes expectations, OAuth/tool research tests and Windows asyncio loopback blocked by the offline runner. These broader failures were outside this dashboard-only JavaScript change.
+
+Rollback is a revert of the R07 commit and a dashboard page reload. The local data and source receipts remain usable. Next is R08, historical and sector research linkage.

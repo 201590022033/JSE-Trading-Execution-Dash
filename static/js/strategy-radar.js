@@ -51,6 +51,73 @@ function mergeEntryRules(rules) {
   function line(parent, tag, text) {
     const node = document.createElement(tag); node.textContent = text; parent.append(node); return node;
   }
+  const indicatorPanel = document.createElement('section');
+  indicatorPanel.id = 'radar-selected-indicators';
+  indicatorPanel.hidden = true;
+  document.getElementById('radar-selected-actions').after(indicatorPanel);
+  const indicatorTitle = line(indicatorPanel, 'h4', 'Research indicators');
+  indicatorTitle.id = 'radar-indicator-title';
+  indicatorPanel.setAttribute('aria-labelledby', indicatorTitle.id);
+  const indicatorRefresh = line(indicatorPanel, 'button', 'Refresh indicators');
+  indicatorRefresh.type = 'button';
+  const indicatorStatus = line(indicatorPanel, 'p', '');
+  indicatorStatus.setAttribute('role', 'status');
+  const indicatorOutput = line(indicatorPanel, 'div', '');
+  const indicatorDefinitions = {
+    rsi: 'RSI (14)', ema: 'EMA (12, 26)', stochastic: 'Fast stochastic (14, 3)',
+    stochastic_14_3_3: 'Slow stochastic (14, 3, 3)', ichimoku: 'Ichimoku (9, 26, 52; shift 26)'
+  };
+  const indicatorClock = new Intl.DateTimeFormat('en-ZA', {
+    timeZone: 'Africa/Johannesburg', dateStyle: 'medium', timeStyle: 'medium'
+  });
+  const formatIndicatorTime = value => value ? indicatorClock.format(new Date(value)) + ' SAST' : 'Unavailable';
+  let indicatorRequest = 0;
+  async function loadIndicators(instrument) {
+    const request = ++indicatorRequest;
+    indicatorPanel.hidden = !instrument;
+    indicatorOutput.replaceChildren();
+    if (!instrument) return;
+    indicatorTitle.textContent = `${instrument} research indicators`;
+    indicatorStatus.textContent = 'Reading retained bars…';
+    indicatorRefresh.disabled = true;
+    try {
+      const data = await json(`/api/v1/strategy-radar/intraday/${encodeURIComponent(instrument)}`);
+      if (request !== indicatorRequest || instrument !== selectedWatch) return;
+      for (const [label, snapshot] of [['Daily · Zebra', data.daily_indicators], ['Five-minute · retained bars', data.five_minute_indicators]]) {
+        const section = line(indicatorOutput, 'div', '');
+        line(section, 'h5', label);
+        line(section, 'p', `Latest completed bar ${formatIndicatorTime(snapshot?.latest_bar_end)}`);
+        const inputs = line(section, 'details', '');
+        line(inputs, 'summary', 'Latest completed bar sources');
+        for (const field of ['close', 'high', 'low']) {
+          const input = snapshot?.latest_inputs?.[field]?.selected;
+          line(inputs, 'p', input ? `${field} · ${input.source || 'Source unavailable'} · received ${formatIndicatorTime(input.received_at)}` : `${field} · unavailable`);
+        }
+        const rows = line(section, 'ul', '');
+        for (const [name, definition] of Object.entries(indicatorDefinitions)) {
+          const item = snapshot?.indicators?.[name];
+          const row = line(rows, 'li', '');
+          line(row, 'strong', definition);
+          if (item?.available) {
+            const values = Object.entries(item.values).map(([key, value]) =>
+              `${key.replaceAll('_', ' ')} ${typeof value === 'number' ? Number(value.toFixed(3)) : value}`);
+            row.append(` · ${values.join(' · ')} · ${item.bars_used} bars · ${item.version}`);
+          } else {
+            const insufficient = item?.reason === 'INSUFFICIENT_CONTIGUOUS_COMPLETED_BARS_OR_REQUIRED_FIELD';
+            row.append(insufficient ? ` · Unavailable · ${item.bars_used} of ${item.required_bars} contiguous completed bars with required fields` : ' · Unavailable');
+          }
+        }
+      }
+      indicatorStatus.textContent = 'Research values from completed retained bars.';
+    } catch {
+      if (request === indicatorRequest && instrument === selectedWatch) {
+        indicatorStatus.textContent = 'Indicator data unavailable. Retry with Refresh indicators.';
+      }
+    } finally {
+      if (request === indicatorRequest) indicatorRefresh.disabled = false;
+    }
+  }
+  indicatorRefresh.onclick = () => loadIndicators(selectedWatch);
   function visibleRadarWatches(watches) {
     const topFive = watches.filter(watch => watch.in_top5).slice(0, 5);
     const included = new Set(topFive.map(watch => watch.instrument));
@@ -66,6 +133,7 @@ function mergeEntryRules(rules) {
     form.append(pinSlotStatus);
   }
   function showSelectionError(message) {
+    if (!selectedWatch) loadIndicators(null);
     document.getElementById('radar-selected-context').textContent=message;
     const badge=document.getElementById('radar-selected-badge'); if (badge) badge.textContent=message;
     const price=document.getElementById('radar-price'); if (price) price.textContent='Not available';
@@ -375,6 +443,10 @@ function mergeEntryRules(rules) {
   }
   async function renderSelection() {
     const watch=currentWatches.find(item=>item.instrument===selectedWatch); if (!watch) return;
+    if (indicatorPanel.hidden || indicatorPanel.dataset.instrument !== watch.instrument) {
+      indicatorPanel.dataset.instrument = watch.instrument;
+      loadIndicators(watch.instrument);
+    }
     const generation=++selectionGeneration;
     const instrument=watch.instrument, product=document.getElementById('plan-product').value, evaluation=radarEvaluations.get(instrument);
     const proposal=document.getElementById('radar-research-proposal');
