@@ -1,6 +1,7 @@
 """Daily radar built from retained Zebra observations; no provider requests."""
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from statistics import median
 import json
 import math
 from .intraday_evaluation import _trace
@@ -47,7 +48,7 @@ def _chart(folder, instrument, now):
         return None
 
 
-def _research_chart(folder, instrument, now):
+def _research_chart(folder, instrument, now, *, include_volume_alternatives=False):
     """Use the latest contiguous Zebra close suffix, with explicit quality.
 
     Retained priority selections in a conflict are research candidates, never
@@ -90,7 +91,7 @@ def _research_chart(folder, instrument, now):
                 if not math.isfinite(value) or (value<0 if field=='volume' else value<=0): continue
                 bar[field]=value
                 alternatives=[]; omitted=0
-                if state=='CONFLICT_NO_CONSENSUS':
+                if state=='CONFLICT_NO_CONSENSUS' or (field=='volume' and include_volume_alternatives):
                     candidates=detail.get('alternatives',[])
                     if not isinstance(candidates,list): candidates=[]; omitted+=1
                     for candidate in candidates:
@@ -135,6 +136,110 @@ def _research_chart(folder, instrument, now):
         return {'symbol':instrument,'interval':'1d','currency':'ZAR','bars':bars}, quality
     except (OSError,ValueError,TypeError,KeyError,IndexError,OverflowError):
         return None, None
+
+
+def _volume_sensitivity(rows, volume_by_session, lookback, max_gaps):
+    """Compare observed alternative providers against their own prior medians."""
+    if len(rows) < lookback + 1:
+        return []
+    prior_rows = rows[-lookback-1:-1]
+    selected_prior = [row['volume'] for row in prior_rows if 'volume' in row]
+    last = volume_by_session.get(rows[-1]['timestamp'][:10])
+    minimum = lookback - max_gaps
+    if not last or len(selected_prior) < minimum or median(selected_prior) <= 0:
+        return []
+    selected_pass = last['value'] > median(selected_prior)
+    comparisons = []
+    for alternative in last['alternatives']:
+        source = alternative['source']
+        if source == last['source']:
+            continue
+        history = []
+        for row in prior_rows:
+            field = volume_by_session.get(row['timestamp'][:10])
+            if field is None:
+                continue
+            matches = [item['value'] for item in [field, *field['alternatives']] if item['source'] == source]
+            if len(matches) == 1:
+                history.extend(matches)
+        if len(history) < minimum or median(history) <= 0:
+            continue
+        baseline = median(history)
+        comparisons.append({'source':source, 'prior_sessions':len(history), 'prior_median':baseline,
+                            'volume':alternative['value'], 'acquired_at':alternative['acquired_at'],
+                            'classification_changed':(alternative['value'] > baseline) != selected_pass})
+    return comparisons
+
+
+def momentum_state(service, instrument, trace):
+    """Display-only daily reference using the selected fields available at evaluation."""
+    from application.backtest_lab.momentum_targets import (
+        MAX_GAP_SESSIONS, VOLUME_LOOKBACK, features, peer_projection, prepare_peers,
+    )
+    from .sector_context import sector_context
+
+    if not trace.get('session'):
+        return None
+    now = datetime.fromisoformat(trace['evaluated_at'])
+    chart, quality = _research_chart(service.folder, instrument, now, include_volume_alternatives=True)
+    horizon = 3
+    minimum_samples = 30
+    projection = {'status':'FIXED_TARGET_FALLBACK', 'sample_count':0, 'minimum_samples':minimum_samples,
+                  'horizon_sessions':horizon, 'fixed_target_r':2}
+    result = {'session':trace['session'], 'data_quality':'PARTIAL', 'exhaustion_label':'NO_DATA',
+              'projected_excursion':projection}
+    if not chart or quality['session'] != trace['session']:
+        return result
+
+    rows = chart['bars']
+    current = features(rows, len(rows)-1, max_volume_gaps=MAX_GAP_SESSIONS)
+    result['stale'] = quality['stale']
+    if current is None:
+        return result
+
+    momentum = current['momentum_atr']
+    change = current['momentum_change_atr']
+    steady_band = 0.25  # ATR units, display classification only.
+    if abs(change) <= steady_band:
+        label = 'STEADY'
+    elif change > 0:
+        label = 'RISING'
+    else:
+        label = 'EXHAUSTION_RISK' if momentum <= 0 else 'SLOWING'
+
+    volume_fields = {item['session']:item for item in quality['fields'] if item['field']=='volume'}
+    prior = rows[-VOLUME_LOOKBACK-1:-1]
+    missing = sum('volume' not in row for row in prior)
+    last_volume = volume_fields.get(quality['session'], {})
+    ratio = current['relative_volume']
+    recent_fields = [item for item in quality['fields']
+                     if item['field'] in ('close','high','low','volume') and item['session'] >= prior[0]['timestamp'][:10]]
+    provisional = any(item['state'] == 'CONFLICT_NO_CONSENSUS' for item in recent_fields)
+    if ratio is not None and missing:
+        result['data_quality'] = 'GAP_TOLERATED'
+    elif ratio is None or provisional or quality['calendar_unverified']:
+        result['data_quality'] = 'PARTIAL'
+    elif any(item['state'] == 'SINGLE_SOURCE' for item in recent_fields):
+        result['data_quality'] = 'SINGLE_SOURCE'
+    else:
+        result['data_quality'] = 'CONFIRMED'
+    result.update(momentum_atr=momentum, momentum_change_atr=change, exhaustion_label=label, provisional=provisional,
+                  relative_volume=ratio, volume_source=last_volume.get('source'),
+                  volume_value=last_volume.get('value'), volume_acquired_at=last_volume.get('received_at'),
+                  volume_prior_sessions=len(prior)-missing, volume_missing_sessions=missing,
+                  alternate_volume=_volume_sensitivity(rows, volume_fields, VOLUME_LOOKBACK, MAX_GAP_SESSIONS))
+
+    peers = {}
+    for peer in sector_context(service, instrument, now=now)['universe']:
+        if peer == instrument:
+            continue
+        peer_chart, _ = _research_chart(service.folder, peer, now)
+        if peer_chart:
+            peers[peer] = [peer_chart['bars']]
+    cases = prepare_peers(peers, horizon)
+    estimate = peer_projection(rows, len(rows)-1, horizon, cases, minimum_samples=minimum_samples)
+    projection.update({k:v for k,v in estimate.items() if k not in ('features','variant')})
+    return result
 
 
 def _apply_component_windows(data, chart):

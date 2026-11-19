@@ -80,6 +80,43 @@ class SwingRadarTests(unittest.TestCase):
             self.assertFalse(response.json['live_execution'])
             self.assertEqual(client.get('/api/v1/strategy-radar/swing', environ_base={'REMOTE_ADDR':'192.0.2.1'}).status_code, 403)
 
+    def test_vod_evidence_shows_gap_tolerated_volume_and_alternative_classification(self):
+        watch = {'instrument': 'VOD', 'sector': 'Telecommunications', 'benchmark': 'ETF_STX40'}
+        self.service.root = self.folder
+        self.service.store.list_watches = lambda: [watch]
+        self.service.store.get = lambda key: watch if key == 'VOD' else None
+        for row in self.rows:
+            row['fields']['volume']['alternatives'] = [
+                {'source':'OTHER', 'value':1000, 'acquired_at':'2026-11-09T10:00:00+00:00'}]
+        self.rows[-7]['fields'].pop('volume')
+        self.rows[-8]['fields'].pop('volume')
+        self.rows[-1]['fields']['volume'].update(value=1200, alternatives=[
+            {'source':'OTHER', 'value':800, 'acquired_at':'2026-11-09T10:00:00+00:00'},
+            {'source':'FUTURE', 'value':500, 'acquired_at':'2026-11-10T10:00:00+00:00'},
+        ])
+        self.write()
+        (self.folder/'daily-cache'/'MTN.json').rename(self.folder/'daily-cache'/'VOD.json')
+        app = Flask(__name__)
+        app.register_blueprint(create_radar_blueprint(lambda: self.service))
+        with patch('application.strategy_radar.swing_radar.evaluate_watches', side_effect=lambda service, **kwargs:
+                   evaluate_watches(service, now=NOW, **kwargs)), \
+             patch('application.strategy_radar.sector_context.mappings', return_value={'VOD':'VOD', 'MTN':'MTN'}):
+            response = app.test_client().get('/api/v1/strategy-radar/evidence/VOD?profile=jse_swing_3_5d&view=summary')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json['live_execution'])
+        self.assertEqual(response.json['strategy_version'], '1.1.2')
+        item = response.json['momentum_state']
+        self.assertEqual(item['session'], '2026-11-06')
+        self.assertEqual(item['data_quality'], 'GAP_TOLERATED')
+        self.assertEqual(item['exhaustion_label'], 'STEADY')
+        self.assertEqual(item['volume_source'], 'FIXTURE')
+        self.assertEqual(item['relative_volume'], 1.2)
+        self.assertEqual(item['volume_prior_sessions'], 18)
+        self.assertEqual([(alt['source'], alt['classification_changed']) for alt in item['alternate_volume']],
+                         [('OTHER', True)])
+        self.assertEqual(item['projected_excursion']['status'], 'FIXED_TARGET_FALLBACK')
+        self.assertEqual(item['projected_excursion']['sample_count'], 0)
+
     def test_stale_and_missing_sessions_do_not_compress_gaps(self):
         self.rows.pop()
         self.write(latest='2026-11-05')

@@ -829,18 +829,21 @@ function mergeEntryRules(rules) {
     evidenceSummary.textContent = hasCachedEvidence ? evidenceText(cachedEvidence)
       : product === 'CASH_SHARE' && evaluation?.strategy_id
         ? 'Checking exact setup evidence…' : 'No evidence linked for this product and profile.';
+    let evidenceRequest;
     if (product === 'CASH_SHARE' && evaluation?.strategy_id && !hasCachedEvidence) {
-      json(evidenceUrl(instrument, evaluation.strategy_id, true)).then(evidence => {
+      evidenceRequest = json(evidenceUrl(instrument, evaluation.strategy_id, true)).then(evidence => {
         if (generation !== selectionGeneration || selectedWatch !== instrument ||
             document.getElementById('plan-product').value !== product) return;
         if (!evidenceMatches(evidence, instrument, evaluation, product, radarView)) throw new Error('Evidence identity mismatch');
         radarEvidence.set(instrument, evidence);
         evidenceSummary.textContent = evidenceText(evidence);
         if (!document.getElementById('radar-points').contains(document.activeElement)) renderRadar();
+        return evidence;
       }).catch(() => {
         if (generation === selectionGeneration) evidenceSummary.textContent = 'Exact setup evidence unavailable.';
       });
     }
+    window.RadarMomentum?.mount(evidenceSummary, hasCachedEvidence ? cachedEvidence : evidenceRequest);
     try {
       if (product !== 'CASH_SHARE') throw new Error('Exact product quote unavailable');
       const quote=await json(`/api/v1/strategy-radar/quotes/${encodeURIComponent(instrument)}?view=swing`);
