@@ -52,6 +52,74 @@ function mergeEntryRules(rules) {
   function line(parent, tag, text) {
     const node = document.createElement(tag); node.textContent = text; parent.append(node); return node;
   }
+  function appendSourceLink(parent, value, label) {
+    try {
+      const url = new URL(value);
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return;
+      parent.append(' · ');
+      const link = line(parent, 'a', label);
+      link.href = url.href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    } catch (_) {
+      // A missing or invalid citation leaves its retained text readable.
+    }
+  }
+  let eventContextCache;
+  function eventContext() {
+    if (eventContextCache && Date.now() - eventContextCache.at < 60000) return eventContextCache.promise;
+    const promise = json('/api/market-intelligence/event-preparation').catch(error => {
+      if (eventContextCache?.promise === promise) eventContextCache = null;
+      throw error;
+    });
+    eventContextCache = {at: Date.now(), promise};
+    return promise;
+  }
+  function renderMacroContext(panel, events, instrument, product) {
+    panel.replaceChildren();
+    const macroEvents = events.filter(event => /^(SARB_MPC_|ZA_)/.test(event.event_key));
+    const now = Date.now();
+    const recent = macroEvents.filter(event => Date.parse(event.anchor_at) <= now && Date.parse(event.anchor_at) >= now - 7 * 86400000)
+      .sort((a, b) => b.anchor_at.localeCompare(a.anchor_at));
+    const upcoming = macroEvents.filter(event => event.state === 'UPCOMING_CONFIRMED')
+      .sort((a, b) => a.anchor_at.localeCompare(b.anchor_at));
+    const today = new Intl.DateTimeFormat('sv-SE', {timeZone: 'Africa/Johannesburg'}).format(now);
+    const event = upcoming.find(item => item.event_date === today) || recent[0] || upcoming[0];
+    if (event) {
+      const timing = event.time_precision === 'EXACT_SOURCE_TIME'
+        ? formatIndicatorTime(event.anchor_at) : `${event.event_date} · release time unavailable`;
+      const state = event.state === 'UPCOMING_CONFIRMED' ? 'Scheduled' : 'Calendar anchor reached · outcome requires source review';
+      appendSourceLink(line(panel, 'p', `${event.title} · ${timing} · ${state}`), event.source_url, 'Calendar source');
+      line(panel, 'p', 'Market-wide context. Issuer-specific hypotheses are listed below when available.');
+      const related = event.related_sources || [];
+      const candidates = event.candidate_evidence || [];
+      const coverage = event.candidate_evidence_coverage;
+      if (coverage?.hermes_truncated || coverage?.sens_truncated) line(panel, 'p', 'Retained news or SENS coverage is partial.');
+      if (!related.length && !candidates.length) line(panel, 'p', 'No related sources in the retained event coverage.');
+      const featured = related.slice(0, 2);
+      const featuredIds = new Set(featured.map(item => item.source_id));
+      const featuredUrls = new Set(featured.map(item => item.url).filter(Boolean));
+      const additional = candidates.filter(item => !featuredIds.has(item.source_id) && !featuredUrls.has(item.source_url));
+      for (const item of [...featured, ...additional.slice(0, 2)]) {
+        const kind = item.link_state ? 'Keyword candidate · review required' : 'Related retained source';
+        const headline = String(item.body || '').split('\n')[0].slice(0, 260);
+        const row = line(panel, 'p', `${kind} · ${headline} · published ${formatIndicatorTime(item.published_at)} · received ${formatIndicatorTime(item.available_at)}`);
+        appendSourceLink(row, item.source_url || item.url, 'Read source');
+      }
+    } else {
+      line(panel, 'p', 'No nearby South African macro event in the retained calendar.');
+    }
+    const hypotheses = product === 'CASH_SHARE' ? events.flatMap(event =>
+      (event.share_proposals || []).filter(item => item.instrument_id === instrument).map(item => ({event, item}))
+    ).sort((a, b) => Date.parse(b.item.received_at) - Date.parse(a.item.received_at)).slice(0, 3) : [];
+    line(panel, 'h5', 'Saved share hypotheses');
+    if (!hypotheses.length) line(panel, 'p', product === 'CASH_SHARE'
+      ? `No retained event hypothesis for ${instrument}.` : 'Share hypotheses are unavailable for this product.');
+    for (const {event: linkedEvent, item} of hypotheses) {
+      const row = line(panel, 'p', `${instrument} · ${linkedEvent.title} · ${item.reviewability || 'Review status unavailable'} · saved ${formatIndicatorTime(item.received_at)} · ${item.statement || 'Statement unavailable'}`);
+      appendSourceLink(row, linkedEvent.source_url, 'Linked calendar source');
+    }
+  }
   function renderFrozenHistory(parent, sections) {
     const detail = line(parent, 'details', '');
     line(detail, 'summary', 'Frozen HR7–HR11 research');
@@ -161,6 +229,13 @@ function mergeEntryRules(rules) {
     if (!selectedWatch) {
       loadIndicators(null);
       renderPlanSummary();
+      const events = document.getElementById('radar-events-context');
+      if (events) {
+        events.closest('section').querySelector('h3').textContent = 'News and events';
+        events.textContent = 'Select a watched share.';
+      }
+      const news = document.getElementById('radar-news-context');
+      if (news) news.textContent = 'Select a watched share.';
     }
     document.getElementById('radar-selected-context').textContent=message;
     const badge=document.getElementById('radar-selected-badge'); if (badge) badge.textContent=message;
@@ -545,17 +620,32 @@ function mergeEntryRules(rules) {
     }
     const events=document.getElementById('radar-events-context');
     if (events) {
-      events.textContent='Checking retained calendar events…';
+      const macroWasOpen = events.querySelector('details')?.open;
+      events.replaceChildren();
+      events.closest('section').querySelector('h3').textContent = `${instrument} news and events`;
+      line(events, 'p', `Sector ${watch.sector || 'unavailable'} · research benchmark ${watch.benchmark || 'unavailable'}`);
+      const issuer = line(events, 'div', 'Checking retained issuer calendar…');
+      const macro = line(events, 'details', '');
+      macro.open = !!macroWasOpen;
+      line(macro, 'summary', 'South African macro context');
+      const macroBody = line(macro, 'div', 'Checking retained macro events…');
+      const current = () => generation===selectionGeneration && selectedWatch===instrument && document.getElementById('plan-product').value===product;
+      eventContext().then(packet => {
+        if (current()) renderMacroContext(macroBody, packet.events, instrument, product);
+      }).catch(() => { if (current()) macroBody.textContent = 'Retained macro events and hypotheses are unavailable.'; });
       json(`/api/market-intelligence/issuer-events/${encodeURIComponent(instrument)}?product=${encodeURIComponent(product)}`).then(calendar=>{
-        if (generation!==selectionGeneration || selectedWatch!==instrument || document.getElementById('plan-product').value!==product) return;
+        if (!current()) return;
         if (!Array.isArray(calendar.events)) throw new Error('Calendar events unavailable');
         const matched=calendar.events;
-        events.replaceChildren();
-        if (!matched.length) { events.textContent=calendar.state==='NO_MATCH' ? 'No upcoming source-matched issuer events in the retained calendar.' : `Issuer events unavailable: ${calendar.reason || calendar.state || 'unknown'}.`; return; }
-        for (const event of matched.slice(0,5)) line(events,'p',`${event.title || 'Event'} · ${event.event_date} · ${event.time_precision || 'time precision unknown'} · ${event.state} · source ${event.source_url} · published ${event.published_at || 'unavailable'} · captured ${event.captured_at || 'unavailable'} · received ${event.source_received_at || 'unknown'} · review ${event.review_origin || 'unconfirmed'} · ${event.issuer_match || 'issuer match unavailable'}.`);
-        line(events,'p',calendar.limitations || 'Event occurrence and publisher authenticity remain unverified.');
-        if (calendar.state==='PARTIAL') line(events,'p','Some calendar associations could not be verified.');
-      }).catch(()=>{ if (generation===selectionGeneration && selectedWatch===instrument && document.getElementById('plan-product').value===product) events.textContent='Calendar unavailable; issuer events cannot be checked.'; });
+        issuer.replaceChildren();
+        if (!matched.length) { issuer.textContent=calendar.state==='NO_MATCH' ? 'No upcoming source-matched issuer events in the retained calendar.' : `Issuer events unavailable: ${calendar.reason || calendar.state || 'unknown'}.`; return; }
+        for (const event of matched.slice(0,5)) {
+          const row = line(issuer,'p',`${event.title || 'Event'} · ${event.event_date} · ${event.time_precision || 'time precision unknown'} · ${event.state} · published ${event.published_at || 'unavailable'} · captured ${event.captured_at || 'unavailable'} · received ${event.source_received_at || 'unknown'} · review ${event.review_origin || 'unconfirmed'} · ${event.issuer_match || 'issuer match unavailable'}.`);
+          appendSourceLink(row, event.source_url, 'Calendar source');
+        }
+        line(issuer,'p',calendar.limitations || 'Event occurrence and publisher authenticity remain unverified.');
+        if (calendar.state==='PARTIAL') line(issuer,'p','Some calendar associations could not be verified.');
+      }).catch(()=>{ if (current()) issuer.textContent='Calendar unavailable; issuer events cannot be checked.'; });
     }
     const news=document.getElementById('radar-news-context');
     if (news) {
@@ -568,7 +658,8 @@ function mergeEntryRules(rules) {
         for (const item of data.items) {
           const detail=item.publication_detail;
           const published=item.published_at || (detail?.value ? `${detail.value} (${detail.precision || 'precision unknown'})` : 'unavailable');
-          line(news,'p',`${item.headline || 'Untitled source'} · ${item.source_kind || 'source'} · ${item.source_window || 'window unknown'} · published ${published} · observed ${item.observed_at || 'unknown'} · ${item.source_url || 'source unavailable'}. No scheduled event date inferred.`);
+          const row = line(news,'p',`${item.headline || 'Untitled source'} · ${item.source_kind || 'source'} · ${item.source_window || 'window unknown'} · published ${published} · observed ${item.observed_at || 'unknown'}`);
+          appendSourceLink(row, item.source_url, 'Read source');
         }
         if (data.state==='PARTIAL') line(news,'p','Some retained sources could not be verified.');
         line(news,'p',data.limitations || 'Issuer mentions are research context, not proof of an event.');

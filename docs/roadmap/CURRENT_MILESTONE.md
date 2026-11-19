@@ -1,3 +1,7 @@
+## Unified roadmap R13 issuer and macro news context — 19 November 2026
+
+R13 connects the selected share to retained issuer SENS and news, calendar evidence, its sector and benchmark, and any exact-share event hypotheses. The dashboard also shows nearby South African macro evidence with source links and explicit coverage gaps. See [R13 verification](R13_ISSUER_AND_MACRO_CONTEXT_2026-11-19.md). R14 is next.
+
 ## Unified roadmap R12 alert journey — 19 November 2026
 
 The unified R12 dashboard and Windows Notification History paths are verified. Real VOD and MTN entry-met alerts and an explicitly labelled delivery test reached Windows history. The dashboard preserves the opened transition across polls and shows source, bar and receipt clocks. Transient popup display remains unobserved. See [unified R12 evidence](R12_ALERT_JOURNEY_2026-11-19.md). R13 is next in this series.
