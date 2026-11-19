@@ -1,5 +1,9 @@
 # AI series status
 
+## Unified R16 follow-up checkpoint — 19 November
+
+The live dashboard linked the scheduled Qwen reading to its exact retained watch and showed two recorded macro failure/retry pairs. Both retries abstained. The 30-day view had six outputs and zero operator reviews or later same-source results. A fresh share or macro run had no eligible event. Remaining unattended calendar-generation and scheduler diagnostic limits are recorded in [R16 verification](../roadmap/R16_AI_FOLLOWUP_AND_RECOVERY_2026-11-19.md).
+
 ## Unified R15 live checkpoint — 19 November
 
 The running dashboard exposed the existing daily Qwen source-reading result with exact source and contract IDs, model digest, clocks and Mining context. A proposed date absent from the source was withheld. The macro expectation panel displayed its saved reservation and exact input ID. The current calendar paths reported zero eligible share and macro events. This verifies real receipt routing and rendering and leaves fresh Llama/share generation and cross-session unattended acceptance open. No current budget, schedule or process was changed. See [unified R15 verification](../roadmap/R15_AI_CONTEXT_AND_ROUTING_2026-11-19.md).

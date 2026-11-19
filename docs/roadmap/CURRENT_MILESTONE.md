@@ -1,3 +1,7 @@
+## Unified roadmap R16 AI follow-up and recovery — 19 November 2026
+
+R16 verified the dashboard handoff from the retained daily Qwen reading to its exact watch, and showed two linked macro failure/retry pairs with separate review and outcome coverage. Fresh calendar generation was ineligible at verification. See [R16 evidence](R16_AI_FOLLOWUP_AND_RECOVERY_2026-11-19.md). The unified roadmap continues through R17 and R18.
+
 ## Unified roadmap R15 model cycle and context — 19 November 2026
 
 R15 exposes a real scheduled Qwen source-reading cycle and the saved macro reservation on the running dashboard. The report retains model, source and result identity, clocks and explicit uncertainty. Dashboard reads made zero model calls. The current calendar paths had no eligible event for a fresh generation. See [R15 verification](R15_AI_CONTEXT_AND_ROUTING_2026-11-19.md). R16 is next.

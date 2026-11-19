@@ -622,13 +622,31 @@ async function refreshCalendarExpectations() {
   await macroRefresh;
 }
 
+function savedMacroRecoveries(outputs) {
+  const byId = new Map(outputs.map(output => [output.output_id, output]));
+  return outputs.flatMap(retry => {
+    const id = retry.output_id || '';
+    if (!id.startsWith('macro-expectation-attempt-') || !id.endsWith('-retry-2-result')) return [];
+    const first = byId.get(id.replace(/-retry-2-result$/, '-result'));
+    if (first?.state !== 'FAILED_NO_AUTOMATIC_RETRY' || !first.event_id || first.event_id !== retry.event_id ||
+        !(Date.parse(first.received_at) < Date.parse(retry.received_at))) return [];
+    return [{first, retry}];
+  });
+}
 async function refreshAIUsefulness(days=30) {
   const anchor=$('#calendar-expectation-status'); if (!anchor) return;
   let panel=$('#ai-usefulness');
   if (!panel) { panel=document.createElement('section'); panel.id='ai-usefulness'; anchor.before(panel); }
   try {
     const data=await api('/api/market-intelligence/ai-usefulness?days='+encodeURIComponent(days)), c=data.counts;
+    const recoveries = savedMacroRecoveries(data.outputs);
+    const recoveryHtml = recoveries.length ? recoveries.map(({first, retry}) => `
+      <article><p>${esc(retry.state)} after ${esc(first.state)} · event ${esc(retry.event_id)}</p>
+        <p>Failed result ${esc(first.output_id)} · saved ${esc(when(first.received_at))}</p>
+        <p>Retry result ${esc(retry.output_id)} · saved ${esc(when(retry.received_at))}</p></article>`).join('')
+      : '<p>No matched failed and retry results in this period.</p>';
     panel.innerHTML=`<h3>AI usefulness reviews</h3><label>Period <select data-ai-period><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="365">365 days</option></select></label><p>${esc(c.attempted_macro)} macro attempts · ${esc(c.outputs)} saved outputs · ${esc(c.completed)} completed · ${esc(c.abstained)} abstained · ${esc(c.invalid_or_failed)} invalid or failed · ${esc(c.reviewed)} reviewed / ${esc(c.outputs)} outputs · ${esc(c.owner_useful)} useful / ${esc(c.owner_review_denominator)} operator-reviewed · citation membership ${esc(c.citation_membership_valid)} / ${esc(c.citation_proposals_checked)} checked macro proposals · later same-source receipts ${esc(c.followup_available)} / ${esc(c.followup_denominator)} outputs. No accuracy or causal claim; operator identity is asserted.</p>`+(data.outputs.slice(0,20).map(o=>`<article><p>${esc(o.state)} · ${esc(o.received_at)} · ${esc(o.model_version)} · prompt ${esc(o.prompt_version)} · cutoff ${esc(o.cutoff || 'unknown')}</p><p>${esc(o.output?.expectation || o.output?.statement || 'No expectation available')}</p><p>Outcome: ${esc(o.outcome_state)} · follow-up: ${esc(o.followup_state)} · ${(o.reviews || []).length} review(s)</p><details><summary>Evidence and later receipts</summary>${(o.input_sources || []).map(s=>`<p>Original input ${esc(s.source_id)} · ${esc(s.received_at || 'source time not recorded')}: ${esc(s.body)}</p>`).join('') || '<p>Original source detail unavailable.</p>'}${(o.later_sources || []).map(s=>`<p>Later same-URL receipt ${esc(s.receipt_id)} · available ${esc(s.available_at)} · published ${esc(s.published_at || 'unknown')}: ${esc(s.body)}</p>`).join('') || '<p>No later same-source receipt found.</p>'}<p>Price context: ${esc(o.price_observations ? JSON.stringify(o.price_observations) : 'not available')}</p></details><label>Review <select data-ai-review="${esc(o.output_id)}"><option value="">Choose an assessment</option><option value="USEFUL">Useful</option><option value="PARTLY_USEFUL">Partly useful</option><option value="UNSUPPORTED_OR_INCORRECT">Unsupported or incorrect</option><option value="NOT_ENOUGH_EVIDENCE">Not enough evidence</option></select></label><label>Reason (optional) <input data-ai-reason="${esc(o.output_id)}" maxlength="2000"></label><button data-ai-save="${esc(o.output_id)}">Save review</button></article>`).join('') || '<p>Insufficient evidence: no saved AI outputs in this period.</p>');
+    panel.insertAdjacentHTML('beforeend', `<details id="ai-failed-cycle-recovery"><summary>Saved macro recovery · ${recoveries.length} matched retries</summary>${recoveryHtml}</details>`);
     const period=panel.querySelector('[data-ai-period]'); period.value=String(days);period.onchange=()=>refreshAIUsefulness(Number(period.value));
     panel.querySelectorAll('[data-ai-save]').forEach(button=>{button.onclick=async()=>{const id=button.dataset.aiSave, select=[...panel.querySelectorAll('[data-ai-review]')].find(x=>x.dataset.aiReview===id), reason=[...panel.querySelectorAll('[data-ai-reason]')].find(x=>x.dataset.aiReason===id); if(!select.value){button.textContent='Choose a review first';return;} const fingerprint=JSON.stringify([select.value,reason.value]);if(button.dataset.fingerprint!==fingerprint){button.dataset.fingerprint=fingerprint;button.dataset.requestId=crypto.randomUUID();}button.disabled=true;try{await post('/api/market-intelligence/weekly-brief/ai-usefulness-review',{output_id:id,verdict:select.value,reason:reason.value,request_id:button.dataset.requestId});await refreshAIUsefulness(days);}catch(e){button.textContent='Review not saved; check controls and retry';button.disabled=false;}};});
   } catch(error) { panel.textContent='AI review history unavailable; existing calendar and expectations remain available.'; }
@@ -936,6 +954,8 @@ async function refreshAnticipatoryRadar() {
     const modelName = latest?.model || (latest?.model_digest && latest.model_digest === d.model.qualification?.model_digest
       ? d.model.qualification.model : null);
     const checkedTime = value => value ? when(value) : 'unavailable';
+    const watchFollowup = linkedWatch ? `<p>Watch follow-up · ${esc(linkedWatch.state)} · ${esc(linkedWatch.related_source_count ?? 'unknown')} later source links · ${esc((linkedWatch.source_reviews || []).length)} retained source reviews · operator outcome ${esc(linkedWatch.review_verdict || 'unreviewed')} · <a href="#${esc(linkedWatch.record_id)}">Open linked watch</a></p>`
+      : '<p>Linked watch follow-up unavailable in this view.</p>';
     const savedReading = latest?.event_contract_id ? `<article id="radar-saved-model-reading">
       <h3>Saved model source reading</h3>
       <p>${esc(modelName || 'Model name unavailable')} · ${esc(readable(latest.state))} · model-generated, advisory</p>
@@ -944,6 +964,7 @@ async function refreshAnticipatoryRadar() {
       <p>${esc(latest.error_type || (latest.parsed?.date_issue ? 'Model-proposed date unsupported by the retained source. Event date unavailable.' :
         latest.parsed?.has_future_event === false ? 'No specific future event extracted.' : 'Source interpretation requires review.'))}</p>
       ${sourceLink(latestSource?.source_url, 'Review model input source')}
+      ${watchFollowup}
       <details${$('#radar-saved-model-reading details')?.open ? ' open' : ''}><summary>Inspect model inputs and clocks</summary>
         <p>Source ID ${esc(latest.source_id || 'unavailable')} · receipt ID ${esc(latestSource?.source_receipt_id || 'unavailable')}</p>
         <p>Source received ${esc(checkedTime(latestSource?.available_at || latestSource?.source_available_at))} · published ${esc(checkedTime(latestSource?.published_at))} · evidence cutoff ${esc(checkedTime(linkedWatch?.causal_cutoff))}</p>
@@ -975,7 +996,7 @@ async function refreshAnticipatoryRadar() {
       const priceContext=!context ? '' : context.state==='REFERENCE_UNAVAILABLE' ? '<p>Saved price reference is unavailable; check the local capture archive.</p>' : `<p>Descriptive IRESS price reference from ${esc(context.baseline.SASOL.session)}: Sasol R${num(context.baseline.SASOL.close_zar)}; Satrix 40 R${num(context.baseline.ETF_STX40.close_zar)}. Source definitions require review.</p>${context.results.map(r => `<p>${r.paired_observation}${r.paired_observation===1 ? 'st' : 'rd'} later paired observation: ${r.session ? `${esc(r.session)}, relative movement ${num(r.excess_return_pct_points)} percentage points${r.state==='SOURCE_REVISION_REVIEW_REQUIRED' ? ' (source revision requires review)' : ''}` : 'waiting for completed captures'}. These are observed captures, not a verified complete trading calendar.</p>`).join('')}<p>No numerical event forecast is saved; price movements alone do not measure model skill or prove the event caused them.</p>`;
       const reviewButton=w.component_watch_ids?.length ? '' : `<button data-radar-review="${esc(w.record_id)}">Record observation</button>`;
       const originalDateButton=!w.component_watch_ids?.length && w.reason.startsWith('Source mentions: ') ? `<button data-radar-date-watch="${esc(w.record_id)}" data-radar-date-source="${esc(w.source_id)}">Review date in original source</button>` : '';
-      return `<article><h3>${esc(w.reason)}</h3><p><strong>${esc(watchState)}</strong> · ${esc(w.instrument_ids.join(', ') || 'Macro context only')} · ${esc(w.sectors.join(', '))}</p><p>${esc(w.quote)}</p><p>${date}</p>${split}${suggestion}${warnings}${lead}${timing}${conflicts}<p class="muted">Watch saved ${esc(when(w.frozen_at))} · evidence cutoff ${esc(when(w.causal_cutoff))} · expires ${esc(when(w.expires_at))}</p>${followups}${sourceReviews}${priceContext}${review}<p>${esc(w.failure_condition)}</p>${sourceLink(w.source_url, 'Retained source ↗')} ${sourceActions(w)} ${originalDateButton} ${calendarButton}${reviewButton}</article>`;
+      return `<article id="${esc(w.record_id)}"><h3>${esc(w.reason)}</h3><p><strong>${esc(watchState)}</strong> · ${esc(w.instrument_ids.join(', ') || 'Macro context only')} · ${esc(w.sectors.join(', '))}</p><p>${esc(w.quote)}</p><p>${date}</p>${split}${suggestion}${warnings}${lead}${timing}${conflicts}<p class="muted">Watch saved ${esc(when(w.frozen_at))} · evidence cutoff ${esc(when(w.causal_cutoff))} · expires ${esc(when(w.expires_at))}</p>${followups}${sourceReviews}${priceContext}${review}<p>${esc(w.failure_condition)}</p>${sourceLink(w.source_url, 'Retained source ↗')} ${sourceActions(w)} ${originalDateButton} ${calendarButton}${reviewButton}</article>`;
     };
     const renderCalendarCard=e => {
       const companies=e.instrument_ids.map(id => members[id] ? `${members[id].name} (${id}; ${members[id].sector})` : id).join(', ');
@@ -1039,6 +1060,9 @@ async function refreshAnticipatoryRadar() {
     $('#anticipatory-radar-items').innerHTML = (preparation.unavailable ? '<p role="status">Event preparation is unavailable; calendar and source records remain visible.</p>' : '') + calendarCards + (pastPrimary ? `<details><summary>Recent South African event dates</summary>${pastPrimary}</details>` : '') + (secondaryCards ? `<details><summary>Secondary US events</summary>${secondaryCards}</details>` : '') + windows.map(w => `<article><h3>${esc(w.title)} · ${w.hours}h preparation</h3><p>${esc(w.instrument_ids.join(', ') || 'Market context')} · ${esc(readable(w.model_state))}</p><p>${esc(w.source_quote)}</p><p class="muted">Saved ${esc(when(w.observed_at))} · actual lead ${num(w.lead_hours)} hours · ${esc(readable(w.time_precision))}</p>${sourceLink(w.source_url, 'Event source ↗')}</article>`).join('') + d.watches.slice(0,40).map(renderRadarWatch).join('') + sensState + sensCards + sourceCards || '<p>No recent source leads or upcoming calendar events. Source collection continues on its saved schedule.</p>';
     const sourcePanel = $('#anticipatory-radar-items');
     if (savedReading) sourcePanel.insertAdjacentHTML('afterbegin', savedReading);
+    if (linkedWatch && !document.getElementById(linkedWatch.record_id)) {
+      sourcePanel.insertAdjacentHTML('beforeend', renderRadarWatch(linkedWatch));
+    }
     const showRetainedSource = async button => {
       const card = button.closest('article');
       let output = card.querySelector('.retained-source-detail');
