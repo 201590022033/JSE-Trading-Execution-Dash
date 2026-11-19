@@ -1,3 +1,7 @@
+## Unified roadmap R08 historical and sector research — 19 November 2026
+
+R08 is complete on the running local dashboard. The selected-share context connects the current Radar strategy and benchmark to retained sector results and explicitly identifies missing frozen HR7–HR11 and exact-profile matches. VOD was verified in the browser. See [R08 evidence and rollback](R08_HISTORICAL_SECTOR_RESEARCH_2026-11-19.md). R09 is next.
+
 ## Unified roadmap R07 dashboard indicators — 19 November 2026
 
 R07 is complete on the running local dashboard. Selecting a Radar share displays daily Zebra and five-minute indicators with parameters, completed-bar times, latest input sources and receipt times. Live Edge checks covered VOD values, NTU partial data, refresh and the Work roster. Focused tests passed. The broader offline suite has failures outside this JavaScript change. The next unified roadmap milestone is R08. See [R07 verification](R07_DASHBOARD_INDICATORS_2026-11-19.md).

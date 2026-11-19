@@ -412,6 +412,7 @@ def create_radar_blueprint(factory):
     def shadow_evidence(instrument):
         if not local(): return jsonify(error='Local dashboard only'),403
         from .shadow_service import evaluate_watch, retained_comparisons, retained_fill_backtests
+        from .historical_research import historical_research
         try:
             service=factory(); profile=request.args.get('profile','intraday_5m_research_v1')
             if profile=='jse_swing_3_5d':
@@ -423,6 +424,7 @@ def create_radar_blueprint(factory):
                            timeframe_minutes=trace['timeframe_minutes'],product='CASH_SHARE',
                            comparisons=retained_comparisons(service,instrument,profile,trace['strategy_version']),
                            backtests=retained_fill_backtests(instrument,profile,trace['strategy_version']),
+                           historical_research=historical_research(instrument),
                            status='EXACT_PROFILE_EVIDENCE_ONLY',live_execution=False)
         except KeyError: return jsonify(error='Watch unavailable'),404
         except (ValueError,TypeError,OSError): return jsonify(error='Evidence unavailable'),422

@@ -51,6 +51,27 @@ function mergeEntryRules(rules) {
   function line(parent, tag, text) {
     const node = document.createElement(tag); node.textContent = text; parent.append(node); return node;
   }
+  function renderFrozenHistory(parent, sections) {
+    const detail = line(parent, 'details', '');
+    line(detail, 'summary', 'Frozen HR7–HR11 research');
+    line(detail, 'p', 'Historical study profiles and horizons. Exact Radar backtests are listed separately.');
+    const sampleLabels = {HR7: 'feature rows', HR8: 'RSI observations', HR9: 'active decisions', HR10: 'trades', HR11: 'samples'};
+    for (const [milestone, sampleLabel] of Object.entries(sampleLabels)) {
+      const study = sections?.[milestone];
+      line(detail, 'h5', milestone + (study?.version ? ` · ${study.version}` : ''));
+      if (!study?.rows.length) {
+        line(detail, 'p', study?.state === 'NO_INSTRUMENT_MATCH' ? 'No matching instrument in this study slice.' : 'Study artifact unavailable.');
+        continue;
+      }
+      for (const row of study.rows) {
+        const fields = [row.profile, row.version, row.contract, row.horizon, row.regime,
+          `${row.sample_count} ${sampleLabel}`, row.cost_bps == null ? null : `${row.cost_bps} bps cost basis`,
+          row.mean_net_return == null ? null : `mean net ${(100 * row.mean_net_return).toFixed(2)}%${milestone === 'HR9' ? ' across all eligible decisions' : ''}`,
+          row.result?.replaceAll('_', ' ').toLowerCase()];
+        line(detail, 'p', fields.filter(Boolean).join(' · '));
+      }
+    }
+  }
   const indicatorPanel = document.createElement('section');
   indicatorPanel.id = 'radar-selected-indicators';
   indicatorPanel.hidden = true;
@@ -529,6 +550,22 @@ function mergeEntryRules(rules) {
     const matchedBacktest=evidenceMatches(storedEvidence,instrument,evaluation,product,radarView) ? storedEvidence?.backtests?.[0] : null;
     line(context,'p',`${evaluation ? `${evaluation.strategy_id} v${evaluation.strategy_version} · ${evaluation.state} · ${evaluation.passed}/${evaluation.applicable} passed · ${evaluation.unknown} unknown · evaluated ${evaluation.evaluated_at}` : 'Evaluation unavailable'} · ${matchedBacktest ? 'matched historical backtest available, not validation' : 'backtest evidence for this profile unavailable; no claim of validation'}.`);
     line(context,'p',`Sector ${watch.sector || 'unknown'} · benchmark ${watch.benchmark || 'unavailable'} · daily history ${watch.daily?.sessions ?? 0} sessions, latest ${watch.daily?.latest_session || 'unknown'}; no current-price inference.`);
+    if (product === 'CASH_SHARE') {
+      const sectorHistory = line(context, 'p', 'Checking retained sector study…');
+      if (watch.sector && watch.sector !== 'Unclassified') {
+        json(`/api/v1/backtest-lab/sector-exploration?sector=${encodeURIComponent(watch.sector)}`).then(({report}) => {
+          const window = report?.windows?.find(item => item.name === 'holdout');
+          const baseline = report?.variants?.find(item => item.id === 'baseline');
+          const result = baseline?.windows?.holdout?.by_instrument?.[instrument];
+          const net = result?.mean_net_return_by_cost_bps?.['25'];
+          sectorHistory.textContent = result && window
+            ? `${report.sector} · ${report.schema} · baseline holdout ${window.start} to ${window.end} · ${result.sample_count} completed observations · ${net == null ? 'mean net unavailable' : `mean net ${(net * 100).toFixed(2)}% at 25 bps`} · retrospective sector study.`
+            : 'No matching share result in the retained sector baseline holdout.';
+        }).catch(() => { sectorHistory.textContent = 'Retained sector study unavailable.'; });
+      } else {
+        sectorHistory.textContent = 'No sector study linked for this classification.';
+      }
+    }
     if (radarView === 'swing') line(context,'p',`Daily swing research only · completed session ${evaluation?.session || 'unavailable'} · ${evaluation?.source_bars || 0} saved sessions · missing fields stay unknown; selected conflicting candidates are provisional · not an intraday signal.`);
     if (evaluation?.data_quality) {
       const quality=evaluation.data_quality;
@@ -579,6 +616,7 @@ function mergeEntryRules(rules) {
       radarEvidence.set(instrument,evidence);
       if (!document.getElementById('radar-points').contains(document.activeElement)) renderRadar();
       if (generation!==selectionGeneration || selectedWatch!==instrument || document.getElementById('plan-product').value!==product) return;
+      renderFrozenHistory(context, evidence.historical_research);
       if (!evidence.comparisons.length && !evidence.backtests?.length) line(context,'p','No retained comparison or backtest for this exact profile and version.');
       if (document.getElementById('plan-product').value!=='CASH_SHARE' && evidence.backtests?.length) line(context,'p','Cash-share backtests are not evidence for the selected product.');
       for (const item of (document.getElementById('plan-product').value==='CASH_SHARE' ? evidence.backtests || [] : [])) line(context,'p',`Matched frozen backtest: ${item.label.replaceAll('_',' ').toLowerCase()} · ${item.contender.name} · ${item.contender.sample_count} closed trades · trade dates ${item.contender.first_entry_session} to ${item.contender.last_exit_session} · net R${item.contender.net_pnl} · ${item.candidate_count} matched contenders · run ${item.run_id} · ${item.grade} · as of ${item.created_at || 'unavailable'} · cost basis ${item.cost_basis}. Limitations: ${item.limitations.join(', ')}. Exploratory, not validated.`);
