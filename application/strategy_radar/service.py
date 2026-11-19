@@ -201,10 +201,14 @@ class RadarService:
             return self._save_prewarm_locked(keys)
 
     def _save_prewarm_locked(self, keys):
-        data = self.prewarm(keys, root=self.root, now=self.clock())
+        watches = [self.store.get(key) for key in keys]
+        benchmarks = [watch['benchmark'] for watch in watches if watch and watch.get('benchmark')]
+        data = self.prewarm(list(dict.fromkeys([*keys, *benchmarks])), root=self.root, now=self.clock())
         folder = self.folder / 'daily-cache'
         folder.mkdir(parents=True, exist_ok=True)
         for key, value in data.get('watches', {}).items():
+            if key in benchmarks and key not in keys and not value.get('latest_session'):
+                continue
             raw = json.dumps({'as_of': data.get('as_of'), 'daily': value}, allow_nan=False).encode('utf-8')
             target = folder / (key + '.json')
             temp = folder / (key + '-' + uuid4().hex + '.tmp')

@@ -93,4 +93,26 @@ class ZebraFieldWindowsTests(unittest.TestCase):
         self.assertEqual(result.headers['Cache-Control'],'no-store')
         self.assertFalse(result.json['live_execution'])
         self.assertTrue(result.json['history']['rows'][0]['capabilities']['close_only'])
+
+    def test_cached_volume_view_retains_provider_difference_without_scanning_archives(self):
+        import json
+        from flask import Flask
+        from application.backtest_lab.blueprint import create_backtest_lab_blueprint
+
+        app = Flask(__name__)
+        app.register_blueprint(create_backtest_lab_blueprint())
+        volume = {'source': 'SHAREDATA', 'value': 120, 'state': 'CONFLICT_NO_CONSENSUS',
+                  'alternatives': [{'source': 'EODHD', 'value': 100}]}
+        snapshot = {'as_of': 'retained-clock', 'daily': {'history': {'rows': [
+            {'session': '2026-11-03', 'fields': {'volume': volume}}]}}}
+        with patch('pathlib.Path.read_text', return_value=json.dumps(snapshot)), \
+             patch('application.opportunities.zebra_screen_data.load_zebra_screen_data') as scan:
+            result = app.test_client().get('/api/v1/backtest-lab/zebra-fields/BTI?view=volume')
+        scan.assert_not_called()
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json['cached_as_of'], 'retained-clock')
+        self.assertFalse(result.json['live_execution'])
+        pair, = result.json['volume_reconciliation']['pairs']
+        self.assertEqual((pair['selected_source'], pair['other_source'], pair['median_difference_pct']),
+                         ('SHAREDATA', 'EODHD', 20))
 if __name__=='__main__':unittest.main()

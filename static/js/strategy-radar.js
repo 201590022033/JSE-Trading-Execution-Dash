@@ -171,10 +171,9 @@ function mergeEntryRules(rules) {
   }
   function evidenceText(evidence) {
     if (evidence.backtests?.length) return `Exact fill evidence · ${evidence.backtests[0].contender.sample_count} closed trades`;
-    if (evidence.input_review?.state === 'INSUFFICIENT_POINT_IN_TIME_INPUT') {
-      return evidence.input_review.retrospective_comparison?.state === 'DESCRIPTIVE_REPLAY'
-        ? 'Zebra replay available · point-in-time evidence pending' : 'Exact daily backtest needs qualified Zebra history';
-    }
+    if (evidence.input_review?.retrospective_comparison?.state === 'DESCRIPTIVE_REPLAY')
+      return 'Zebra replay available · point-in-time evidence pending';
+    if (evidence.input_review) return 'Exact daily backtest needs qualified Zebra history';
     if (evidence.comparisons?.length) return 'Exact shadow comparison available';
     return 'No retained backtest for this exact setup';
   }

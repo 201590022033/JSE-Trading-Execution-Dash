@@ -411,8 +411,19 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
         """Expose field availability and retained provenance for research."""
         if not re.fullmatch(r'[A-Z0-9_]{2,16}', instrument):
             return response({'state':'INVALID_INSTRUMENT'},400)
-        from application.opportunities.zebra_screen_data import load_zebra_screen_data
         from application.opportunities.zebra_volume_reconciliation import reconcile_volume
+        if request.args.get('view') == 'volume':
+            root = Path(__file__).resolve().parents[2]
+            cache = root / 'runtime/local-swing-data/strategy-radar/daily-cache' / f'{instrument}.json'
+            try:
+                snapshot = json.loads(cache.read_text(encoding='utf-8'))
+                rows = snapshot['daily']['history']['rows'][-600:]
+                return response({'state': 'AVAILABLE', 'instrument': instrument,
+                                 'cached_as_of': snapshot.get('as_of'), 'row_limit': 600,
+                                 'volume_reconciliation': reconcile_volume(rows), 'research_only': True})
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                return response({'state': 'ZEBRA_CACHE_UNAVAILABLE', 'instrument': instrument}, 404)
+        from application.opportunities.zebra_screen_data import load_zebra_screen_data
         from application.backtest_lab.zebra_field_windows import describe
         data=load_zebra_screen_data(max_rows=600, instruments={instrument,'ETF_STX40','ETF_STXFIN','ETF_STXRES','ETF_STXIND'})
         if instrument not in data['instruments']:

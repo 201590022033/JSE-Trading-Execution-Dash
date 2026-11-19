@@ -3,8 +3,7 @@
   "checked_at": "2026-11-19T14:14:26+02:00",
   "field_counts": {
     "benchmark_close": {
-      "MISSING": 8,
-      "QUALIFIED": 131
+      "QUALIFIED": 139
     },
     "close": {
       "QUALIFIED": 139
@@ -24,17 +23,18 @@
       "ZEBRA_SELECTED_DISPUTED": 139
     }
   },
+  "input_hash_basis": "CANONICAL_JSON_ZEBRA_SELECTED_ROWS",
   "input_sha256": {
-    "ETF_STX40": "b9710692eb6a2efed9f794a3d3b5125cf0a78b184ecaca0a4486c934d7d48ea6",
-    "VOD": "02da344415891d7ef5683b86fb20ad3aa4f8008dc02a72872454cf13cd26f78a"
+    "ETF_STX40": "e9c49db8214479f0e93546e00983f30fb6ddab0e76d6c3ed4598f856b137a5f9",
+    "VOD": "2fd4e5443c9b2737a1be5b89d4aa641ff31ccd6d788042c9610bdbe5fd45e5a7"
   },
   "instrument": "VOD",
   "live_execution": false,
-  "longest_qualified_run": 131,
-  "on_time_sessions": 0,
-  "on_time_warmup_windows": 0,
+  "longest_qualified_run": 139,
+  "on_time_sessions": 1,
+  "on_time_warmup_windows": 1,
   "product": "CASH_SHARE",
-  "qualified_sessions": 131,
+  "qualified_sessions": 139,
   "research_only": true,
   "retrospective_comparison": {
     "cost_basis": "HYPOTHETICAL_NOT_BROKER_VERIFIED",
@@ -44,11 +44,11 @@
       "slippage_bps_per_side": 5,
       "spread_bps": 20
     },
-    "decision_sessions": 29,
+    "decision_sessions": 37,
     "fill_basis": "NEXT_SESSION_CLOSE_PROXY",
     "hold_sessions": 3,
     "initial_cash_zar": 1000000,
-    "input_manifest_sha256": "224c2624b415bde5a8ae612488c2fddc56ed86c782c590007a4c455a27273d5a",
+    "input_manifest_sha256": "3b9c00a6a3dde1d5e23190d6141994b4303029cf03e68cf2aeebf10ffd0bda13",
     "limitations": [
       "RECONSTRUCTED_AVAILABILITY",
       "ZEBRA_SELECTED_DISPUTED_FIELDS_ALLOWED",
@@ -86,12 +86,12 @@
     "unknown_decision_sessions": 0,
     "window": [
       "2026-05-04",
-      "2026-11-06"
+      "2026-11-18"
     ]
   },
   "schema": "exact-daily-input-review-v1",
   "sessions": 139,
-  "state": "INSUFFICIENT_POINT_IN_TIME_INPUT",
+  "state": "INPUT_CANDIDATE",
   "strategy_id": "jse_swing_3_5d",
   "strategy_version": "1.1.2",
   "timeframe_minutes": null,

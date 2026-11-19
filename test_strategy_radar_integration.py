@@ -10,7 +10,10 @@ NOW = datetime(2026, 11, 6, 10, tzinfo=timezone.utc)
 
 def prewarm(keys, **kwargs):
     return {'as_of': NOW.isoformat(), 'watches': {key: {'instrument': key, 'state': 'AVAILABLE', 'sessions': 1,
-        'coverage': {'close': 1, 'volume': 0}, 'history': {'rows': [{'close': 10, 'volume': None}]},
+        'latest_session': '2026-11-05',
+        'coverage': {'close': 1, 'volume': 0}, 'history': {'rows': [{'session': '2026-11-05',
+            'close': 10, 'volume': None, 'fields': {'close': {'value': 10, 'source': 'YAHOO',
+                'acquired_at': NOW.isoformat()}}}]},
         'sources': {'OST': {'state': 'NO_RETAINED_FIELD'}, 'YAHOO': {'state': 'RETAINED_HISTORICAL_FIELDS'}}} for key in keys}}
 
 def refresh(keys, **kwargs):
@@ -27,6 +30,7 @@ class RadarIntegrationTests(unittest.TestCase):
             service = RadarService(tmp, prewarm=prewarm, refresh=refresh, clock=lambda:NOW)
             service.reconcile(snapshot('SASOL', 'BTI'), start_worker=False)
             self.assertTrue((Path(tmp)/'runtime/local-swing-data/strategy-radar/daily-cache/SASOL.json').exists())
+            self.assertTrue((Path(tmp)/'runtime/local-swing-data/strategy-radar/daily-cache/ETF_STXRES.json').exists())
             before = service.status()
             self.assertEqual(before['watches'][0]['refresh']['state'], 'QUEUED')
             self.assertEqual(before['watches'][0]['daily']['coverage']['volume'], 0)

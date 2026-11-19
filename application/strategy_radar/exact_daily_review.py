@@ -10,19 +10,18 @@ import re
 from application.opportunities.session_freshness import latest_expected_session, next_session
 from .swing_radar import _FEATURE_PROFILE_VERSION, _FIELDS, _STATES
 
-REPORT = Path(__file__).resolve().parents[2] / 'artifacts/research/radar-exact-daily/vod-v1.1.2.json'
+ROOT = Path(__file__).resolve().parents[2]
+REPORT = ROOT / 'artifacts/research/radar-exact-daily/vod-v1.1.2.json'
 PROFILE = 'jse_swing_3_5d'
 WINDOW_START = '2026-05-04'
 WARMUP = 100  # Match Radar's maximum daily history suffix.
 
 
-def _read_cache(folder, instrument):
-    if not re.fullmatch(r'[A-Z0-9_]{2,16}', instrument):
-        raise ValueError('Invalid instrument')
-    raw = (folder / 'daily-cache' / f'{instrument}.json').read_bytes()
+def _index_rows(history):
+    raw = json.dumps(history, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')
     rows = {}
     repeated = set()
-    for row in json.loads(raw)['daily']['history']['rows']:
+    for row in history:
         session = row['session']
         if session in rows:
             repeated.add(session)
@@ -102,15 +101,15 @@ def _retrospective(instrument, benchmark, segment, as_of, source_hash):
                 'UNVERIFIED_CORPORATE_ACTION_BASIS', 'NO_UNSEEN_VALIDATION', 'NO_PROMOTION']}
 
 
-def review(folder, *, as_of, instrument, benchmark):
+def review(histories, *, as_of, instrument, benchmark):
     """Measure coverage and historical receipt timing without simulating fills."""
     if as_of.utcoffset() is None:
         raise ValueError('An explicit timezone is required')
     end = latest_expected_session(as_of)
     if not end or end < WINDOW_START:
         raise ValueError('Reviewed JSE calendar window is unavailable')
-    share, share_hash = _read_cache(folder, instrument)
-    reference, reference_hash = _read_cache(folder, benchmark)
+    share, share_hash = _index_rows(histories[instrument]['rows'])
+    reference, reference_hash = _index_rows(histories[benchmark]['rows'])
     counts = {field: Counter() for field in (*_FIELDS, 'benchmark_close')}
     total = qualified_run = longest_run = complete = clocked = clocked_windows = 0
     receipt_window = []
@@ -162,6 +161,7 @@ def review(folder, *, as_of, instrument, benchmark):
         'strategy_id': PROFILE, 'strategy_version': _FEATURE_PROFILE_VERSION, 'timeframe_minutes': None,
         'window': [WINDOW_START, end], 'sessions': total,
         'checked_at': as_of.isoformat(), 'input_sha256': {instrument: share_hash, benchmark: reference_hash},
+        'input_hash_basis': 'CANONICAL_JSON_ZEBRA_SELECTED_ROWS',
         'field_counts': counts, 'qualified_sessions': complete, 'longest_qualified_run': longest_run,
         'on_time_sessions': clocked, 'on_time_warmup_windows': clocked_windows, 'warmup_sessions': WARMUP,
         'state': 'INPUT_CANDIDATE' if clocked_windows else 'INSUFFICIENT_POINT_IN_TIME_INPUT',
@@ -185,18 +185,22 @@ def retained_review(instrument, profile, version, timeframe, benchmark):
 
 def main():
     import argparse
-    from .service import RadarService
+    from application.opportunities.zebra_screen_data import load_zebra_screen_data
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--as-of', type=datetime.fromisoformat, required=True)
     parser.add_argument('--instrument', required=True)
+    parser.add_argument('--benchmark', required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    service = RadarService()
-    watch = service.store.get(args.instrument)
-    if not watch or watch['state'] == 'ARCHIVED' or not watch.get('benchmark'):
-        parser.error('A current watch with a recorded benchmark is required')
-    result = review(service.folder, as_of=args.as_of, instrument=args.instrument, benchmark=watch['benchmark'])
+    benchmark = args.benchmark
+    if not all(re.fullmatch(r'[A-Z0-9_]{2,16}', name) for name in (args.instrument, benchmark)):
+        parser.error('Explicit share and benchmark identifiers are required')
+    histories = load_zebra_screen_data(root=ROOT, now=args.as_of, max_rows=600,
+                                     instruments={args.instrument, benchmark})['instruments']
+    if not {args.instrument, benchmark}.issubset(histories):
+        parser.error('Both the share and benchmark need retained Zebra source observations')
+    result = review(histories, as_of=args.as_of, instrument=args.instrument, benchmark=benchmark)
     with args.output.open('x', encoding='utf-8', newline='\n') as stream:
         json.dump(result, stream, indent=2, sort_keys=True, allow_nan=False)
         stream.write('\n')

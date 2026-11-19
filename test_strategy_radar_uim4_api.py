@@ -26,7 +26,8 @@ class DailyEvidenceApiTests(unittest.TestCase):
 
         key = ('VOD', 'jse_swing_3_5d', '1.1.2', None)
         saved = retained_review(*key, 'ETF_STX40')
-        self.assertEqual(saved['state'], 'INSUFFICIENT_POINT_IN_TIME_INPUT')
+        self.assertEqual(saved['input_hash_basis'], 'CANONICAL_JSON_ZEBRA_SELECTED_ROWS')
+        self.assertEqual(saved['on_time_warmup_windows'], 1)
         self.assertEqual(saved['retrospective_comparison']['state'], 'DESCRIPTIVE_REPLAY')
         self.assertIsNone(retained_review(*key, 'ETF_STXRES'))
         self.assertIsNone(retained_review('VOD', key[1], '1.1.0', None, 'ETF_STX40'))
