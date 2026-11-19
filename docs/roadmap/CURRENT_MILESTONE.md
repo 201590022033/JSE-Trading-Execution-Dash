@@ -1,3 +1,7 @@
+## Unified roadmap R11 product costs and OST units — 19 November 2026
+
+R11 is complete on the running dashboard. The manual trade card shows normalized rand prices, entered cents, product quantity units, entry and exit fees and CFD financing where supplied. Live cash-share and CFD scenarios matched independent calculations. Unverified OST formats and unsupported product terms remain visible. See [R11 evidence and rollback](R11_PRODUCT_COSTS_AND_OST_UNITS_2026-11-19.md). R12 is next.
+
 ## Unified roadmap R10 strategy-linked trade card — 19 November 2026
 
 R10 connects the selected share and exact strategy version to the manual trade card and the Backtest Lab handoff. VOD daily and five-minute selections were verified on the running dashboard. See [R10 evidence and rollback](R10_STRATEGY_TRADE_CARD_2026-11-19.md). R11 is next.

@@ -472,6 +472,7 @@ function mergeEntryRules(rules) {
     restoredExpected=null;
     const radarHadFocus=document.getElementById('radar-points').contains(document.activeElement);
     if (selectedWatch !== instrument) {
+      planRevision++;
       for (const key of ['entry','quantity','stop_trigger','stop_limit','target','trailing_distance','holding_horizon']) document.getElementById(`plan-${key}`).value='';
     }
     selectedWatch=instrument;
@@ -866,6 +867,8 @@ function mergeEntryRules(rules) {
   });
   const planForm = document.getElementById('manual-plan-form');
   const planValue = key => document.getElementById(`plan-${key}`).value.trim();
+  let planProducts = {};
+  let planRevision = 0;
   function renderTradeStrategy(target) {
     if (!selectedWatch) return;
     const evaluation = radarEvaluations.get(selectedWatch);
@@ -912,16 +915,39 @@ function mergeEntryRules(rules) {
     if (!target) return;
     target.replaceChildren();
     renderTradeStrategy(target);
+    const product = planProducts[planValue('product')];
+    const mapping = product?.ost_mapping_state;
+    line(target, 'p', `${product?.label || planForm.querySelector('#plan-product').selectedOptions[0].textContent} · ${mapping === 'PARTIAL_VERIFIED' ? 'OST format verified for some fields' : 'OST field format unverified'}.`);
+    if (product && !product.calculator) {
+      line(target, 'p', `Cost estimate unavailable · required terms: ${product.required_terms.map(term => term.replaceAll('_', ' ')).join(', ')}.`);
+    }
     const table=document.createElement('table'); table.setAttribute('aria-label','Manual research scenario');
     const unit=planValue('price_unit')==='ZAR_CENTS' ? 'cents' : 'ZAR';
     const value=(key, suffix='') => planValue(key) ? `${planValue(key)}${suffix}` : 'Not available';
+    const price = key => {
+      const normalized = lastPlan?.prices_zar?.[key];
+      if (normalized == null) return value(key, ` ${unit}`);
+      return unit === 'cents' ? `R${normalized} · ${value(key, ' cents')} entered` : `R${normalized}`;
+    };
     const estimate=lastPlan?.target_estimate;
     const costs=estimate?.estimated_costs_including_spread ?? estimate?.total_costs;
     const net=estimate?.net_profit ?? estimate?.net_pnl;
-    const rows=[['Entry',value('entry',` ${unit}`)],['Stop',value('stop_trigger',` ${unit}`)],['Target',value('target',` ${unit}`)],['Quantity',value('quantity')],['Estimated costs',costs == null ? 'Not available' : `ZAR ${costs}`],['Projected net',net == null ? 'Not available' : `ZAR ${net}`],['Hold',value('holding_horizon')]];
+    const stop = lastPlan?.stop_estimate;
+    const fee = (scenario, side) => scenario?.[side + '_costs']?.total ?? scenario?.[side + '_brokerage'];
+    const zar = amount => amount == null ? 'Not available' : `R${amount}`;
+    const quantityUnit = product?.quantity_unit?.replaceAll('_', ' ');
+    const rows = [
+      ['Entry', price('entry')], ['Stop', price('stop_trigger')], ['Target', price('target')],
+      ['Quantity', value('quantity', quantityUnit ? ` ${quantityUnit}` : '')],
+      ['Entry fees', zar(fee(estimate || stop, 'entry'))],
+      ['Target exit fees', zar(fee(estimate, 'exit'))], ['Stop exit fees', zar(fee(stop, 'exit'))],
+      ['Financing', planValue('product') === 'CFD' ? zar((estimate || stop)?.net_financing_cost) : 'Outside this estimate'],
+      ['Estimated costs at target', zar(costs)], ['Projected net at target', zar(net)],
+      ['Estimated loss at stop', zar(stop?.estimated_loss)], ['Hold', value('holding_horizon')]
+    ];
     for (const [name,text] of rows) { const row=document.createElement('tr'); const heading=line(row,'th',name); heading.scope='row'; line(row,'td',text); table.append(row); }
     target.append(table);
-    line(target,'p',lastPlan ? 'User-entered scenario and calculated estimates; not an order.' : 'User-entered scenario; costs and net require calculation.');
+    line(target, 'p', lastPlan ? 'Scenario estimate · current account tariffs unverified.' : 'Account tariffs are unverified. Calculate to see scenario estimates.');
   }
   function updatePlanProduct() {
     const product = planValue('product');
@@ -930,8 +956,15 @@ function mergeEntryRules(rules) {
   }
   document.getElementById('plan-product')?.addEventListener('change', () => { restoredExpected=null; updatePlanProduct(); if (selectedWatch) { publishSelection(); renderSelection(); } });
   document.getElementById('plan-instrument')?.addEventListener('change', event => { const key=event.target.value; if (currentWatches.some(w=>w.instrument===key)) selectRadarWatch(key); else { selectedWatch=null; selectionGeneration++; lastPlan=null; window.uimSelection?.clear(); for (const field of ['entry','quantity','stop_trigger','stop_limit','target','trailing_distance','holding_horizon']) document.getElementById(`plan-${field}`).value=''; renderRadar(); renderPlanSummary(); document.getElementById('radar-selected-title').textContent='Select a watched share'; showSelectionError('Selected plan instrument is not a current watch.'); document.getElementById('radar-selected-trace').replaceChildren(); document.getElementById('radar-selected-actions').replaceChildren(); } });
-  planForm?.addEventListener('input', () => { lastPlan=null; renderPlanSummary(); document.getElementById('manual-plan-results').replaceChildren(); document.getElementById('manual-plan-status').textContent = ''; });
-  planForm?.addEventListener('change', () => { lastPlan=null; renderPlanSummary(); document.getElementById('manual-plan-results').replaceChildren(); document.getElementById('manual-plan-status').textContent = ''; });
+  function invalidatePlan() {
+    planRevision++;
+    lastPlan=null;
+    renderPlanSummary();
+    document.getElementById('manual-plan-results').replaceChildren();
+    document.getElementById('manual-plan-status').textContent = '';
+  }
+  planForm?.addEventListener('input', invalidatePlan);
+  planForm?.addEventListener('change', invalidatePlan);
   planForm?.addEventListener('submit', async event => {
     event.preventDefault();
     const target = document.getElementById('manual-plan-results');
@@ -939,9 +972,11 @@ function mergeEntryRules(rules) {
     const keys = ['product','direction','price_unit','entry','quantity','stop_trigger','stop_limit','target','trailing_mode','trailing_distance','holding_horizon','brokerage_rate','spread_bps','contract_size','financing','extra_cost','fee_per_leg','margin_rate'];
     const payload = Object.fromEntries(keys.map(key => [key, planValue(key)]));
     const requestedInstrument=planValue('instrument');
+    const revision=++planRevision;
     target.replaceChildren(); status.textContent = 'Calculating scenario…';
     try {
       const plan = await json('/api/v1/strategy-radar/trade-plan', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if (revision!==planRevision) return;
       if (planValue('instrument')!==requestedInstrument || keys.some(key=>planValue(key)!==payload[key])) { status.textContent='Scenario changed while calculating; calculate again.'; return; }
       lastPlan=plan; renderPlanSummary();
       status.textContent = `${planValue('instrument')} · ${plan.product} · ${plan.state === 'COMPLETE' ? 'scenario calculated' : 'more information needed'}`;
@@ -951,7 +986,7 @@ function mergeEntryRules(rules) {
       for (const [field, value] of Object.entries(displayed)) {
         if (value == null) continue;
         const mapping = plan.ost_fields[field];
-        const row = line(target,'p',`${field.replaceAll('_',' ')}: ${field === 'quantity' ? value : field === 'trailing_percent' ? value + '%' : 'R' + value} · OST field ${mapping?.state === 'VERIFIED' ? `${mapping.broker_field_label}: ${mapping.copy_value} ${mapping.broker_unit}` : 'unit not verified'}`);
+        const row = line(target,'p',`${field.replaceAll('_',' ')}: ${field === 'quantity' ? [value, planProducts[plan.product]?.quantity_unit?.replaceAll('_', ' ')].filter(Boolean).join(' ') : field === 'trailing_percent' ? value + '%' : 'R' + value} · OST field ${mapping?.state === 'VERIFIED' ? `${mapping.broker_field_label}: ${mapping.copy_value} ${mapping.broker_unit}` : 'format unverified'}`);
         const copy = line(row,'button','Copy OST value'); copy.type='button';
         copy.disabled = mapping?.state !== 'VERIFIED' || !mapping.copy_value || !navigator.clipboard;
         if (!copy.disabled) copy.onclick = () => navigator.clipboard.writeText(mapping.copy_value).catch(() => { status.textContent = 'Clipboard unavailable'; });
@@ -976,10 +1011,14 @@ function mergeEntryRules(rules) {
       }
       for (const assumption of plan.assumptions) line(target,'p',assumption);
       if (plan.limitations.length) line(target,'p',`Limitations: ${plan.limitations.join(', ')}`);
-    } catch (error) { status.textContent = error.message; }
+    } catch (error) { if (revision===planRevision) status.textContent = error.message; }
   });
   updatePlanProduct();
   renderPlanSummary();
+  json('/api/v1/strategy-radar/products').then(data => {
+    planProducts = data.products || {};
+    renderPlanSummary();
+  }).catch(() => {});
   let dismissedMonitorAlert='';
   let displayedMonitorAlert='';
   try { dismissedMonitorAlert=localStorage.getItem('strategy-radar-dismissed-alert') || ''; } catch (_) {}
