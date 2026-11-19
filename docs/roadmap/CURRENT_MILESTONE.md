@@ -1,6 +1,10 @@
+## Unified roadmap R18 reliability and handover — 19 November 2026
+
+R18 completes the unified roadmap. The SENS bridge now resumes across bounded pages and replays without duplicate records. The restarted local dashboard showed a retained IRESS ViewPoint receipt, alongside the worker's recovery and partial-source status. [R18 verification and sweep handoff](R18_INTEGRATED_RELIABILITY_2026-11-19.md) records the remaining operational observations before the HR series.
+
 ## Unified roadmap R17 dashboard hierarchy and handoffs — 19 November 2026
 
-R17 aligns the live dashboard with the agreed Radar, decision card and context hierarchy. Costs and four primary actions are visible before supporting disclosures. Keyboard selection and collapse, the 390 px layout, and real same-share Backtest, Ask Panel and News handoffs were verified. See [R17 mockup comparison](R17_DASHBOARD_HIERARCHY_2026-11-19.md). R18 is next.
+R17 aligns the live dashboard with the agreed Radar, decision card and context hierarchy. Costs and four primary actions are visible before supporting disclosures. Keyboard selection and collapse, the 390 px layout, and real same-share Backtest, Ask Panel and News handoffs were verified. See [R17 mockup comparison](R17_DASHBOARD_HIERARCHY_2026-11-19.md).
 
 ## Unified roadmap R16 AI follow-up and recovery — 19 November 2026
 

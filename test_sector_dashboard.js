@@ -4,7 +4,8 @@ const elements=new Map();
 function element(id){if(!elements.has(id))elements.set(id,{id,value:'',textContent:'',innerHTML:'',hidden:false,
   listeners:{},addEventListener(type,fn){this.listeners[type]=fn;}});return elements.get(id);}
 const nav=element('nav');
-global.document={getElementById:element,querySelector:()=>nav,querySelectorAll:()=>[]};
+global.document={getElementById:element,querySelector:()=>nav,querySelectorAll:()=>[],addEventListener(){}};
+global.window={};
 const mk=(id,name,net)=>({id,name,source:'Research',desc:'Test',conds:[],funnel:{checked:1,passed:[]},
  sum:{signals:1,traded:1,win:100,net,mdd:0,verdict:'Incubate'},run:{rejected_bars:[],decisions:[],
  signals:[{id:id+'-BTI',inst:'BTI',session:'2026-01-01',stop:5,trace:[]}],
@@ -17,7 +18,7 @@ const sectors={classifications_frozen_with_run:false,instruments:{BTI:{classific
  strategies:[{id:'swing',name:'Swing',signals:1,trades:1,wins:1,net:5},{id:'box',name:'Box',signals:1,trades:1,wins:1,net:20}],
  default:{strategy_id:'box',label:'Backtested top contender',sample_count:1}}},sectors:[{sector:'Consumer',
  strategies:[{strategy_id:'box',instruments:['BTI'],trades:1,net:20}],research_hypothesis:{candidate_strategy_id:'box'}}]};
-global.fetch=async url=>({ok:true,json:async()=>url.endsWith('/sector-research')?sectors:url.endsWith('/runs')?{runs:[{run_id:'a'.repeat(64),grade:'ASSUMPTION_LIMITED',created_at:'2026-01-01'}]}:url.includes('/runs/')?run:{}});
+global.fetch=async url=>({ok:true,json:async()=>url.endsWith('/sector-research')?sectors:url.endsWith('/runs?index=filenames')?{runs:[{run_id:'a'.repeat(64),grade:'ASSUMPTION_LIMITED',created_at:'2026-01-01'}]}:url.includes('/runs/')?run:{}});
 vm.runInThisContext(fs.readFileSync('static/js/backtest-lab.js','utf8'));
 (async()=>{await nav.listeners.click();assert.match(element('bl-research-choice').textContent,/Backtested top contender/);
  assert.match(element('bl-strategies').innerHTML,/data-index="1" aria-pressed="true"/);

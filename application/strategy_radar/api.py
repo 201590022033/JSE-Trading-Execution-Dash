@@ -290,21 +290,24 @@ def create_radar_blueprint(factory):
         try:
             now = service.clock()
             records = cache.read(instrument)
-            derived = derive_30m_records(records, as_of=now)
-            data = merge_bars(records + derived)
-            sessions = {datetime.fromisoformat(bar['bar_start']).astimezone(SAST).date().isoformat()
-                        for bar in data['bars']}
-            daily = ost_daily_context(service.folder.parent, instrument, sessions, as_of=now)
-            updates = five_minute_updates(records, as_of=now)['updates']
             import json
             try:
                 cached = json.loads((service.folder / 'daily-cache' / (instrument + '.json')).read_text(encoding='utf-8'))
                 history = (cached.get('daily') or {}).get('history') or {}
             except (OSError, ValueError, TypeError, AttributeError):
                 history = {}
-            return jsonify(**data, ost_daily=daily, latest_five_minute_update=updates[-1] if updates else None,
-                           five_minute_indicators=indicator_snapshot(records, as_of=now),
-                           daily_indicators=daily_indicator_snapshot(history, as_of=now),
+            indicators = dict(five_minute_indicators=indicator_snapshot(records, as_of=now),
+                              daily_indicators=daily_indicator_snapshot(history, as_of=now))
+            if request.args.get('view') == 'indicators':
+                return jsonify(**indicators, live_execution=False)
+            derived = derive_30m_records(records, as_of=now)
+            data = merge_bars(records + derived)
+            sessions = {datetime.fromisoformat(bar['bar_start']).astimezone(SAST).date().isoformat()
+                        for bar in data['bars']}
+            daily = ost_daily_context(service.folder.parent, instrument, sessions, as_of=now)
+            updates = five_minute_updates(records, as_of=now)['updates']
+            return jsonify(**data, **indicators, ost_daily=daily,
+                           latest_five_minute_update=updates[-1] if updates else None,
                            source_status='MANUAL_OR_IMPORTED_ONLY', live_execution=False)
         except (ValueError, TypeError):
             return jsonify(error='Intraday data unavailable'), 422

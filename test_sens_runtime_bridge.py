@@ -5,6 +5,27 @@ from market_intelligence import anticipatory_radar as radar
 from market_intelligence.sens_runtime_bridge import sync
 
 class BridgeTests(unittest.TestCase):
+ def test_automatic_sync_resumes_past_5000_and_still_delivers_the_head(self):
+  from unittest.mock import patch
+  source=SQLiteRepository(':memory:');target=SQLiteRepository(':memory:')
+  self.addCleanup(source.close);self.addCleanup(target.close)
+  now=datetime.now(timezone.utc)
+  for i in range(5001):
+   radar.save(source,'sens-source',str(i),{'body':'retained'},now)
+  with patch('market_intelligence.sens_runtime_bridge.PAGES_PER_KIND',10):
+   first=sync(source,target,now)
+   self.assertEqual(first['state'],'PARTIAL_DELIVERY_RESUME_PENDING')
+   self.assertEqual(first['new_records'],5000)
+   later=now+timedelta(seconds=1)
+   fresh=radar.save(source,'sens-source','fresh',{'body':'fresh'},later)
+   final=sync(source,target,later,cursors=first['next_cursors'])
+   self.assertEqual(final['new_records'],2)
+   self.assertEqual(final['next_cursors'],{})
+   self.assertEqual(target.paper_record(fresh['record_id']),fresh)
+   replay=sync(source,target,later,cursors=first['next_cursors'])
+   self.assertEqual(replay['new_records'],0)
+   self.assertEqual(replay['receipt_id'],final['receipt_id'])
+
  def test_sens_pages_over_5000_preserve_ties_and_retry(self):
   from market_intelligence.sens_runtime_bridge import transfer_sens_page
   source=SQLiteRepository(':memory:');target=SQLiteRepository(':memory:');self.addCleanup(source.close);self.addCleanup(target.close)

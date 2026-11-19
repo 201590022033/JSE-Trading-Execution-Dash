@@ -139,7 +139,7 @@ class IntradayIntegrationTests(unittest.TestCase):
 
  def test_api_manual_and_read_with_unverified_clock(self):
   with tempfile.TemporaryDirectory() as tmp:
-   service=RadarService(tmp); app=Flask(__name__); app.register_blueprint(create_radar_blueprint(lambda:service)); client=app.test_client()
+   service=RadarService(tmp,clock=lambda:NOW); app=Flask(__name__); app.register_blueprint(create_radar_blueprint(lambda:service)); client=app.test_client()
    body={'instrument':'ABSPJ','symbol':'ABG','unit':'ZAR_CENTS','interval_minutes':30,'rows':[{'label':'06/11/2026 16:30','close':'23,073'}]}
    with patch('application.opportunities.zebra_instruments.mappings',return_value={'ABSPJ':'ABG'}):
     self.assertEqual(client.post('/api/v1/strategy-radar/intraday/manual',json=body).status_code,201)
@@ -148,6 +148,12 @@ class IntradayIntegrationTests(unittest.TestCase):
    self.assertEqual(response.status_code,200)
    self.assertEqual(response.json['unknown_clock_records'][0]['fields']['close'],'230.73')
    self.assertEqual(response.json['bars'],[])
+   with patch('application.strategy_radar.intraday_aggregation.derive_30m_records',
+              side_effect=AssertionError('indicator reads must skip full aggregation')):
+    indicators=client.get('/api/v1/strategy-radar/intraday/ABSPJ?view=indicators')
+   self.assertEqual(indicators.status_code,200)
+   self.assertEqual(indicators.json,{key:response.json[key] for key in
+       ('five_minute_indicators','daily_indicators','live_execution')})
 
  def test_api_imports_viewpoint_csv_as_hash_bound_normalized_research_bars(self):
   import hashlib

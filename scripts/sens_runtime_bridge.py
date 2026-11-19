@@ -18,11 +18,19 @@ def main():
         u=urlsplit(url)
         if u.hostname not in ('localhost','127.0.0.1') or u.port!=port or u.path!=db: raise ValueError('Unexpected SENS bridge database')
     with process_lock(ROOT/'runtime/sens-runtime-bridge.lock'):
+        from application.opportunities.ost_data import atomic_json
         from urllib.parse import quote
+        checkpoint = ROOT/'runtime/sens-runtime-bridge-cursors.json'
+        try:
+            cursors = json.loads(checkpoint.read_text(encoding='utf-8'))
+        except FileNotFoundError:
+            cursors = {}
         source=runtime_repository(database_url=source_url+('&' if '?' in source_url else '?')+'options='+quote('-c default_transaction_read_only=on'));target=runtime_repository(database_url=target_url)
         try:
             with source.transaction():
-                result=sync(source,target,datetime.now(timezone.utc))
+                result=sync(source,target,datetime.now(timezone.utc),cursors=cursors)
+            if result['next_cursors'] != cursors:
+                atomic_json(checkpoint, result['next_cursors'])
             print(json.dumps(result))
         finally:source.close();target.close()
 def run_with_macro(bridge=main, invoke=subprocess.Popen, args=None):

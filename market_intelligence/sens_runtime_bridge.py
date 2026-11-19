@@ -2,6 +2,8 @@
 from . import anticipatory_radar as radar
 from .hermes import ACCOUNT as HERMES
 KINDS = ('radar-sens-source', 'radar-sens-discovery-attempt', 'radar-sens-discovery-result')
+PAGE_SIZE = 500
+PAGES_PER_KIND = 12
 
 def transfer_sens_page(source, target, kind, now, *, limit=200, cursor=None):
     """Transfer one explicit SENS page, retaining original record identities."""
@@ -23,10 +25,11 @@ def transfer_sens_page(source, target, kind, now, *, limit=200, cursor=None):
         for record in selected:
             rid=record['record_id'];old=target.paper_record(rid)
             if old is not None and old!=record:raise ValueError('conflicting retained SENS identity')
-            target.save_paper_record(rid,radar.ACCOUNT,kind,record['received_at'],record)
+            if old is None:target.save_paper_record(rid,radar.ACCOUNT,kind,record['received_at'],record)
             added+=old is None
     boundary=page[limit] if len(page)>limit else None
     return {'state':'PAGE_DELIVERED','new_records':added,'records':len(selected),
+            'record_ids':[record['record_id'] for record in selected],
             'next_cursor':{'received_at':boundary['received_at'],'record_id':boundary['record_id']} if boundary else None,
             'original_receipts_preserved':True,'model_calls':0}
 
@@ -50,44 +53,56 @@ def transfer_news_page(source, target, now, *, limit=200, cursor=None):
         for record in selected:
             rid=record['capture_id'];old=target.paper_record(rid)
             if old is not None and old!=record:raise ValueError('conflicting retained news identity')
-            target.save_paper_record(rid,HERMES,'hermes-news-input',record['received_at'],record)
+            if old is None:target.save_paper_record(rid,HERMES,'hermes-news-input',record['received_at'],record)
             added+=old is None
     boundary=page[limit] if len(page)>limit else None
     return {'state':'PAGE_DELIVERED','new_records':added,'records':len(selected),
+            'record_ids':[record['capture_id'] for record in selected],
             'next_cursor':{'received_at':boundary['received_at'],'capture_id':boundary['capture_id']} if boundary else None,
             'original_receipts_preserved':True,'model_calls':0}
 
-def sync(source, target, now, *, include_news=False):
-    pending=[]
-    for kind in KINDS:
-        records=source.paper_records(radar.ACCOUNT,kind,as_of=now.isoformat(),limit=5000)
-        if len(records)>=5000: raise ValueError('SENS bridge capacity reached; no partial delivery')
-        pending.extend((kind,r) for r in records)
-    news = source.paper_records(HERMES, 'hermes-news-input', as_of=now.isoformat(), limit=5000) if include_news else []
-    if len(news) >= 5000: raise ValueError('News bridge capacity reached; no partial delivery')
-    counts={k:0 for k in KINDS}
-    counts['hermes-news-input'] = 0
+def sync(source, target, now, *, include_news=False, cursors=None):
+    """Deliver bounded pages atomically; the caller persists cursors after commit."""
+    kinds = (*KINDS, 'hermes-news-input') if include_news else KINDS
+    cursors = cursors or {}
+    if not isinstance(cursors, dict) or set(cursors) - set(kinds):
+        raise ValueError('Invalid bridge cursors')
+    counts = dict.fromkeys((*KINDS, 'hermes-news-input'), 0)
+    seen = {kind: set() for kind in kinds}
+    next_cursors = {}
     with target.transaction():
         target.create_paper_account(radar.ACCOUNT,{'mode':'PAPER','purpose':'RESEARCH_ONLY'})
-        for kind,record in pending:
-            prior=target.paper_record(record['record_id'])
-            if prior is not None and prior!=record: raise ValueError('conflicting retained SENS identity')
-            target.save_paper_record(record['record_id'],radar.ACCOUNT,kind,record['received_at'],record)
-            counts[kind]+=prior is None
-        if news:
-            target.create_paper_account(HERMES,{'mode':'PAPER','purpose':'RESEARCH_ONLY_NO_BALANCE'})
-        for record in news:
-            rid=record['capture_id']
-            prior=target.paper_record(rid)
-            if prior is not None and prior!=record: raise ValueError('conflicting retained news identity')
-            target.save_paper_record(rid,HERMES,'hermes-news-input',record['received_at'],record)
-            counts['hermes-news-input']+=prior is None
+        for kind in kinds:
+            def deliver(cursor):
+                if kind == 'hermes-news-input':
+                    return transfer_news_page(source, target, now, limit=PAGE_SIZE, cursor=cursor)
+                return transfer_sens_page(source, target, kind, now, limit=PAGE_SIZE, cursor=cursor)
+
+            cursor = cursors.get(kind)
+            for index in range(PAGES_PER_KIND):
+                # Refresh the newest page even while an older sweep is in progress.
+                head = index == 0 and cursor is not None
+                page = deliver(None if head else cursor)
+                counts[kind] += page['new_records']
+                seen[kind].update(page['record_ids'])
+                if not head:
+                    cursor = page['next_cursor']
+                if cursor is None:
+                    break
+            if cursor is not None:
+                next_cursors[kind] = cursor
         radar.ensure_scope(target,now)
-        receipt=radar.save(target,'sens-bridge',sorted([r['record_id'] for _,r in pending]+[r['capture_id'] for r in news]),
-            {'state':'RETAINED_SENS_CONNECTED','source_database':'trading_local_20261015:55432',
-             'destination_database':'trading:5433','record_counts':{k:sum(kind==k for kind,_ in pending) for k in KINDS},
-             **({'retained_news_count':len(news)} if include_news else {}),
+        state = 'PARTIAL_DELIVERY_RESUME_PENDING' if next_cursors else 'RETAINED_SENS_CONNECTED'
+        identity = sorted(record_id for ids in seen.values() for record_id in ids)
+        if cursors or next_cursors:
+            identity = ['paged-v1', identity, cursors, next_cursors]
+        receipt=radar.save(target,'sens-bridge',identity,
+            {'state':state,'source_database':'trading_local_20261015:55432',
+             'destination_database':'trading:5433','record_counts':{k:len(seen[k]) for k in KINDS},
+             **({'retained_news_count':len(seen['hermes-news-input'])} if include_news else {}),
+             **({'next_cursors':next_cursors} if cursors or next_cursors else {}),
              'original_receipts_preserved':True,'model_calls':0},now)
-    return {'new_records':sum(counts.values()),'counts':counts,'receipt_id':receipt['record_id']}
+    return {'state':state,'new_records':sum(counts.values()),'counts':counts,
+            'receipt_id':receipt['record_id'],'next_cursors':next_cursors}
 
 

@@ -1,3 +1,4 @@
+import os
 import unittest
 import time
 from urllib.parse import urlsplit, parse_qs, urlencode
@@ -25,6 +26,12 @@ class Client:
         return Response({'access_token':'fixture-secret','expires_in':60})
 
 
+requires_loopback = unittest.skipIf(
+    os.environ.get('TRADING_OFFLINE_TESTS') == '1',
+    'Run separately with the ephemeral OAuth callback listener',
+)
+
+
 class OAuthTests(unittest.TestCase):
     def tearDown(self):
         with mcp_oauth._lock:
@@ -39,6 +46,7 @@ class OAuthTests(unittest.TestCase):
         with patch('ai_config.project_environment',return_value={'ALPHA_VANTAGE_API_KEY':'demo'}):
             with self.assertRaises(ValueError): mcp_oauth.connect_saved_local_key()
 
+    @requires_loopback
     def test_pkce_callback_exchanges_code_without_exposing_token(self):
         url=mcp_oauth.begin(client_factory=Client)
         parsed=urlsplit(url); params=parse_qs(parsed.query)
@@ -50,6 +58,7 @@ class OAuthTests(unittest.TestCase):
             self.assertNotIn(b'fixture-secret',response.read())
         self.assertEqual(mcp_oauth.access_token(),'fixture-secret')
 
+    @requires_loopback
     def test_wrong_state_never_exchanges_code(self):
         url=mcp_oauth.begin(client_factory=Client)
         params=parse_qs(urlsplit(url).query)
@@ -61,6 +70,7 @@ class OAuthTests(unittest.TestCase):
         with urlopen(callback,timeout=3) as response: self.assertEqual(response.status,200)
         self.assertEqual(mcp_oauth.connection_state(),'CONNECTED')
 
+    @requires_loopback
     def test_failed_exchange_has_safe_phase(self):
         class Failing(Client):
             def post(self,url,**kwargs):

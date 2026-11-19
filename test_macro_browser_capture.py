@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import unittest
 from datetime import datetime,timezone
 from persistence.sqlite_repository import SQLiteRepository
@@ -20,6 +21,7 @@ class BrowserCaptureTests(unittest.TestCase):
         self.assertEqual(len(calls),2)
 
     @unittest.skipUnless(importlib.util.find_spec('playwright'), 'Installed Playwright unavailable: SARB browser integration skipped')
+    @unittest.skipIf(os.environ.get('TRADING_OFFLINE_TESTS') == '1', 'Live SARB browser capture requires an explicit online run')
     def test_real_sarb_visible_date(self):
         capture=playwright_fetch(SARB_URL)
         self.assertFalse(capture['challenge'])

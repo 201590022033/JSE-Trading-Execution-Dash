@@ -46,7 +46,7 @@ class SourceTrialTests(unittest.TestCase):
         self.assertFalse(result["production_profile_changed"])
         self.assertEqual((runner.MODEL, runner.MODEL_DIGEST, runner.MIN_START_MEMORY), self.original)
         retry = self.run_trial(lambda *a, **k: self.fail("duplicate generation"))
-        self.assertEqual(retry["state"], "NO_UNRESERVED_DUE_SASOL_EVENT")
+        self.assertEqual(retry["state"], "NO_UNRESERVED_DUE_SHARE_EVENT")
 
     def test_idle_memory_and_failure_controls_remain_in_force(self):
         forbidden = lambda *a, **k: self.fail("generated while gated")
@@ -54,7 +54,7 @@ class SourceTrialTests(unittest.TestCase):
         self.assertEqual(self.run_trial(forbidden, memory=lambda: 3*runner.GIB)["state"], "WAITING_FOR_MEMORY")
         def failed(*args, **kwargs): raise RuntimeError("synthetic provider failure")
         self.assertEqual(self.run_trial(failed)["state"], "FAILED_NO_AUTOMATIC_RETRY")
-        self.assertEqual(self.run_trial(forbidden)["state"], "NO_UNRESERVED_DUE_SASOL_EVENT")
+        self.assertEqual(self.run_trial(forbidden)["state"], "NO_UNRESERVED_DUE_SHARE_EVENT")
         self.assertEqual((runner.MODEL, runner.MODEL_DIGEST, runner.MIN_START_MEMORY), self.original)
 
     def test_wrong_calibration_cannot_authorize_trial(self):

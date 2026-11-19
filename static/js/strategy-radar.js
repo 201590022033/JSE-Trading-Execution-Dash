@@ -220,7 +220,7 @@ function mergeEntryRules(rules) {
     indicatorStatus.textContent = 'Reading retained bars…';
     indicatorRefresh.disabled = true;
     try {
-      const data = await json(`/api/v1/strategy-radar/intraday/${encodeURIComponent(instrument)}`);
+      const data = await json(`/api/v1/strategy-radar/intraday/${encodeURIComponent(instrument)}?view=indicators`);
       if (request !== indicatorRequest || instrument !== selectedWatch) return;
       for (const [label, snapshot] of [['Daily · Zebra', data.daily_indicators], ['Five-minute · retained bars', data.five_minute_indicators]]) {
         const section = line(indicatorOutput, 'div', '');
@@ -1266,6 +1266,13 @@ function mergeEntryRules(rules) {
       showMonitorAlert(result.events);
       if (!monitorInitialized) { document.getElementById('radar-monitor-interval').value=String(c.interval_seconds); document.getElementById('radar-monitor-profile').value=c.profile || 'intraday_5m_research_v1'; document.getElementById('radar-monitor-desktop').checked=!!c.desktop; document.getElementById('radar-monitor-autostart').checked=!!c.autostart; monitorInitialized=true; }
       output.textContent=`${c.enabled ? (result.worker_running ? 'Enabled · worker running' : 'Enabled · worker not running; enable again') : 'Paused'} · ${c.profile || 'intraday_5m_research_v1'} · ${c.last_status || 'not checked yet'} · last check ${c.last_check || 'never'} · ${c.last_error || 'no reported error'} · local retained evidence only`;
+      const collection = result.viewpoint_collection;
+      if (collection) {
+        const instruments = Object.entries(collection.instruments || {}).map(([instrument, status]) => `${instrument} ${status}`);
+        output.textContent += ` · ViewPoint ${collection.state || 'unknown'} · checked ${formatIndicatorTime(collection.checked_at)}`;
+        if (instruments.length) output.textContent += ` · ${instruments.join(', ')}`;
+        if (collection.error?.stage) output.textContent += ` · last browser step ${collection.error.stage}`;
+      }
       const summary=document.getElementById('radar-monitor-summary'); if (summary) summary.textContent=output.textContent;
       const opened = new Set([...history.querySelectorAll('details[open]')].map(item => item.id));
       const focused = history.contains(document.activeElement) ? document.activeElement.closest('details')?.id : null;
