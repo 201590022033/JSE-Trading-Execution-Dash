@@ -8,6 +8,8 @@ from application.backtest_lab.components import signal_for
 from domain.backtest.momentum_target_engine import Costs, Signal, replay
 
 VARIANTS = ('fixed_2r', 'momentum', 'momentum_volume', 'momentum_sector')
+MAX_GAP_SESSIONS = 3
+VOLUME_LOOKBACK = 20
 
 
 def prepare_peers(peer_charts, horizon):
@@ -30,7 +32,7 @@ def prepare_peers(peer_charts, horizon):
     return result
 
 
-def peer_projection(rows,i,horizon,peer_cases,feature_cache=None):
+def peer_projection(rows,i,horizon,peer_cases,feature_cache=None,*,minimum_samples=1):
     current=feature_cache[i] if feature_cache is not None else features(rows,i)
     result={'variant':'momentum_peers','features':current,'sample_count':0,
             'status':'FIXED_TARGET_FALLBACK','basis':'SAME_CURRENT_SECTOR_NOT_NECESSARILY_SAME_INDUSTRY'}
@@ -42,6 +44,9 @@ def peer_projection(rows,i,horizon,peer_cases,feature_cache=None):
     values=sorted(p['excursion_atr'] for p in eligible);result['sample_count']=len(values)
     result['peer_counts']={name:sum(p['instrument']==name for p in eligible) for name in sorted({p['instrument'] for p in eligible})}
     if not values:result['reason']='NO_MATURED_PEER_COMPARABLES';return result
+    if len(values)<minimum_samples:
+        result['reason']='INSUFFICIENT_PEER_SAMPLE'
+        return result
     mid=median(values);result.update(range_atr=[values[int((len(values)-1)*.25)],values[int((len(values)-1)*.75)]],estimated_move_atr=mid)
     if mid<=0:result['reason']='NONPOSITIVE_PROJECTED_MOVE';return result
     result.update(status='PROJECTED',target_distance=mid*current['atr'])
@@ -89,7 +94,7 @@ def timed_context(items,instrument,decision_at,*,days=30,signal_session=None):
             'basis':'FIRST_ACTUAL_CAPTURE_AND_RECEIPT_NOT_INFERRED_PUBLICATION_TIME'}
 
 
-def features(rows, i, benchmark=None):
+def features(rows, i, benchmark=None, *, max_volume_gaps=0):
     """Trailing observations only; no filling in missing volume or benchmark."""
     if i < 15:
         return None
@@ -104,10 +109,14 @@ def features(rows, i, benchmark=None):
         momentum = (closes[-1]-closes[-6])/atr
         previous = (closes[-6]-closes[-11])/atr
         volume = None
-        if i >= 20:
-            vals = [rows[k].get('volume') for k in range(i-20,i+1)]
-            if all(v is not None for v in vals) and mean(float(v) for v in vals[:-1]) > 0:
-                volume = float(vals[-1])/mean(float(v) for v in vals[:-1])
+        if i >= VOLUME_LOOKBACK:
+            current_volume = rows[i].get('volume')
+            prior_volume = [row['volume'] for row in rows[i-VOLUME_LOOKBACK:i]
+                            if row.get('volume') is not None]
+            if current_volume is not None and len(prior_volume) >= VOLUME_LOOKBACK - max_volume_gaps:
+                baseline = mean(float(value) for value in prior_volume)
+                if baseline > 0:
+                    volume = float(current_volume) / baseline
         sector = None
         if benchmark:
             mapping = benchmark if isinstance(benchmark,dict) else {r['timestamp'][:10]:r.get('close') for r in benchmark}

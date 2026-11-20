@@ -419,9 +419,11 @@ def create_radar_blueprint(factory):
         from .exact_daily_review import retained_review
         try:
             service=factory(); profile=request.args.get('profile','intraday_5m_research_v1')
+            daily_reference = {}
             if profile=='jse_swing_3_5d':
-                from .swing_radar import evaluate_watches
+                from .swing_radar import evaluate_watches, momentum_state
                 trace=evaluate_watches(service,instrument=instrument)[instrument]
+                daily_reference['momentum_state'] = momentum_state(service, instrument, trace)
             else:
                 trace=evaluate_watch(service,instrument,profile)
             frozen = {} if request.args.get('view') == 'summary' else {'historical_research': historical_research(instrument)}
@@ -431,7 +433,7 @@ def create_radar_blueprint(factory):
                            backtests=retained_fill_backtests(instrument,profile,trace['strategy_version']),
                            input_review=retained_review(instrument, profile, trace['strategy_version'],
                                                         trace['timeframe_minutes'], trace.get('benchmark_instrument')),
-                           **frozen,
+                           **frozen, **daily_reference,
                            status='EXACT_PROFILE_EVIDENCE_ONLY',live_execution=False)
         except KeyError: return jsonify(error='Watch unavailable'),404
         except (ValueError,TypeError,OSError): return jsonify(error='Evidence unavailable'),422

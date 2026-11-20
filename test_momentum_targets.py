@@ -8,7 +8,7 @@ from unittest.mock import patch
 from dataclasses import replace
 from flask import Flask
 from application.backtest_lab.blueprint import create_backtest_lab_blueprint
-from application.backtest_lab.momentum_targets import features,projection,compare,peer_projection,timed_context
+from application.backtest_lab.momentum_targets import MAX_GAP_SESSIONS,features,projection,compare,peer_projection,timed_context
 from application.backtest_lab.components import Components
 from application.backtest_lab.observed_history import from_chart
 from application.opportunities.session_freshness import next_session
@@ -41,6 +41,30 @@ class MomentumTargetTests(unittest.TestCase):
         eligible=peer_projection(rows,25,3,[case]);self.assertEqual(eligible['sample_count'],1)
         case['outcome_day']=rows[26]['timestamp']
         self.assertEqual(peer_projection(rows,25,3,[case])['sample_count'],0)
+
+    def test_complete_features_and_gap_enabled_feature_values_match(self):
+        rows = self.rows()
+        expected = {'atr': 3, 'momentum_atr': 5/3, 'momentum_change_atr': 0,
+                    'relative_volume': 1, 'benchmark_return5': None}
+        self.assertEqual(features(rows, 25), expected)
+        self.assertEqual(features(rows, 25, max_volume_gaps=MAX_GAP_SESSIONS), expected)
+        for index in (10, 15, 20):
+            rows[index].pop('volume')
+        self.assertIsNone(features(rows, 25)['relative_volume'])
+        self.assertEqual(features(rows, 25, max_volume_gaps=MAX_GAP_SESSIONS), expected)
+        rows[21].pop('volume')
+        self.assertIsNone(features(rows, 25, max_volume_gaps=MAX_GAP_SESSIONS)['relative_volume'])
+
+    def test_peer_minimum_is_opt_in_and_reports_the_count(self):
+        rows = self.rows()
+        case = {'instrument': 'MTN', 'outcome_day': rows[24]['timestamp'],
+                'momentum_atr': 1, 'change_atr': 0, 'excursion_atr': 2}
+        result = peer_projection(rows, 25, 3, [case], minimum_samples=2)
+        self.assertEqual(result['status'], 'FIXED_TARGET_FALLBACK')
+        self.assertEqual(result['reason'], 'INSUFFICIENT_PEER_SAMPLE')
+        self.assertEqual(result['sample_count'], 1)
+        self.assertNotIn('target_distance', result)
+        self.assertEqual(peer_projection(rows, 25, 3, [case])['status'], 'PROJECTED')
 
     def test_date_only_news_uses_actual_receipt_without_backdating(self):
         item={'instrument':'SOL','headline':'Results','source_id':'s1','publication_date':'2026-10-01',
