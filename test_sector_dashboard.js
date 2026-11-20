@@ -1,10 +1,17 @@
 // Small DOM harness for selection behavior; no browser or third-party modules.
 const fs=require('fs'), vm=require('vm'), assert=require('assert');
 const elements=new Map();
-function element(id){if(!elements.has(id))elements.set(id,{id,value:'',textContent:'',innerHTML:'',hidden:false,
-  listeners:{},addEventListener(type,fn){this.listeners[type]=fn;}});return elements.get(id);}
+function node(id) {
+ return {id,value:'',textContent:'',innerHTML:'',hidden:false,children:[],options:[],
+  listeners:{},addEventListener(type,fn){this.listeners[type]=fn;},
+  replaceChildren(...children){this.children=children;this.options=children;},
+  append(...children){this.children.push(...children);},
+  querySelector(tag){return element(id+'-'+tag);}};
+}
+function element(id){if(!elements.has(id))elements.set(id,node(id));return elements.get(id);}
 const nav=element('nav');
-global.document={getElementById:element,querySelector:()=>nav,querySelectorAll:()=>[],addEventListener(){}};
+global.document={getElementById:element,querySelector:()=>nav,querySelectorAll:()=>[],
+ createElement:tag=>node(tag),addEventListener(){}};
 global.window={};
 const mk=(id,name,net)=>({id,name,source:'Research',desc:'Test',conds:[],funnel:{checked:1,passed:[]},
  sum:{signals:1,traded:1,win:100,net,mdd:0,verdict:'Incubate'},run:{rejected_bars:[],decisions:[],
@@ -22,7 +29,22 @@ const sectors={classifications_frozen_with_run:false,instruments:{BTI:{classific
  strategies:[{id:'swing',name:'Swing',signals:1,trades:1,wins:1,net:5},{id:'box',name:'Box',signals:1,trades:1,wins:1,net:20}],
  default:{strategy_id:'box',label:'Backtested top contender',sample_count:1}}},sectors:[{sector:'Consumer',
  strategies:[{strategy_id:'box',instruments:['BTI'],trades:1,net:20}],research_hypothesis:{candidate_strategy_id:'box'}}]};
-global.fetch=async url=>({ok:true,json:async()=>url.endsWith('/sector-research')?sectors:url.endsWith('/runs?index=filenames')?{runs:[{run_id:'a'.repeat(64),grade:'ASSUMPTION_LIMITED',created_at:'2026-01-01'}]}:url.includes('/runs/')?run:{}});
+const id=run.meta.config_hash;
+const saved={run_id:id,created_at:'2026-01-01',data_basis:'FIXTURE',grade:'ASSUMPTION_LIMITED',
+ cost_basis:'HYPOTHETICAL',strategies:[{id:'swing',version:'1'}],
+ instruments:{BTI:{first_session:'2026-01-01',last_session:'2026-01-02',session_count:2}},
+ titles_by_instrument:{BTI:'BTI saved result'}};
+global.fetch=async url=>{
+ const path=url.split('?')[0];
+ const routes={
+  '/api/v1/backtest-lab/jobs':{profiles:[]},
+  '/api/v1/strategy-radar/watches':{watches:[{instrument:'BTI',state:'ACTIVE'}]},
+  '/api/v1/backtest-lab/runs/index':{runs:[saved],could_not_verify:[]},
+  ['/api/v1/backtest-lab/runs/'+id]:run,
+  ['/api/v1/backtest-lab/runs/'+id+'/sector-research']:sectors,
+ };
+ return {ok:Object.hasOwn(routes,path),json:async()=>routes[path]||{}};
+};
 vm.runInThisContext(fs.readFileSync('static/js/backtest-lab.js','utf8'));
 (async()=>{await nav.listeners.click();assert.match(element('bl-research-choice').textContent,/Backtested top contender/);
  assert.match(element('bl-strategies').innerHTML,/data-index="1" aria-pressed="true"/);
