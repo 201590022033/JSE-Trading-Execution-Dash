@@ -8,7 +8,8 @@ from decimal import Decimal, InvalidOperation
 import json
 from pathlib import Path
 
-from application.opportunities.research_classification import VERSION, classifications
+from application.backtest_lab.zebra_field_windows import BROAD_BENCHMARK, SECTOR_PROXY, constructed_label, constructed_sector_proxy
+from application.opportunities.research_classification import VERSION, classifications, sector_members
 from application.opportunities.session_freshness import latest_expected_session, next_session
 from application.opportunities.zebra_instruments import mappings
 
@@ -140,6 +141,7 @@ def sector_context(service, instrument, *, now=None):
               'coverage': {'qualified': 0, 'total': 0}, 'breadth': None, 'provisional_breadth': None,
               'expected_session': expected, 'stale': None, 'calendar_verified': False,
               'sector_proxy': None, 'broad_benchmark': None, 'relative_percentage_points': None, 'relative_provisional': None,
+              'constructed_proxy': None, 'research_benchmark': {'basis': 'NO_DATA', 'label': 'No benchmark data'},
               'limitations': ['HISTORICAL_CLOSES_NOT_LIVE', 'CURRENT_GROUPING_NOT_HISTORICAL_MEMBERSHIP']}
     if not watch or not result['sector']:
         return result
@@ -149,8 +151,7 @@ def sector_context(service, instrument, *, now=None):
         result['limitations'].append('INSTRUMENT_MAPPING_OR_SECTOR_MISMATCH')
         return result
     # Funds are not stock constituents; exact registered mapping is required.
-    members = sorted(key for key in mapping if not key.startswith('ETF_') and
-                     labels.get(key, {}).get('sector') == result['sector'] and result['sector'] != 'Funds')
+    members = sector_members(labels, result['sector'])
     result['universe'] = members
     result['coverage']['total'] = len(members)
     cutoff = expected or (now.astimezone(timezone.utc).date() - timedelta(days=1)).isoformat()
@@ -195,10 +196,8 @@ def sector_context(service, instrument, *, now=None):
         result['breadth'] = {'advancers': up, 'decliners': down, 'unchanged': unchanged}
     if n or p:
         result['state'] = 'PROVISIONAL' if p else 'STALE' if result['stale'] else 'PARTIAL' if not result['calendar_verified'] or n != len(members) else 'COMPLETE'
-    # ETF_STX40 is a generic fallback for sectors without a defined proxy;
-    # presenting it as both sector performance and broad benchmark is false.
-    proxy = watch.get('benchmark')
-    for field, key in [('sector_proxy', proxy if proxy != 'ETF_STX40' else None), ('broad_benchmark', 'ETF_STX40')]:
+    proxy = SECTOR_PROXY.get(result['sector'])
+    for field, key in [('sector_proxy', proxy), ('broad_benchmark', BROAD_BENCHMARK)]:
         if not key:
             continue
         obs = _closes(service.folder, key, sessions, now)
@@ -207,7 +206,29 @@ def sector_context(service, instrument, *, now=None):
             result[field] = {'instrument': key, 'return_percent': ret, 'observations': obs,
                              'provisional': any(item['provisional'] for item in obs),
                              'basis': 'ALIGNED_HISTORICAL_ETF_CLOSES_NOT_INDEX'}
-    if result['sector_proxy'] and result['broad_benchmark']:
-        result['relative_percentage_points'] = result['sector_proxy']['return_percent'] - result['broad_benchmark']['return_percent']
-        result['relative_provisional'] = result['sector_proxy']['provisional'] or result['broad_benchmark']['provisional']
+    if not result['sector_proxy']:
+        aligned_members = {member['instrument']: {o['session']: o for o in member['observations']}
+                           for member in result['qualified_members'] + result['provisional_members']}
+        peers = {key: aligned_members.get(key, {}) for key in members if key != instrument}
+        point = constructed_sector_proxy(sessions, peers)[session]
+        if point['daily_return'] is not None:
+            names = point['members']
+            result['constructed_proxy'] = {
+                'basis': 'CONSTRUCTED_SECTOR_PROXY', 'members': names, 'member_count': len(names),
+                'eligible_members': sorted(peers), 'leave_one_out': instrument, 'thin': len(names) < 3,
+                'label': constructed_label(result['sector'], names, instrument),
+                'return_percent': point['daily_return'] * 100, 'data_quality': point['data_quality'],
+                'observations': point['observations'], 'provisional': point['provisional'],
+            }
+    sector_reference = result['sector_proxy'] or result['constructed_proxy']
+    if result['sector_proxy']:
+        result['research_benchmark'] = {'basis': 'SECTOR_ETF', 'label': f'Sector ETF {proxy}', 'instrument': proxy}
+    elif result['constructed_proxy']:
+        result['research_benchmark'] = {k: result['constructed_proxy'][k] for k in ('basis', 'label', 'data_quality')}
+    elif result['broad_benchmark']:
+        result['research_benchmark'] = {'basis': 'BROAD_MARKET_FALLBACK', 'label': f'Broad ETF {BROAD_BENCHMARK}',
+                                        'instrument': BROAD_BENCHMARK}
+    if sector_reference and result['broad_benchmark']:
+        result['relative_percentage_points'] = sector_reference['return_percent'] - result['broad_benchmark']['return_percent']
+        result['relative_provisional'] = sector_reference['provisional'] or result['broad_benchmark']['provisional']
     return result

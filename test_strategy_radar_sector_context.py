@@ -12,7 +12,7 @@ NOW = datetime(2026, 11, 9, 18, tzinfo=timezone.utc)
 
 class Store:
     def get(self, key):
-        return {'instrument': key, 'sector': 'Telecommunications', 'benchmark': 'ETF_STX40'} if key == 'MTN' else None
+        return {'instrument': key, 'sector': 'Telecommunications', 'benchmark': 'ETF_STX40'} if key in ('MTN', 'VOD') else None
 
 
 class Service:
@@ -48,6 +48,7 @@ class SectorContextTests(unittest.TestCase):
         self.assertIsNone(result['sector_proxy'])
         self.assertIsNone(result['relative_percentage_points'])
         self.assertIsNotNone(result['broad_benchmark'])
+        self.assertEqual(result['research_benchmark']['basis'], 'BROAD_MARKET_FALLBACK')
         self.assertEqual(result['qualified_members'][0]['observations'][1]['source'], 'YAHOO')
 
     def test_conflicting_future_or_missing_closes_not_counted(self):
@@ -56,12 +57,19 @@ class SectorContextTests(unittest.TestCase):
         self.assertEqual(result['coverage']['qualified'], 0)
         self.assertIsNone(result['breadth'])
         self.assertEqual(result['state'], 'UNAVAILABLE')
+        self.assertEqual(result['research_benchmark']['basis'], 'NO_DATA')
 
     def test_complete_and_calendar_unknown(self):
         write(self.service, 'MTN'); write(self.service, 'VOD', (100, 95))
         result = sector_context(self.service, 'MTN')
         self.assertEqual(result['state'], 'COMPLETE')
         self.assertEqual(result['breadth'], {'advancers':1,'decliners':1,'unchanged':0})
+        proxy = result['constructed_proxy']
+        self.assertEqual(proxy['members'], ['VOD'])
+        self.assertEqual(proxy['leave_one_out'], 'MTN')
+        self.assertTrue(proxy['thin'])
+        self.assertAlmostEqual(proxy['return_percent'], -5)
+        self.assertAlmostEqual(sector_context(self.service, 'VOD')['constructed_proxy']['return_percent'], 5)
         unknown_calendar=sector_context(self.service, 'MTN', now=datetime(2027,2,1,tzinfo=timezone.utc))
         self.assertEqual(unknown_calendar['breadth'], {'advancers':1,'decliners':1,'unchanged':0})
         self.assertFalse(unknown_calendar['calendar_verified'])

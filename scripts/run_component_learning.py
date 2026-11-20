@@ -9,7 +9,10 @@ from application.backtest_lab.components import Components
 from application.backtest_lab.learning_loop import run_cycle, run_factorial_training, _artifact, trial_weight
 from application.backtest_lab.learning_journal import LearningJournal
 from application.backtest_lab.observed_history import from_chart
-from application.backtest_lab.zebra_field_windows import FIELDS,valid_segments
+from application.backtest_lab.zebra_field_windows import (
+    FIELDS, LEGACY_STUDY_INSTRUMENTS, SECTOR_PROXY, benchmark_input_keys,
+    research_benchmarks, valid_segments,
+)
 from application.opportunities.zebra_screen_data import load_zebra_screen_data
 from persistence.experiment_repo import DurableExperimentRepository
 from persistence.sqlite_repository import SQLiteRepository
@@ -29,17 +32,37 @@ def main():
     if a.override_id and not a.cloud:p.error('--override-id requires --cloud')
     if a.status_only and (a.cloud or a.factorial):p.error('--status-only cannot run trials or models')
     from application.opportunities.research_classification import classifications
-    from application.backtest_lab.zebra_field_windows import SECTOR_PROXY
     import re
     if not re.fullmatch(r'[A-Z0-9_]{2,16}',a.instrument):p.error('canonical instrument required')
     classification=classifications([a.instrument])['instruments'][a.instrument]
     sector=SECTOR_PROXY.get(classification['sector']) or ('ETF_STXIND' if a.instrument=='BTI' else 'ETF_STX40')
-    data=load_zebra_screen_data(instruments={a.instrument,sector,'ETF_STX40'})
+    legacy = a.instrument in LEGACY_STUDY_INSTRUMENTS
+    keys = {a.instrument, sector, 'ETF_STX40'} if legacy else benchmark_input_keys(ROOT, {a.instrument})
+    data=load_zebra_screen_data(instruments=keys)
     stock=data['instruments'][a.instrument]
     segments=[s for s in valid_segments(stock['rows'],('open','high','low','close')) if len(s)>=100]
     if not segments: raise ValueError('no eligible stock history segment')
     seg=segments[-1]
-    proxy=data['instruments'].get(sector) or data['instruments'].get('ETF_STX40')
+    benchmark_metadata = None
+    if legacy:
+        proxy = data['instruments'].get(sector) or data['instruments'].get('ETF_STX40')
+        benchmark = sector if proxy is data['instruments'].get(sector) else 'ETF_STX40' if proxy else None
+    else:
+        sessions = [row['session'] for row in seg]
+        assignments, series = research_benchmarks(a.instrument, data['instruments'], sessions, lookback=20)
+        # Freeze before the first possible complete 50-bar Swing decision,
+        # after accumulating the 20-session benchmark comparison window.
+        selection_session = sessions[20]
+        benchmark_metadata = {**assignments[selection_session], 'selection_policy': 'FIXED_COMPONENT_STUDY_BENCHMARK'}
+        benchmark = benchmark_metadata['instrument']
+        proxy = data['instruments'].get(benchmark)
+        if benchmark_metadata['basis'] == 'CONSTRUCTED_SECTOR_PROXY':
+            # The component engine consumes one benchmark series. Retain the
+            # chain available at selection. Later disjoint rebases are not
+            # the same level series and cannot be joined for comparison.
+            rows = series[benchmark]
+            selected_segment = rows[selection_session]['segment']
+            proxy = {'rows': [row for row in rows.values() if row['segment'] == selected_segment]}
     charts={a.instrument:[{'timestamp':r['session'],**{f:r[f] for f in FIELDS}} for r in seg]}
     if proxy: charts['ETF_STX40']=[{'timestamp':r['session'],'close':r['close']} for r in proxy['rows'] if r.get('close') is not None]
     source=next(v for row in reversed(seg) for v in row.get('fields',{}).values() if isinstance(v,dict) and v.get('source_sha256'))
@@ -90,9 +113,11 @@ def main():
                 volume_mode='threshold' if training_volume else 'off',volume_min=threshold)
         # Immutable per-field source observations, including the benchmark,
         # remain linked to this run even if the Zebra selection later changes.
-        inputs=_artifact(root/'inputs',{'instrument':a.instrument,'rows':seg,
-            'benchmark':sector if proxy is data['instruments'].get(sector) else 'ETF_STX40' if proxy else None,
-            'benchmark_rows':proxy.get('rows',[]) if proxy else []})
+        lineage = {'instrument':a.instrument,'rows':seg, 'benchmark':benchmark,
+                   'benchmark_rows':proxy.get('rows',[]) if proxy else []}
+        if benchmark_metadata:
+            lineage['benchmark_details'] = benchmark_metadata
+        inputs=_artifact(root/'inputs',lineage)
         previous_status={}
         status_path=root/(a.instrument+('' if a.family=='swing' else '_'+a.family.upper())+'.json')
         if a.status_only and status_path.is_file():previous_status=json.loads(status_path.read_text(encoding='utf-8'))
@@ -151,13 +176,21 @@ def main():
                     'artifacts':[x.sha256 for x in r.artifacts]} for r in bundle['results']],
                 'decisions':[x.decision.value for x in bundle['decisions']]})
         status={'schema':'component-learning-status-v1','instrument':a.instrument,'family':a.family,'classification':classification,
-            'sector_proxy':sector if proxy is data['instruments'].get(sector) else 'ETF_STX40' if proxy else None,
+            'sector_proxy':benchmark,
             'window':[seg[0]['session'],seg[-1]['session']],'outcomes':outcomes,'experiments':details,
             'jobs':jobs,'source_lineage_sha256':inputs.sha256,
             'context_report_sha256':context_report_id,'retained_context_sources':len(context_items),
             'holdout':holdout,'model_calls':previous_status.get('model_calls',0) if a.status_only else proposer.model_calls if proposer else 0,
             'historical_component_trials':prior_trials+sum(trial_weight(d) for d in repo.list_experiments() if d.instrument_scope==(a.instrument,)),
             'total_trial_budget':8,'live_execution':False}
+        if benchmark_metadata:
+            status['benchmark_details'] = benchmark_metadata
+            if a.status_only and previous_status:
+                for key in ('sector_proxy', 'source_lineage_sha256', 'benchmark_details'):
+                    if key in previous_status:
+                        status[key] = previous_status[key]
+                    elif key == 'benchmark_details':
+                        status.pop(key, None)
         target=status_path;tmp=target.with_suffix('.tmp')
         tmp.write_text(json.dumps(status,sort_keys=True,indent=2),encoding='utf-8');tmp.replace(target)
         print(json.dumps(status,sort_keys=True))

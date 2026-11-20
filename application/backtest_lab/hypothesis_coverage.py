@@ -1,4 +1,4 @@
-"""Report evidence coverage for the original six research hypotheses."""
+"""Report original research evidence and the proposed telecom hypothesis."""
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -7,7 +7,8 @@ GROUPS=(('H1','Selected share',('SASOL','BTI','FSR','ABSPJ')),
         ('H2','Resources and commodities',('SASOL',)),
         ('H3','Industrial or global exposure',('BTI',)),
         ('H4','Banks and financials',('FSR','ABSPJ')),
-        ('H5','USD/ZAR',()),('H6','Gold',('NEWGOLD',)))
+        ('H5','USD/ZAR',()),('H6','Gold',('NEWGOLD',)),
+        ('H7','Telecommunications',('MTN','VOD')))
 
 
 def coverage(root):
@@ -62,6 +63,13 @@ def coverage(root):
         except (OSError,ValueError,TypeError): continue
     rows=[]
     for code,name,members in GROUPS:
+        if code == 'H7':
+            rows.append({'id':code, 'hypothesis':name, 'members':list(members), 'proposed':True,
+                         'component_examples':[], 'listed_vehicle_runs':[], 'price_only_studies':[],
+                         'reference_captures':0, 'status':'NO_RETAINED_EXAMPLE',
+                         'meaning':'Proposed family for MTN and VOD. Compare with a labelled leave-one-out sector benchmark.',
+                         'benchmark_policy':'SECTOR_ETF_CONSTRUCTED_SECTOR_PROXY_BROAD_ETF_NO_DATA'})
+            continue
         seen=[{'instrument':k,'verified_artifact_count':studies[k]['count'],'families':studies[k]['families']} for k in members if k in studies]
         reference=references['ZAR_X'] if code=='H5' else references['GC_F']+references['GLD_JO'] if code=='H6' else 0
         listed=gold_runs if code=='H6' else []

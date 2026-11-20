@@ -47,7 +47,7 @@
         'Source '+(close?.source||'unknown')+' · acquired '+(close?.acquired_at||'unknown'),
         'Coverage: '+Object.entries(h.fields).map(([k,v])=>k+' '+v).join(', '),
         '20-session close mean: '+(h.technical.sma20==null?'unavailable':h.technical.sma20.toFixed(2))+' · 20-session return: '+(h.technical.return20==null?'unavailable':(100*h.technical.return20).toFixed(2)+'%'),
-        'Benchmark: '+(h.benchmark.instrument||'none')+' ('+h.benchmark.basis+')',
+        'Benchmark: '+(h.benchmark.label||h.benchmark.instrument||'none')+' ('+(h.benchmark.data_quality||h.benchmark.basis)+')',
         'Missing latest fields: '+(row?.capabilities?.missing?.join(', ')||'none'),
         'The most recent '+data.row_limit+' observed sessions are shown; exchange-calendar gaps split windows.'];
       historyOut.replaceChildren(...lines.map(t=>{const p=document.createElement('p');p.textContent=t;return p;}));

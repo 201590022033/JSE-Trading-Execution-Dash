@@ -14,6 +14,10 @@ const mk=(id,name,net)=>({id,name,source:'Research',desc:'Test',conds:[],funnel:
  equity:[{at:'2026-01-01',equity:'1000'}]}});
 const run={meta:{grade:'ASSUMPTION_LIMITED',limitations:[],cost_basis:'HYPOTHETICAL',config_hash:'a'.repeat(64),initial_cash:1000},
  bars:{BTI:[['2026-01-01',10,11,9,10],['2026-01-02',10,11,9,10]]},strategies:[mk('swing','Swing',5),mk('box','Box',20)]};
+const telecomBenchmark={as_of:'2026-01-02',basis:'CONSTRUCTED_SECTOR_PROXY',data_quality:'SINGLE_SOURCE',
+ label:'Telecommunications constructed proxy · 1 member (VOD) · thin · excludes MTN'};
+run.meta.sector_benchmarks={MTN:telecomBenchmark};
+run.meta.sector_benchmarks_by_session={MTN:{'2026-01-02':telecomBenchmark}};
 const sectors={classifications_frozen_with_run:false,instruments:{BTI:{classification:{sector:'Consumer',industry:'Tobacco'},
  strategies:[{id:'swing',name:'Swing',signals:1,trades:1,wins:1,net:5},{id:'box',name:'Box',signals:1,trades:1,wins:1,net:20}],
  default:{strategy_id:'box',label:'Backtested top contender',sample_count:1}}},sectors:[{sector:'Consumer',
@@ -23,6 +27,7 @@ vm.runInThisContext(fs.readFileSync('static/js/backtest-lab.js','utf8'));
 (async()=>{await nav.listeners.click();assert.match(element('bl-research-choice').textContent,/Backtested top contender/);
  assert.match(element('bl-strategies').innerHTML,/data-index="1" aria-pressed="true"/);
  assert.match(element('bl-instrument-compare').innerHTML,/Box/);
+ assert.match(element('bl-band').innerHTML,/1 member \(VOD\).*thin.*excludes MTN.*SINGLE_SOURCE/);
  element('bl-strategies').listeners.click({target:{dataset:{index:'0'}}});
  assert.match(element('bl-strategies').innerHTML,/data-index="0" aria-pressed="true"/);
  assert.match(element('bl-check-label').textContent,/BTI/);
