@@ -16,3 +16,18 @@ Use the structure in `scripts/freeze_sector_forward.py` and `sector-prospective-
 | Controls | No live orders, alerts, sounds, model calls, score calibration or promotion. If dependency hashes drift, stop before appending observations. Publish exact hashes and failures separately from earlier runs. |
 
 A reader must resolve the exact variant tuple and benchmark before a run can start. Capture later records append-only, using their actual observation clocks. Post-registration feeds, not W06 reconstructed receipts, provide the prospective evaluation data.
+
+
+## Registration dry run and write set
+
+This is a plan for a separate file-only registration command. It was reviewed against the current append-only registration and observation conventions. The existing registration script hard-codes BTI and SASOL. Running that script would target those cases, so it was never invoked for this dry run.
+
+| Operation | Exact path or record | Create or modify |
+| --- | --- | --- |
+| Registration, once after separate approval | `runtime/local-backtest/prospective/vod-mtn/<plan-sha256>.json` | Create a new directory if absent and one new canonical JSON file using exclusive creation. No replacement. |
+| Registration contents | One versioned plan record with two cases, `VOD` and `MTN`. Each case carries two exact arm identities, W06 A and C, its own cash ledger assumptions, benchmark `ETF_STX40`, the point-in-time source bindings, and the session and evaluation rules above. | Embedded in the one plan file. Zero separate receipt, dependency or ledger records. The canonical bytes include the actual UTC registration time and reviewed dependency hashes. Those values will determine the final filename. |
+| Reads used to produce it | `artifacts/research/radar-exact-daily/w06-comparison.json`, exact rule and engine source, approved completed-bar receipt files and the exchange calendar. | Read only. W06's internal content hash is `9e6f0c8e51ab2a7396003235b4f3624e0050b99e0b4bd2730ce1aabb3c2f2e11`. |
+| Existing research assets | BTI/SASOL plan and dependency supplement, observations and status, W06 comparison, frozen AI and HR/SASOL files. | Zero changes. |
+| Databases and operations | All PostgreSQL and SQLite stores, scheduled tasks, broker connections, roster, existing alerts and Hermes. | Zero changes and zero records inserted. |
+
+The proposed registration uses a dedicated namespace because the current prospective reader expects the BTI/SASOL schema. A separately reviewed runner and reader would be required before registration. A later, separately authorized capture would use `runtime/local-backtest/prospective/vod-mtn/observations/<plan-sha256>/<instrument>/<session>.json` and a content-addressed `<input-sha256>.input.json` in the same instrument directory. Any later correction would append under its `revisions/` subdirectory with its actual observation time. Registration creates none of those files and does not retrospectively seed observation records. The dry run created no runtime files or database records.
