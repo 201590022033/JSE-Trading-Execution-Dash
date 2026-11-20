@@ -121,6 +121,14 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
     def folder():
         root=directory() if callable(directory) else directory if directory is not None else os.environ.get('LOCAL_BACKTEST_REPORT_DIR','')
         return Path(root)/'lab' if root else None
+    def warm_saved_index():
+        from threading import Thread
+        root = folder()
+        if root is not None and root.is_dir():
+            Thread(target=saved_run_index.warm, args=(root,), name='backtest-index', daemon=True).start()
+
+    bp.warm_saved_index = warm_saved_index
+
     def response(data,status=200):
         data['live_execution']=False
         out=jsonify(data);out.headers['Cache-Control']='no-store'

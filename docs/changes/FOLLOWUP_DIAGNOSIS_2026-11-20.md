@@ -67,3 +67,21 @@ The owner elected to retain the frozen SASOL refinement and BTI/SASOL forward bl
 After the 07:30 SAST source capture, a direct read of the running dashboard's Radar-cache files at about 07:53 SAST found VOD, MTN and ETF_STX40 still ending on 18 November. The 19 November ShareData bars already exist in retained input. No restart was used in this check. A proposed display/cache-only change is to watch the successful local Zebra refresh receipt's identity and coalesce one bounded prewarm for the current watches and their benchmarks. Use existing retained inputs and the existing atomic cache writer. On result failure or incomplete data, keep the older snapshot and report its date. Avoid watch reconciliation, intraday pruning, provider recapture and all database writes. Verify with an offline clock and file fixture, then observe a natural 07:30 capture. The trigger change remains a proposal.
 
 At approximately 07:53 SAST, seven Radar SQLite files were copied by SQLite's backup API from read-only sources into a dated folder, including the intraday store. Each destination passed `PRAGMA integrity_check`. The manifest contains a SHA-256, byte size and per-table counts, and all destination hashes were reread and matched. The startup-prune projection used read-only connections, the integrity-checked ranking snapshot and the 10-session cutoff of 9 November. It identified zero eligible bar rows and zero orphan raw responses, including for the retained alert instruments BTI, DTC, MTN and VOD and benchmark ETF_STX40. Monitor event IDs were 1–21. There were no queued or running Radar daily jobs at inspection. Repeat the projection immediately before any authorized restart because runtime inputs can change.
+
+
+## Backtest selector baseline and fix
+
+Master `a87672d` was restarted at 08:20:56 SAST on 20 November after checking the verified Radar backup and projecting zero startup prune candidates. Headless Edge opened three fresh tabs against the same process. The first was cold. The timings below are from the tab click to usable selector, and browser resource durations for the requests from Backtest activation.
+
+| Measurement | Cold | Warm | Warm repeat |
+| --- | ---: | ---: | ---: |
+| Usable share selector | 22.210 s | 7.573 s | 6.028 s |
+| Saved-results index | 21.540 s | 5.130 s | 3.065 s |
+| Activation's Radar watch list | 7.573 s | 7.361 s | 5.770 s |
+| Exact strategy/version list | 4.224 s | 5.047 s | 3.022 s |
+
+The old selector was enabled only after both the saved-results index and the watch list settled. The index performed the first hash verification of the saved files cold. The longer watch-list request dominated warm. The exact version request ran independently and was outside that combined wait. The prior branch's shared 15-second client deadline was shorter than the measured cold index request.
+
+The selector fix renders share and exact-version options from the code catalog and registry in the initial page. Watch eligibility for submitting a replay still comes from the watch list, independently of selecting a share or version. Verified index summaries are prewarmed in memory at startup, coalesced under a lock and invalidated by changes in file identity or metadata. The browser retrieves the index asynchronously and shows its own loading or retry state. Saved index and run detail allow 35 seconds, about 13 seconds above the measured cold index. Watch eligibility allows 15 seconds, roughly twice its observed maximum. Other Backtest reads use a 12-second client limit. The earlier 8-second server bound for expensive retained reads still applies where configured. All figures for the fix are design budgets pending live verification.
+
+The new browser fixture holds the index open, selects VOD and an exact strategy version, returns a timeout, selects MTN and retries. Its execution and the deployment gate await the owner's restart checkpoint.

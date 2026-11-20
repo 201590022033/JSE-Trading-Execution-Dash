@@ -50,7 +50,7 @@
 <article class="panel"><div class="row"><h3>30 confidence gates</h3><span id="gate-summary"></span></div><div id="gates" class="gates"></div></article><article class="panel broker"><h3>Manual broker handoff</h3><p>No admitted strategy exists; no order endpoint is connected.</p><button disabled>COPY TRADE DETAILS</button><button disabled>CONFIRM IN BROKER</button></article></section>
 <section id="backtest-lab" class="tab" aria-labelledby="bl-title">
  <h2 id="bl-title">Backtest Lab</h2>
- <section class="panel" aria-labelledby="bl-step-share"><h3 id="bl-step-share">1. Choose a share</h3><label>Share <select id="bl-share" aria-label="Share" disabled></select></label></section>
+ <section class="panel" aria-labelledby="bl-step-share"><h3 id="bl-step-share">1. Choose a share</h3><label>Share <select id="bl-share" aria-label="Share">{% for share in backtest_shares %}<option value="{{ share }}">{{ share }}</option>{% endfor %}</select></label></section>
  <section class="panel" aria-labelledby="bl-step-family"><h3 id="bl-step-family">2. Choose a hypothesis</h3>
   <label>Hypothesis <select aria-label="Hypothesis"><option>H1 · Selected-share research</option></select></label><p>H1 is available for new daily cash-share replays. The coverage table shows retained research for the other families.</p>
  <article class="panel"><h3>Hypothesis coverage</h3><p class="muted">Retained research examples and references; this does not establish performance or a supported trading vehicle.</p><p id="bl-hypothesis-status" role="status">Available when Backtest Lab opens.</p><div class="bl-scroll"><table id="bl-hypothesis-coverage"></table></div></article>
@@ -59,12 +59,12 @@
   <p>Open a saved result to see its exact strategy versions, or request a new replay for the selected share.</p>
   <div id="bl-strategies" class="bl-buttons" aria-label="Strategies in the saved result"></div><p id="bl-description" class="muted"></p>
   <div id="bl-run-choice" hidden><label>Saved result <select id="bl-runs" aria-label="Saved result"></select></label></div><p>A saved result is a past backtest that cannot be changed, so you can always check what it said.</p><div id="bl-no-runs" hidden></div><div id="bl-run-request" hidden>
- <button type="button" id="bl-request-run" aria-controls="bl-replay-controls" aria-expanded="false" aria-describedby="bl-run-unavailable" disabled>Run a backtest for this share</button>
- <p id="bl-run-unavailable">Checking exact replay availability…</p>
+ <button type="button" id="bl-request-run" aria-controls="bl-replay-controls" aria-expanded="false" aria-describedby="bl-run-unavailable">Run a backtest for this share</button>
+ <p id="bl-run-unavailable" role="status">Checking watched-share eligibility…</p>
  <div id="bl-replay-controls" hidden><form id="bl-replay-form">
   <p>H1 selected-share research · cash share · completed daily sessions</p>
-  <label>Exact strategy version <select id="bl-replay-profile" required></select></label>
-  <details><summary>Unavailable strategy versions</summary><ul id="bl-unavailable-profiles"></ul></details>
+  <label>Exact strategy version <select id="bl-replay-profile" required>{% for profile in backtest_profiles if profile.available %}<option value="{{ profile.id }}@{{ profile.version }}">{{ profile.name }} · v{{ profile.version }}</option>{% endfor %}</select></label>
+  <details><summary>Unavailable strategy versions</summary><ul id="bl-unavailable-profiles">{% for profile in backtest_profiles if not profile.available %}<li>{{ profile.id }} v{{ profile.version }} · {{ profile.reason }}</li>{% endfor %}</ul></details>
   <label>From <input id="bl-replay-start" type="date" required></label><label>To <input id="bl-replay-end" type="date" required></label>
   <button type="submit" id="bl-submit-replay" disabled>Submit replay</button>
  </form></div>

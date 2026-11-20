@@ -106,7 +106,8 @@ app.register_blueprint(create_research_blueprint(runtime_repository))
 from application.opportunities.local_backtest_reports import create_local_backtest_blueprint
 app.register_blueprint(create_local_backtest_blueprint())
 from application.backtest_lab.blueprint import create_backtest_lab_blueprint
-app.register_blueprint(create_backtest_lab_blueprint(radar_factory=strategy_radar_service))
+backtest_lab = create_backtest_lab_blueprint(radar_factory=strategy_radar_service)
+app.register_blueprint(backtest_lab)
 from application.opportunities.dashboard_activity import create_dashboard_activity_blueprint
 app.register_blueprint(create_dashboard_activity_blueprint())
 from application.opportunities.learning_overview import create_learning_overview_blueprint
@@ -171,7 +172,17 @@ def close_market_store(error=None):
     if repository is not None: repository.close()
 
 @app.get("/")
-def index(): return render_template("dashboard.html")
+def index():
+    from application.backtest_lab.exact_run_job import available_profiles
+    from application.opportunities.public_research import public_share_catalog
+
+    profiles = available_profiles()
+    if not os.environ.get('LOCAL_BACKTEST_REPORT_DIR'):
+        for profile in profiles:
+            if profile['available']:
+                profile.update(available=False, reason='The dashboard saved-results folder is not configured.')
+    return render_template("dashboard.html", backtest_shares=sorted(public_share_catalog()),
+                           backtest_profiles=profiles)
 @app.get("/health")
 def health():
     mode = os.environ.get("APP_MODE", "DEVELOPMENT").upper()
@@ -478,6 +489,7 @@ def start_strategy_radar_background():
 
 if __name__ == "__main__":
     start_strategy_radar_background()
+    backtest_lab.warm_saved_index()
     socketio.run(
         app,
         host=os.environ.get("HOST", "0.0.0.0"),
