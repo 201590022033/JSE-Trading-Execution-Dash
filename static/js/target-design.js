@@ -3,7 +3,7 @@
   if (!tab) return;
   const section = document.createElement('section'); section.className = 'panel';
   section.innerHTML = '<h2>Target and exit design</h2><p>Research comparisons on retained history. Costs are hypothetical; past results do not establish a forecast or trading edge.</p><button type="button">Load comparisons</button> <label>Study <select aria-label="Target design study"></select></label><p role="status"></p><div></div>';
-  tab.append(section);
+  (document.getElementById('bl-fold-learning') || tab).append(section);
   const button = section.querySelector('button'), select = section.querySelector('select');
   const status = section.querySelector('[role=status]'), results = section.querySelector('div');let reports=[];
   async function read(url) { const r = await fetch(url, {cache:'no-store',signal:AbortSignal.timeout(30000)}); if (!r.ok) throw Error('HTTP '+r.status); return r.json(); }
@@ -45,6 +45,6 @@
   button.addEventListener('click',async()=>{status.textContent='Checking saved studies…';try{const d=await read('/api/v1/backtest-lab/target-design');reports=d.reports;select.replaceChildren();for(const r of reports){const o=document.createElement('option');o.value=r.report_id;const basis=r.cost_basis?.includes('OST_CASH')?'OST cash-share costs':'generic costs';o.textContent=`${r.instrument} · ${r.family} · ${r.horizon} sessions · ${basis} · ${r.report_id.slice(0,10)}`;select.append(o)}if(reports.length)await show();else status.textContent='No target-design studies saved yet.'}catch(e){status.textContent='Studies unavailable: '+e.message}});
   const tape=document.createElement('section');tape.className='panel';
   tape.innerHTML='<h2>Trade tape snapshots</h2><p>Observed executions, not identified institutional or retail orders. Minute timestamps do not establish the order of prints. Repeated snapshots can overlap.</p><button type="button">Load trade snapshots</button><div role="status"></div>';
-  tab.append(tape);
+  (document.getElementById('bl-fold-research') || tab).append(tape);
   tape.querySelector('button').addEventListener('click',async()=>{const out=tape.querySelector('[role=status]');out.textContent='Loading snapshots…';try{const data=await read('/api/v1/backtest-lab/trade-tape');out.replaceChildren();if(!data.snapshots.length){out.textContent='No trade snapshots recorded.';return}for(const s of data.snapshots){const d=document.createElement('details');const title=document.createElement('summary');title.textContent=`${s.instrument} · ${s.summary.prints} prints · captured ${s.captured_at}`;d.append(title);const pre=document.createElement('pre');pre.style.whiteSpace='pre-wrap';pre.textContent=JSON.stringify({source:s.source,summary:s.summary,prints:s.rows,limitations:s.limitations},null,2);d.append(pre);out.append(d)}}catch(e){out.textContent='Trade snapshots unavailable: '+e.message}});
 })();

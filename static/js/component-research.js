@@ -2,11 +2,11 @@
  const tab=document.getElementById('backtest-lab');if(!tab)return;
  const panel=document.createElement('div');panel.className='panel';
  panel.innerHTML='<h3>Component experiments</h3><p class="muted">Frozen, paired research variations. Results are hypothetical and may have very small samples.</p><button type="button" id="component-load">Load component studies</button> <select id="component-select" aria-label="Component study"></select><p id="component-status" role="status"></p><div style="overflow-x:auto"><table id="component-table"></table></div><details><summary>Selected study details</summary><pre id="component-detail" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></details>';
- tab.append(panel);const out=panel.querySelector('#component-status'),select=panel.querySelector('#component-select'),table=panel.querySelector('#component-table');
+ (document.getElementById('bl-fold-learning') || tab).append(panel);const out=panel.querySelector('#component-status'),select=panel.querySelector('#component-select'),table=panel.querySelector('#component-table');
  async function request(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('unavailable');return r.json();}
  const targets=document.createElement('div');targets.className='panel';
  targets.innerHTML='<h3>Momentum target comparison</h3><p class="muted">Matched historical research: same signals and initial stops, different exit targets. Projected excursions are not assured profits. Missing optional inputs use the fixed 2R target.</p><button type="button">Load target comparisons</button> <select class="mt-report" aria-label="Target comparison"></select><p class="mt-status" role="status"></p><a class="mt-sources" target="_blank" rel="noopener" hidden>View full source provenance</a><div style="overflow-x:auto"><table class="mt-table"></table></div><label>Signal <select class="mt-signal"></select></label><svg class="mt-chart" viewBox="0 0 800 220" role="img" aria-label="Closing prices and projected targets" style="width:100%;height:auto"></svg><pre class="mt-detail" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>';
- tab.append(targets);let targetReport=null;
+ (document.getElementById('bl-fold-learning') || tab).append(targets);let targetReport=null;
  const reportSelect=targets.querySelector('.mt-report'),signalSelect=targets.querySelector('.mt-signal'),targetStatus=targets.querySelector('.mt-status');
  function targetSignal(){const id=signalSelect.value,lines=[];if(!targetReport||!id)return;
   for(const [name,items] of Object.entries(targetReport.calculations)){const x=items[id];if(!x)continue;const f=x.features||{};
@@ -33,7 +33,7 @@
  select.addEventListener('change',show);panel.querySelector('#component-load').addEventListener('click',async()=>{out.textContent='Reading retained studies…';try{const data=await request('/api/v1/backtest-lab/component-studies');select.replaceChildren();for(const s of data.studies){const opt=document.createElement('option');opt.value=s.study_id;opt.textContent=s.instrument+' · '+s.window.join(' to ')+' · '+s.trial_count+' variants · '+s.study_id.slice(0,12);select.append(opt);}if(data.studies.length)await show();else out.textContent='No frozen component studies yet.';}catch{out.textContent='Component studies unavailable.';}});
  const learning=document.createElement('div');learning.className='panel';
  learning.innerHTML='<h3>Component learning cycles</h3><p class="muted">Retrospective paired comparisons; small samples are inconclusive and no strategy is promoted. Trial counts cover the registered component loop, not separate earlier fixed diagnostics.</p><button type="button">Load learning status</button><div style="overflow-x:auto"><table class="learning-comparison"></table></div><div class="component-evidence"></div><details><summary>Full retained evidence</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></pre></details>';
- tab.append(learning);learning.querySelector('button').addEventListener('click',async()=>{
+ (document.getElementById('bl-fold-learning') || tab).append(learning);learning.querySelector('button').addEventListener('click',async()=>{
   const output=learning.querySelector('pre');output.textContent='Reading research records…';
   try{const data=await request('/api/v1/backtest-lab/learning-status');output.textContent=data.reports.length?JSON.stringify({reports:data.reports,sector_comparisons:data.sector_comparisons},null,2):'No completed learning cycles yet.';
    const grid=learning.querySelector('.learning-comparison');grid.replaceChildren();const header=grid.insertRow();
@@ -51,7 +51,7 @@
  });
  const context=document.createElement('div');context.className='panel';
  context.innerHTML='<h3>News and SENS context coverage</h3><p class="muted">Recorded sources are matched to the time of each research case. Later or uncertain sources remain annotations; price-only research continues.</p><button type="button">Load context coverage</button><div aria-live="polite"></div>';
- tab.append(context);context.querySelector('button').addEventListener('click',async()=>{
+ (document.getElementById('bl-fold-research') || tab).append(context);context.querySelector('button').addEventListener('click',async()=>{
   const out=context.querySelector('div');out.textContent='Reading retained context…';
   try{const data=await request('/api/v1/backtest-lab/context-research');out.replaceChildren();const seen=new Set();
    for(const r of data.reports){if(seen.has(r.instrument))continue;seen.add(r.instrument);const p=document.createElement('p');
@@ -59,11 +59,13 @@
     const link=document.createElement('a');link.href='/api/v1/backtest-lab/context-research/'+encodeURIComponent(r.report_id);link.target='_blank';link.rel='noopener';link.textContent='View source clocks and cases';p.append(link);out.append(p);}
    if(!seen.size)out.textContent='No context-coverage report yet.';
    const proxy=await request('/api/v1/backtest-lab/context-proxies');
-   if(proxy.reports.length){const r=proxy.reports[0],h=document.createElement('h4');h.textContent='Sasol: retrospective proxy comparison';out.append(h);
-    const note=document.createElement('p');note.textContent='Descriptive subsets of existing trades; historical source timing is reconstructed and this does not resimulate the portfolio.';out.append(note);
+   const sasolProxy=document.getElementById('bl-sasol-proxy') || out;
+   if(sasolProxy!==out) sasolProxy.textContent=proxy.reports.length?'':'No retained Sasol proxy comparison.';
+   if(proxy.reports.length){const r=proxy.reports[0],h=document.createElement('h4');h.textContent='Sasol: retrospective proxy comparison';sasolProxy.append(h);
+    const note=document.createElement('p');note.textContent='Descriptive subsets of existing trades; historical source timing is reconstructed and this does not resimulate the portfolio.';sasolProxy.append(note);
     for(const [stage,sets] of Object.entries(r.comparisons)){for(const [name,v] of Object.entries(sets)){const p=document.createElement('p');
      const fmt=x=>x.trades?x.trades+' trades, R '+Number(x.net_pnl).toFixed(2):'no closed trades';
-     p.textContent=stage+' · '+name+': all matched '+fmt(v.matched_price_only)+'; positive-proxy subset '+fmt(v.positive_proxy_filter)+'.';out.append(p);}}
+     p.textContent=stage+' · '+name+': all matched '+fmt(v.matched_price_only)+'; positive-proxy subset '+fmt(v.positive_proxy_filter)+'.';sasolProxy.append(p);}}
    }
    const matched=await request('/api/v1/backtest-lab/context-matched');
    if(matched.reports.length){const seenMatched=new Set(),h=document.createElement('h4');h.textContent='Matched context replays';out.append(h);
@@ -78,11 +80,19 @@
        p.textContent=stage+' · '+name.replaceAll('_',' ')+' ('+source+'): '+v.signals+' signals, '+v.trades+' trades'+(v.trades?', R '+Number(v.net).toFixed(2):', no closed trades')+'; '+v.suppressed+' signals filtered; reference available for '+v.reference_available+' signals, missing for '+v.reference_missing+'.';out.append(p);}}}
     }
    }
-  }catch{out.textContent='Context coverage is unavailable; price-only research remains available.';}
+  }catch{
+   out.textContent='Context coverage is unavailable; price-only research remains available.';
+   const sasolProxy=document.getElementById('bl-sasol-proxy');
+   if(sasolProxy?.textContent==='Reading retained comparison…') sasolProxy.textContent='Sasol proxy comparison is unavailable.';
+  }
+ });
+ document.getElementById('bl-load-sasol-proxy')?.addEventListener('click',()=>{
+  document.getElementById('bl-sasol-proxy').textContent='Reading retained comparison…';
+  context.querySelector('button').click();
  });
  const timeline=document.createElement('div');timeline.className='panel';timeline.id='sasol-timeline-panel';
  timeline.innerHTML='<h3>Sasol: evidence and trade research</h3><p class="muted">Issuer filings, source-quoted facts, Brent, USD/ZAR and the resources ETF. Historical captures may be later than publication; associations do not establish cause.</p><button type="button">Load Sasol evidence</button><p class="sasol-status" aria-live="polite"></p><label>Trade case <select class="sasol-cases"></select></label><p class="sasol-case"></p><button type="button" class="sasol-brief">Prepare research brief</button><pre class="sasol-brief-output" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></pre><div style="overflow-x:auto"><table class="sasol-events"></table></div>';
- tab.append(timeline);let timelineData=null;const caseSelect=timeline.querySelector('.sasol-cases');
+ (document.getElementById('bl-fold-instrument') || tab).append(timeline);let timelineData=null;const caseSelect=timeline.querySelector('.sasol-cases');
  function showCase(){const c=timelineData?.cases[Number(caseSelect.value)],out=timeline.querySelector('.sasol-case');if(!c){out.textContent='No completed trade cases in this retained run.';return;}
   const questions=c.questions.map(x=>x.question+' '+(x.state==='UNKNOWN'?'unknown':x.state.toLowerCase())+(x.value==null?'':' ('+(x.value*100).toFixed(1)+'%)')).join(' · ');
   const rules=(c.signal_trace||[]).map(x=>x.c+': '+(x.ok?'passed':'not passed')+' ('+x.t+'; value '+(x.v??'unknown')+')').join(' · ');

@@ -30,7 +30,7 @@ function priceChart(){const s=data.strategies[strategy],B=data.bars[instrument]|
 function rejectedTrace(){const item=(data.strategies[strategy].run.rejected_bars||[])[+$('rejected').value];table('rejected-trace',['Rule','What it requires','Value','Result'],item?item.trace.map(c=>'<tr><td>'+esc(c.c)+'</td><td>'+esc(c.t)+'</td><td>'+esc(c.v)+'</td><td>'+(c.ok?'Passed':'Failed')+'</td></tr>'):[]);}
 function render(){if(!data)return;const s=data.strategies[strategy],tr=s.run.trades, eq=s.run.equity,last=eq.length?num(eq[eq.length-1].equity):num(data.meta.initial_cash),hold=tr.length?tr.reduce((a,t)=>a+num(t.held),0)/tr.length:null;
  $('stats').innerHTML=[['Net result',money(last-data.meta.initial_cash)],['Return',((last/data.meta.initial_cash-1)*100).toFixed(1)+'%'],['Trades',tr.length],['Win rate',s.sum.win==null?'—':s.sum.win+'%'],['Max drawdown',s.sum.mdd+'%'],['Average hold',hold==null?'—':hold.toFixed(1)+' sessions']].map(([a,b])=>'<div><span class="muted">'+esc(a)+'</span><strong>'+esc(b)+'</strong></div>').join('');
- $('strategies').innerHTML=data.strategies.map((v,i)=>'<button type="button" data-index="'+i+'" aria-pressed="'+(i===strategy)+'">'+esc(v.name)+'</button>').join('');$('description').textContent=s.source+'. '+s.desc;
+ $('strategies').innerHTML=data.strategies.map((v,i)=>'<button type="button" data-index="'+i+'" aria-pressed="'+(i===strategy)+'">'+esc([v.name,v.strategy_profile_id&&v.strategy_profile_version ? v.strategy_profile_id+' v'+v.strategy_profile_version : ''].filter(Boolean).join(' · '))+'</button>').join('');$('description').textContent=s.source+'. '+s.desc;
  table('compare',['Strategy','Signals','Traded','Win rate','Net result','Max drawdown','Desk bucket'],data.strategies.map((v,i)=>'<tr tabindex="0" data-index="'+i+'" class="'+(i===strategy?'bl-selected':'')+'"><td>'+esc(v.name)+'</td><td>'+v.sum.signals+'</td><td>'+v.sum.traded+'</td><td>'+esc(v.sum.win==null?'—':v.sum.win+'%')+'</td><td>'+money(v.sum.net)+'</td><td>'+esc(v.sum.mdd)+'%</td><td>'+esc(v.sum.verdict)+'</td></tr>'));
  bars('funnel',[['Bars checked',s.funnel.checked],...s.conds.map((c,i)=>[c,s.funnel.passed[i]])]);$('rejected').innerHTML=(s.run.rejected_bars||[]).map((r,i)=>'<option value="'+i+'">'+esc(r.inst)+' · '+esc(r.session)+'</option>').join('');rejectedTrace();let final={};s.run.decisions.forEach(d=>{if(d.state!=='TRAIL_NEXT_SESSION')final[d.id]=d.state;});let counts={};const names={FILLED:'Filled',RESERVED:'Reserved / pending',POSITION_EXISTS:'Already holding it',NO_CAPITAL:'Not enough cash',EXPIRED:'Expired unfilled',INVALIDATED_BEFORE_CLOSE:'Stop hit before entry',CAPITAL_REJECTED:'Cash rule rejected'};Object.values(final).forEach(v=>{const label=names[v]||v;counts[label]=(counts[label]||0)+1;});bars('outcomes',Object.entries(counts));
  table('trades',['Instrument','Entry','Exit','Sessions','Exit reason','Fees and costs','Net result','Excess vs STX40','Strategy profile'],tr.map((t,i)=>'<tr tabindex="0" data-index="'+i+'" class="'+(i===selected?'bl-selected':'')+'"><td>'+esc(t.instrument)+'</td><td>'+esc(t.entry_session)+'</td><td>'+esc(t.exit_session)+'</td><td>'+esc(t.held)+'</td><td>'+esc(t.reason)+(t.ambiguous?' (ambiguous)':'')+'</td><td>'+money(num(t.fees)+num(t.execution_cost))+'</td><td>'+money(t.net_pnl)+'</td><td>'+esc((s.relative_outcomes||[]).find(a=>a.id===t.id)?.excess_return == null ? '—' : (((s.relative_outcomes||[]).find(a=>a.id===t.id).excess_return)*100).toFixed(2)+'%')+'</td><td>'+esc(t.strategy_profile_id)+' '+esc(t.strategy_profile_version)+'</td></tr>'));
@@ -82,6 +82,8 @@ function clearResult(){
  runId=null;data=null;sectorData=null;windowData=null;
  $('content').hidden=true;
  $('stats').replaceChildren();
+ $('strategies').replaceChildren();
+ $('description').textContent='';
  $('band').textContent='No saved result selected.';
  $('run-details').hidden=true;
 }
@@ -89,8 +91,9 @@ function renderRunDetails(summary){
  const share=$('share').value, period=summary.instruments[share];
  const rows=[
   ['Result ID',summary.run_id],
-  ['Recorded date',summary.created_at],
-  ['Date basis',summary.created_at_basis||'Unavailable'],
+  [summary.created_at_basis?.includes('NOT_WALL_CLOCK') ? 'Replay configuration cutoff' : 'Recorded date',summary.created_at],
+  ['Date basis',summary.created_at_basis?.includes('NOT_WALL_CLOCK')
+   ? 'The stored as-of date is the configured replay cutoff. It can be later than the last observed session and does not date the actual execution.' : summary.created_at_basis||'Unavailable'],
   ['Data basis',summary.data_basis],
   ['Evidence grade',summary.grade],
   ['Cost assumptions',summary.cost_basis],
@@ -314,6 +317,10 @@ $('replay-form').addEventListener('submit',async event=>{
  }
 });
 document.querySelector('nav button[data-tab="backtest-lab"]').addEventListener('click',()=>activate());
+document.querySelectorAll('#backtest-lab [data-bl-tab]').forEach(button=>button.addEventListener('click',()=>{
+ document.querySelector('nav button[data-tab="'+button.dataset.blTab+'"]')?.click();
+ document.getElementById(button.dataset.blTarget)?.scrollIntoView({block:'center'});
+}));
 document.addEventListener('backtest-lab:refresh',()=>activate(true));
 $('share').addEventListener('change',()=>selectShare());
 $('runs').addEventListener('change',e=>selectResult(e.target.value));

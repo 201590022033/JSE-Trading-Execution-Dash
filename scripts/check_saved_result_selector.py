@@ -68,6 +68,13 @@ def check_selector():
             page.route('**/*', serve)
             page.goto('http://backtest-fixture.test/')
             page.get_by_role('button', name='Backtest Lab').click()
+            steps = page.locator('#backtest-lab > section > h3').all_text_contents()
+            assert steps == ['1. Choose a share', '2. Choose a hypothesis',
+                             '3. Choose a strategy and version', '4. Review the result'], steps
+            assert page.locator('#backtest-lab > details').count() == 4
+            assert page.locator('#backtest-lab > details[open]').count() == 0
+            assert page.locator('#bl-step-result').evaluate(
+                "el => ['bl-trades','bl-price'].every(id => el.parentElement.contains(document.getElementById(id)))")
             share = page.get_by_label('Share', exact=True)
             expect(share).to_have_value('MTN')
             expect(page.locator('#bl-status')).to_have_text('No saved results for MTN.')
