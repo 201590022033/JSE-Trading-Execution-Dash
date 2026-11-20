@@ -42,7 +42,8 @@ class OAuthTests(unittest.TestCase):
             self.assertIsNone(mcp_oauth.connect_saved_local_key())
         self.assertEqual(mcp_oauth.access_token(), 'fixturekey123')
         self.assertEqual(mcp_oauth.connection_state(), 'CONNECTED')
-        self.assertLessEqual(mcp_oauth._expires-time.monotonic(), 30*60)
+        # Adding a duration to the monotonic clock can round the deadline up.
+        self.assertLessEqual(mcp_oauth._expires-time.monotonic(), 30*60 + 1e-9)
         with patch('ai_config.project_environment',return_value={'ALPHA_VANTAGE_API_KEY':'demo'}):
             with self.assertRaises(ValueError): mcp_oauth.connect_saved_local_key()
 
