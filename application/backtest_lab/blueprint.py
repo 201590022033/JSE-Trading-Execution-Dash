@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 from threading import Lock
+from urllib.parse import urlsplit
 from flask import Blueprint, jsonify, request
 from domain.strategy import DEFAULT_STRATEGY_REGISTRY
 
@@ -112,8 +113,11 @@ def momentum_desk_context(root, run):
     return items
 
 
-def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
+def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_factory=None):
+    from .saved_run_index import SavedRunIndex
     bp=Blueprint('backtest_lab',__name__)
+    saved_run_index = SavedRunIndex(_read)
+
     def folder():
         root=directory() if callable(directory) else directory if directory is not None else os.environ.get('LOCAL_BACKTEST_REPORT_DIR','')
         return Path(root)/'lab' if root else None
@@ -676,6 +680,69 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice):
                               'data_basis':m['data_basis'],'strategies':[s['id'] for s in run['strategies']]})
             except (OSError,ValueError,TypeError,KeyError,AttributeError): continue
         return response({'runs':found})
+    @bp.get('/api/v1/backtest-lab/runs/index')
+    def run_index():
+        root = folder()
+        if root is None or not root.is_dir():
+            return response({'state': 'UNAVAILABLE'}, 503)
+        identity_fields = ('instrument', 'product', 'strategy_id', 'strategy_version', 'timeframe_minutes')
+        selection = {key: request.args.get(key) for key in identity_fields}
+        if any(value is not None for value in selection.values()):
+            timeframe = selection['timeframe_minutes']
+            if not all(selection.values()) or not (timeframe == 'daily' or re.fullmatch(r'[1-9][0-9]{0,4}', timeframe)):
+                return response({'error': 'Supply the complete selected strategy identity.'}, 400)
+            selection['timeframe_minutes'] = None if timeframe == 'daily' else int(timeframe)
+        else:
+            selection = None
+        return response(saved_run_index.list(root, selection))
+
+    @bp.route('/api/v1/backtest-lab/jobs', methods=['GET', 'POST'])
+    def replay_jobs():
+        if radar_factory is None or request.remote_addr not in ('127.0.0.1', '::1'):
+            return response({'error': 'The replay job control is available on the local dashboard.'}, 403)
+        from .exact_run_job import RunUnavailable, available_profiles
+        from application.strategy_radar.roster import enqueue_exact, start_lane
+
+        if request.method == 'GET':
+            profiles = available_profiles()
+            if folder() is None:
+                for profile in profiles:
+                    if profile['available']:
+                        profile.update(available=False, reason='The dashboard saved-results folder is not configured.')
+            return response({'profiles': profiles, 'family': 'H1', 'product': 'CASH_SHARE', 'timeframe': '1d'})
+        origin_header = request.headers.get('Origin')
+        try:
+            origin = urlsplit(origin_header or '')
+        except ValueError:
+            return response({'error': 'Local same-origin JSON is required.'}, 403)
+        if not request.is_json or (origin_header and (
+                origin.scheme not in ('http', 'https') or origin.netloc != request.host)):
+            return response({'error': 'Local same-origin JSON is required.'}, 403)
+        if folder() is None:
+            return response({'error': 'The dashboard saved-results folder is not configured.'}, 503)
+        service = radar_factory()
+        try:
+            job_id = enqueue_exact(service, request.get_json(silent=True))
+        except RunUnavailable as exc:
+            return response({'error': str(exc)}, 422)
+        try:
+            start_lane(service, 'backtester')
+        except OSError:
+            return response({'job_id': job_id, 'state': 'QUEUED',
+                             'notice': 'The worker could not start. The queued job remains available to the monitor.'}, 202)
+        return response({'job_id': job_id, 'state': 'QUEUED'}, 202)
+
+    @bp.get('/api/v1/backtest-lab/jobs/<job_id>')
+    def replay_job(job_id):
+        if radar_factory is None or request.remote_addr not in ('127.0.0.1', '::1'):
+            return response({'error': 'Replay status is available on the local dashboard.'}, 403)
+        if not re.fullmatch(r'[a-f0-9]{64}', job_id):
+            return response({'error': 'Replay job not found.'}, 404)
+        from application.strategy_radar.roster import exact_status
+
+        result = exact_status(radar_factory(), job_id)
+        return response(result) if result else response({'error': 'Replay job not found.'}, 404)
+
     @bp.get('/api/v1/backtest-lab/runs/<run_id>')
     def detail(run_id):
         root=folder()
