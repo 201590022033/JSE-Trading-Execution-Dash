@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import stat
 import uuid
 from types import MappingProxyType
 
@@ -43,7 +44,13 @@ class ReleaseInbox:
             plain_path(self.root)
             for suffix in ("", "-journal", "-wal", "-shm"):
                 candidate = plain_path(str(self.path) + suffix)
-                if candidate.exists() and (not candidate.is_file() or candidate.stat().st_nlink != 1):
+                try:
+                    info = candidate.lstat()
+                except FileNotFoundError:
+                    # SQLite may remove a sidecar between path validation and this check.
+                    continue
+                if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                        or getattr(info, "st_file_attributes", 0) & 0x400):
                     raise StorageError("unsafe local store file")
         except (Rejection, OSError) as exc:
             raise StorageError("unsafe local store path") from exc
