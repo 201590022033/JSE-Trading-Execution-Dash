@@ -66,20 +66,15 @@ class SectorBenchmarkTests(unittest.TestCase):
         prefix, _ = research_benchmarks('SHPJ', data, dates[:3])
         self.assertEqual(prefix, {day: result[day] for day in dates[:3]})
 
-    def test_replay_uses_other_telecom_share_and_freezes_benchmark_lineage(self):
+    def test_replay_uses_labelled_broad_etf_for_telecommunications(self):
         run = build(replay_fixture({'MTN': 'Telecommunications', 'VOD': 'Telecommunications'}))
         meta = run['meta']
-        for subject, peer in [('MTN', 'VOD'), ('VOD', 'MTN')]:
+        for subject in ('MTN', 'VOD'):
             result = meta['sector_benchmarks'][subject]
-            self.assertEqual(result['basis'], 'CONSTRUCTED_SECTOR_PROXY')
-            self.assertEqual(result['members'], [peer])
-            self.assertEqual(result['member_count'], 1)
-            self.assertEqual(result['leave_one_out'], subject)
-            self.assertTrue(result['thin'])
-            first, second, *_ = meta['constructed_sector_inputs'][result['instrument']]
-            self.assertEqual(first['close'], 100)
-            self.assertEqual(second['observations'][peer][1]['source'], 'IRESS')
-            self.assertEqual(second['observations'][peer][1]['source_sha256'], 'a' * 64)
+            self.assertEqual(result['basis'], 'BROAD_MARKET_FALLBACK')
+            self.assertEqual(result['instrument'], 'ETF_STX40')
+            self.assertIn('Telecommunications benchmark', result['label'])
+        self.assertFalse(meta.get('constructed_sector_inputs'))
         trace = run['strategies'][0]['run']
         mtn = [row for row in trace['rejected_bars'] if row['inst'] == 'MTN']
         self.assertTrue(any(c['c'] == 'Benchmark' and c['v'] is not None for row in mtn for c in row['trace']))

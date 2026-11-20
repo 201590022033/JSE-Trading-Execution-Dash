@@ -64,12 +64,12 @@ class SectorContextTests(unittest.TestCase):
         result = sector_context(self.service, 'MTN')
         self.assertEqual(result['state'], 'COMPLETE')
         self.assertEqual(result['breadth'], {'advancers':1,'decliners':1,'unchanged':0})
-        proxy = result['constructed_proxy']
-        self.assertEqual(proxy['members'], ['VOD'])
-        self.assertEqual(proxy['leave_one_out'], 'MTN')
-        self.assertTrue(proxy['thin'])
-        self.assertAlmostEqual(proxy['return_percent'], -5)
-        self.assertAlmostEqual(sector_context(self.service, 'VOD')['constructed_proxy']['return_percent'], 5)
+        self.assertIsNone(result['constructed_proxy'])
+        self.assertIsNone(sector_context(self.service, 'VOD')['constructed_proxy'])
+        write(self.service, 'ETF_STX40')
+        benchmark = sector_context(self.service, 'MTN')['research_benchmark']
+        self.assertEqual(benchmark['instrument'], 'ETF_STX40')
+        self.assertIn('Telecommunications benchmark', benchmark['label'])
         unknown_calendar=sector_context(self.service, 'MTN', now=datetime(2027,2,1,tzinfo=timezone.utc))
         self.assertEqual(unknown_calendar['breadth'], {'advancers':1,'decliners':1,'unchanged':0})
         self.assertFalse(unknown_calendar['calendar_verified'])

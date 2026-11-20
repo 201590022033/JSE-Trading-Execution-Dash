@@ -64,11 +64,11 @@ def coverage(root):
     rows=[]
     for code,name,members in GROUPS:
         if code == 'H7':
-            rows.append({'id':code, 'hypothesis':name, 'members':list(members), 'proposed':True,
+            rows.append({'id':code, 'hypothesis':name, 'members':list(members), 'proposed':False,
                          'component_examples':[], 'listed_vehicle_runs':[], 'price_only_studies':[],
                          'reference_captures':0, 'status':'NO_RETAINED_EXAMPLE',
-                         'meaning':'Proposed family for MTN and VOD. Compare with a labelled leave-one-out sector benchmark.',
-                         'benchmark_policy':'SECTOR_ETF_CONSTRUCTED_SECTOR_PROXY_BROAD_ETF_NO_DATA'})
+                         'meaning':'Telecommunications research label for MTN and VOD. Its benchmark is broad market ETF_STX40.',
+                         'benchmark_policy':'TELECOMMUNICATIONS_BROAD_ETF_STX40_OR_NO_DATA'})
             continue
         seen=[{'instrument':k,'verified_artifact_count':studies[k]['count'],'families':studies[k]['families']} for k in members if k in studies]
         reference=references['ZAR_X'] if code=='H5' else references['GC_F']+references['GLD_JO'] if code=='H6' else 0

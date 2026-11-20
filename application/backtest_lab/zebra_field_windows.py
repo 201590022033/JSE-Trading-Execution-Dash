@@ -126,6 +126,16 @@ def benchmark_for(item, instruments, as_of=None):
             'preferred_sector_proxy':preferred}
 
 
+def constructed_proxy_allowed(sector):
+    """Telecommunications currently uses the broad market ETF."""
+    return sector != 'Telecommunications'
+
+
+def broad_benchmark_label(sector):
+    label = f'Broad ETF {BROAD_BENCHMARK}'
+    return label if constructed_proxy_allowed(sector) else f'{label} · Telecommunications benchmark'
+
+
 def benchmark_input_keys(root, instruments):
     """Load retained research peers plus the established ETF references."""
     from pathlib import Path
@@ -136,6 +146,7 @@ def benchmark_input_keys(root, instruments):
     registered = mappings(Path(root) / 'runtime/local-swing-data/radar-public-prices')
     labels = classifications(set(registered) | selected)['instruments']
     peers = {peer for key in selected - LEGACY_STUDY_INSTRUMENTS
+             if constructed_proxy_allowed(labels[key]['sector'])
              for peer in sector_members(labels, labels[key]['sector'])}
     return selected | peers | set(SECTOR_PROXY.values()) | {BROAD_BENCHMARK}
 
@@ -226,7 +237,7 @@ def research_benchmarks(instrument, instruments, sessions, *, lookback=1):
     proxy_keys = {}
     eligible_members = {}
     for sector, peers in peers_by_sector.items():
-        if not peers:
+        if not constructed_proxy_allowed(sector) or not peers:
             continue
         proxy = f'CONSTRUCTED_{sector.upper().replace(" ", "_")}_EX_{instrument}'
         series[proxy] = constructed_sector_proxy(sessions, {peer: closes[peer] for peer in peers})
@@ -259,7 +270,7 @@ def research_benchmarks(instrument, instruments, sessions, *, lookback=1):
                            'thin': len(row['members']) < 3, 'membership_basis': 'CURRENT_RESEARCH_GROUP'}
         elif aligned(BROAD_BENCHMARK, day, start):
             result[day] = {**assignment, 'instrument': BROAD_BENCHMARK, 'basis': 'BROAD_MARKET_FALLBACK',
-                           'preferred_sector_proxy': preferred, 'label': f'Broad ETF {BROAD_BENCHMARK}'}
+                           'preferred_sector_proxy': preferred, 'label': broad_benchmark_label(sector)}
         else:
             result[day] = {**assignment, 'instrument': None, 'basis': 'NO_BENCHMARK_STOCK_ONLY',
                            'preferred_sector_proxy': preferred, 'label': 'No benchmark data', 'data_quality': 'NO_DATA'}

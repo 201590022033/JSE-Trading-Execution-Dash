@@ -8,7 +8,10 @@ from decimal import Decimal, InvalidOperation
 import json
 from pathlib import Path
 
-from application.backtest_lab.zebra_field_windows import BROAD_BENCHMARK, SECTOR_PROXY, constructed_label, constructed_sector_proxy
+from application.backtest_lab.zebra_field_windows import (
+    BROAD_BENCHMARK, SECTOR_PROXY, broad_benchmark_label, constructed_label,
+    constructed_proxy_allowed, constructed_sector_proxy,
+)
 from application.opportunities.research_classification import VERSION, classifications, sector_members
 from application.opportunities.session_freshness import latest_expected_session, next_session
 from application.opportunities.zebra_instruments import mappings
@@ -206,7 +209,7 @@ def sector_context(service, instrument, *, now=None):
             result[field] = {'instrument': key, 'return_percent': ret, 'observations': obs,
                              'provisional': any(item['provisional'] for item in obs),
                              'basis': 'ALIGNED_HISTORICAL_ETF_CLOSES_NOT_INDEX'}
-    if not result['sector_proxy']:
+    if not result['sector_proxy'] and constructed_proxy_allowed(result['sector']):
         aligned_members = {member['instrument']: {o['session']: o for o in member['observations']}
                            for member in result['qualified_members'] + result['provisional_members']}
         peers = {key: aligned_members.get(key, {}) for key in members if key != instrument}
@@ -226,7 +229,7 @@ def sector_context(service, instrument, *, now=None):
     elif result['constructed_proxy']:
         result['research_benchmark'] = {k: result['constructed_proxy'][k] for k in ('basis', 'label', 'data_quality')}
     elif result['broad_benchmark']:
-        result['research_benchmark'] = {'basis': 'BROAD_MARKET_FALLBACK', 'label': f'Broad ETF {BROAD_BENCHMARK}',
+        result['research_benchmark'] = {'basis': 'BROAD_MARKET_FALLBACK', 'label': broad_benchmark_label(result['sector']),
                                         'instrument': BROAD_BENCHMARK}
     if sector_reference and result['broad_benchmark']:
         result['relative_percentage_points'] = sector_reference['return_percent'] - result['broad_benchmark']['return_percent']

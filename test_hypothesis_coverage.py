@@ -26,7 +26,8 @@ class HypothesisCoverageTests(unittest.TestCase):
             self.assertEqual(out['families'][2]['component_examples'][0]['verified_artifact_count'],1)
             self.assertEqual(out['families'][4]['status'],'REFERENCE_ONLY')
             telecom = out['families'][-1]
-            self.assertTrue(telecom['proposed'])
+            self.assertFalse(telecom['proposed'])
+            self.assertIn('ETF_STX40', telecom['meaning'])
             self.assertEqual(telecom['members'], ['MTN', 'VOD'])
             self.assertEqual(telecom['status'], 'NO_RETAINED_EXAMPLE')
             self.assertFalse(telecom['component_examples'])
