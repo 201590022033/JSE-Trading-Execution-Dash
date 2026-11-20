@@ -182,7 +182,17 @@ _lab_profiles = tuple(StrategyProfile(StrategyProfileRef(identity, "1.0.0"), nam
     for identity,name in (("vcp_daily_research", "VCP daily approximation"),
                           ("box_breakout_daily_research", "Box breakout daily approximation"),
                           ("pullback_daily_research", "Pullback daily approximation")))
+BREAKOUT_PULLBACK_PROFILE = StrategyProfile(
+    StrategyProfileRef("breakout_pullback_daily_research", "1.0.0"),
+    "Breakout and pullback daily research", "Breakout and pullback", "3–5 sessions",
+    L.DEVELOPMENT_DATA_VALIDATION_REQUIRED, "breakout_pullback_daily_research",
+    ("JSE_CASH_EQUITIES",), "1d", ("3_sessions", "4_sessions", "5_sessions"), ("RESEARCH", "SHADOW"),
+    (Capability("daily_breakout_pullback", C.IMPLEMENTED_REUSABLE,
+        "Completed-bar breakout, retest and resumption state with a research rank.",
+        ("application.strategy_radar.breakout_pullback",)),),
+    ("Starting assumptions require independent validation.", "Research only; no execution authority."),
+)
 DEFAULT_STRATEGY_REGISTRY = StrategyProfileRegistry((*_defaults, _attributed_swing, _technical_swing,
-    _technical_swing_reclaim, _technical_swing_median, _policy_swing, _research_swing, _lab_swing_median), research_profiles=_lab_profiles, current_versions={
+    _technical_swing_reclaim, _technical_swing_median, _policy_swing, _research_swing, _lab_swing_median), research_profiles=(*_lab_profiles, BREAKOUT_PULLBACK_PROFILE), current_versions={
     **{profile.reference.strategy_profile_id: profile.reference.strategy_profile_version for profile in _defaults},
     "jse_swing_3_5d": "1.0.1"})

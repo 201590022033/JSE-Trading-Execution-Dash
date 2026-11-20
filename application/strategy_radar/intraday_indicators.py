@@ -127,3 +127,23 @@ def daily_indicator_snapshot(history, *, as_of):
             day += timedelta(days=1)
         return day == target and _session(day) is True
     return _snapshot(updates, cutoff, timeframe='1d', adjacent=adjacent)
+
+
+def research_wilder_rsi(closes, period):
+    """Reuse the frozen RSI14 and its Wilder smoothing convention for other periods."""
+    from domain.features.technical import _ema, candidate_rsi_wilder
+
+    if type(period) is not int or period < 1:
+        raise ValueError('Positive RSI period required')
+    if period == 14:
+        return candidate_rsi_wilder(closes).value
+    if len(closes) <= period:
+        return None
+    changes = [current - previous for previous, current in zip(closes, closes[1:])]
+    gains = [max(change, 0) for change in changes]
+    losses = [max(-change, 0) for change in changes]
+    # Wilder's smoothing factor 1/period equals EMA alpha at span 2*period-1.
+    def average(values):
+        return _ema([sum(values[:period]) / period, *values[period:]], 2 * period - 1)
+    gain, loss = average(gains), average(losses)
+    return 100 - 100 / (1 + gain / loss) if loss else (100.0 if gain else 50.0)
