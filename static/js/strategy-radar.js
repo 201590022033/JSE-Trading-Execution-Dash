@@ -32,6 +32,7 @@ function mergeEntryRules(rules) {
   async function json(url, options) {
     const response = await fetch(url, options);
     const body = await response.json();
+    if (body.state === 'READ_TIMED_OUT') throw new DOMException('Retained read timed out','TimeoutError');
     if (!response.ok) throw new Error(body.error || 'Watch service unavailable');
     return body;
   }
@@ -262,7 +263,7 @@ function mergeEntryRules(rules) {
     indicatorStatus.textContent = 'Reading retained bars…';
     indicatorRefresh.disabled = true;
     try {
-      const data = await json(`/api/v1/strategy-radar/intraday/${encodeURIComponent(instrument)}?view=indicators`);
+      const data = await json(`/api/v1/strategy-radar/intraday/${encodeURIComponent(instrument)}?view=indicators`, {signal: AbortSignal.timeout(12000)});
       if (request !== indicatorRequest || instrument !== selectedWatch) return;
       for (const [label, snapshot] of [['Daily · Zebra', data.daily_indicators], ['Five-minute · retained bars', data.five_minute_indicators]]) {
         const section = line(indicatorOutput, 'div', '');
@@ -289,10 +290,12 @@ function mergeEntryRules(rules) {
           }
         }
       }
-      indicatorStatus.textContent = 'Research values from completed retained bars.';
-    } catch {
+      indicatorStatus.textContent = data.daily_indicators?.latest_bar_end || data.five_minute_indicators?.latest_bar_end
+        ? 'Research values from completed retained bars.' : 'No data from completed retained bars.';
+    } catch (error) {
       if (request === indicatorRequest && instrument === selectedWatch) {
-        indicatorStatus.textContent = 'Indicator data unavailable. Retry with Refresh indicators.';
+        indicatorStatus.textContent = error.name==='TimeoutError'
+          ? 'Timed out. Retry with Refresh indicators.' : 'No indicator data available.';
       }
     } finally {
       if (request === indicatorRequest) indicatorRefresh.disabled = false;
@@ -757,7 +760,8 @@ function mergeEntryRules(rules) {
     const context=document.getElementById('radar-selected-context'); context.replaceChildren();
     const storedEvidence=radarEvidence.get(instrument);
     const matchedBacktest=evidenceMatches(storedEvidence,instrument,evaluation,product,radarView) ? storedEvidence?.backtests?.[0] : null;
-    line(context,'p',`${evaluation ? `${evaluation.strategy_id} v${evaluation.strategy_version} · ${evaluation.state} · ${evaluation.passed}/${evaluation.applicable} passed · ${evaluation.unknown} unknown · evaluated ${evaluation.evaluated_at}` : 'Evaluation unavailable'} · ${matchedBacktest ? 'matched historical backtest available, not validation' : 'backtest evidence for this profile unavailable; no claim of validation'}.`);
+    const alternativeRow = evaluation?.applicable === 6 && radarView === 'swing' ? ' (breakout and EMA20 reclaim share one row; either can pass)' : '';
+    line(context,'p',`${evaluation ? `${evaluation.strategy_id} v${evaluation.strategy_version} · ${evaluation.state} · ${evaluation.passed}/${evaluation.applicable} checks${alternativeRow} · ${evaluation.unknown} unknown · evaluated ${evaluation.evaluated_at}` : 'Evaluation unavailable'} · ${matchedBacktest ? 'matched historical backtest available, not validation' : 'backtest evidence for this profile unavailable; no claim of validation'}.`);
     line(context,'p',`Sector ${watch.sector || 'unknown'} · benchmark ${watch.benchmark || 'unavailable'} · daily history ${watch.daily?.sessions ?? 0} sessions, latest ${watch.daily?.latest_session || 'unknown'}; no current-price inference.`);
     if (product === 'CASH_SHARE') {
       const sectorHistory = line(context, 'p', 'Checking retained sector study…');
@@ -1313,8 +1317,14 @@ function mergeEntryRules(rules) {
   async function loadMonitor() {
     loadRoster();
     const output=document.getElementById('radar-monitor-status'), history=document.getElementById('radar-monitor-history');
+    const fiveMinuteStatus=document.getElementById('radar-five-minute-status');
     try {
       const result=await json('/api/v1/strategy-radar/monitor'); const c=result.config;
+      const fiveMinuteProfile='intraday_5m_research_v1';
+      const latestFiveMinuteAlert=result.events.find(event=>event.trace?.strategy_id===fiveMinuteProfile);
+      if(fiveMinuteStatus)fiveMinuteStatus.textContent='5-minute monitor: '+
+        (result.worker_running && c.enabled && c.profile===fiveMinuteProfile?'running':'not running')+
+        ' · Last alert: '+(latestFiveMinuteAlert?formatIndicatorTime(latestFiveMinuteAlert.observed_at):'none retained');
       showMonitorAlert(result.events);
       if (!monitorInitialized) { document.getElementById('radar-monitor-interval').value=String(c.interval_seconds); document.getElementById('radar-monitor-profile').value=c.profile || 'intraday_5m_research_v1'; document.getElementById('radar-monitor-desktop').checked=!!c.desktop; document.getElementById('radar-monitor-autostart').checked=!!c.autostart; monitorInitialized=true; }
       output.textContent=`${c.enabled ? (result.worker_running ? 'Enabled · worker running' : 'Enabled · worker not running; enable again') : 'Paused'} · ${c.profile || 'intraday_5m_research_v1'} · ${c.last_status || 'not checked yet'} · last check ${c.last_check || 'never'} · ${c.last_error || 'no reported error'} · local retained evidence only`;
@@ -1350,7 +1360,7 @@ function mergeEntryRules(rules) {
           }
         }
       }
-    } catch(error) { output.textContent=`Monitor unavailable: ${error.message}`; const summary=document.getElementById('radar-monitor-summary'); if (summary) summary.textContent=output.textContent; }
+    } catch(error) { if(fiveMinuteStatus)fiveMinuteStatus.textContent='5-minute monitor: status unavailable'; output.textContent=`Monitor unavailable: ${error.message}`; const summary=document.getElementById('radar-monitor-summary'); if (summary) summary.textContent=output.textContent; }
   }
   async function configureMonitor(enabled) {
     const status=document.getElementById('radar-monitor-status');

@@ -31,8 +31,11 @@
         (result.window_ends ? ' · ' +
           (result.window_end_basis === 'TERMINAL_SESSION' ? 'ended ' : 'projected end ') + result.window_ends : ''));
     }
-    line(panel, 'p', 'Score ' + number(result.score) + ' · uncalibrated rank, not a probability · ' +
-      result.components_evaluable + ' of ' + result.components_total + ' components evaluable');
+    const thin = result.components_total === 5 && result.components_evaluable < 3;
+    const score = line(panel, 'p', 'Score ' + number(result.score) + ' · uncalibrated rank, not a probability · ' +
+      result.components_evaluable + ' of ' + result.components_total + ' components evaluable' +
+      (thin ? ' · thin: ' + result.components_evaluable + ' of 5 components' : ''));
+    if (thin) score.className = 'muted';
     line(panel, 'p', 'Validation · ' + (result.validation?.label || 'not yet validated (artifact unavailable)'));
     if (Object.keys(result.rules).length) {
       const list = line(panel, 'ul', '');

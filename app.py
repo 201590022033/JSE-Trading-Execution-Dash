@@ -189,10 +189,18 @@ def health():
                    service="oi2", database=database, database_state=state, mode=mode, live_execution=False), (200 if healthy else 503)
 @app.get("/api/system/status")
 def status(): return jsonify(service.status())
+from application.bounded_dashboard_read import retained_read
+
+
 @app.get("/api/v1/data-freshness")
 def data_freshness():
     if request.remote_addr not in ("127.0.0.1", "::1"):
         return jsonify(error="Local dashboard only"), 403
+    return _local_data_freshness()
+
+
+@retained_read(workers=1)
+def _local_data_freshness():
     from application.data_freshness import build_dashboard_freshness
     from application.strategy_radar.intraday_store import IntradayCache
     from application.strategy_radar.prepared_context import PreparedContextStore

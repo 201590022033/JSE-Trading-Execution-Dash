@@ -42,6 +42,8 @@ def check_selector():
             )
             page = browser.new_page(viewport={'width': 390, 'height': 844})
 
+            sector_timeouts = {exact_id}
+
             def serve(route):
                 method = route.request.method
                 url = route.request.url
@@ -58,6 +60,11 @@ def check_selector():
                     route.fulfill(body=body, content_type=content_type)
                 elif path == '/api/v1/strategy-radar/watches':
                     route.fulfill(json={'watches': [{'instrument': 'MTN'}, {'instrument': 'VOD'}]})
+                elif path.endswith('/sector-research') and any(
+                    f'/runs/{run_id}/' in path for run_id in sector_timeouts
+                ):
+                    sector_timeouts.clear()
+                    route.fulfill(status=503, json={'state': 'READ_TIMED_OUT'})
                 elif path.startswith('/api/v1/backtest-lab/'):
                     response = client.get(path)
                     route.fulfill(status=response.status_code, body=response.get_data(),
@@ -87,6 +94,24 @@ def check_selector():
             expect(selector.locator('option')).to_contain_text('VOD')
             expect(selector.locator('option')).not_to_contain_text(exact_id)
             expect(page.locator('#bl-run-details')).to_be_visible()
+            page.locator('#bl-fold-research summary').first.click()
+            sector_status = page.locator('#bl-research-choice')
+            expect(sector_status).to_contain_text('Timed out.')
+            sector_status.get_by_role('button', name='Retry').click()
+            expect(sector_status).not_to_contain_text('Loading sector research')
+            expect(sector_status).not_to_contain_text('Timed out.')
+            expect(page.locator('#bl-trades-title')).to_have_text('Trades · VOD')
+            expect(page.locator('#bl-price-title')).to_have_text('Price chart · VOD')
+            expect(page.locator('#bl-trades th').first).to_have_text('Instrument')
+            expect(page.locator('#bl-result-banner')).to_contain_text('30-closed-trade floor')
+            expect(page.locator('#bl-w06-sample')).to_contain_text('3 original-rule trades')
+            assert set(page.locator('#bl-trades tbody tr td:first-child').all_text_contents()) <= {'VOD'}
+            portfolio = page.get_by_label('Show whole portfolio')
+            portfolio.check()
+            expect(page.locator('#bl-trades-title')).to_have_text('Trades · Whole portfolio')
+            expect(page.locator('#bl-instruments')).to_be_visible()
+            portfolio.uncheck()
+            expect(page.locator('#bl-instruments')).to_be_hidden()
             page.locator('#bl-run-details summary').click()
             expect(page.locator('#bl-run-metadata')).to_contain_text(exact_id)
             share.select_option('SOL')

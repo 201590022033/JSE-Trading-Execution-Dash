@@ -16,7 +16,7 @@ def _title(summary, instrument=None):
     if len(strategies) > 1:
         strategy = f'{len(strategies)} strategies, including {strategy}'
     period = f"{span['first_session']} to {span['last_session']}" if span['first_session'] else 'dates unavailable'
-    clock = 'as of' if 'NOT_WALL_CLOCK' in summary['created_at_basis'] else 'saved'
+    clock = 'replay cutoff (simulated)' if 'NOT_WALL_CLOCK' in summary['created_at_basis'] else 'saved'
     return f"{scope or 'Unspecified instruments'} · {strategy} · {period} · {clock} {summary['created_at'][:10]}"
 
 

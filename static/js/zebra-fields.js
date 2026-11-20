@@ -29,17 +29,31 @@
     if(!/^[A-Z0-9_]{2,16}$/.test(symbol)){out.textContent='Enter a valid research instrument code.';return;}
     const volumeOut=document.createElement('div'), historyOut=document.createElement('div');
     historyOut.textContent='Reading retained local captures…';
+    volumeOut.textContent='Loading daily volume reconciliation…';
     out.replaceChildren(volumeOut, historyOut);
     const endpoint='/api/v1/backtest-lab/zebra-fields/'+encodeURIComponent(symbol);
-    let fullHistory=false;
-    fetch(endpoint+'?view=volume',{cache:'no-store'}).then(async response=>{
-      if(!response.ok)return;
+    let fullHistory=false, volumeLoaded=false;
+    const unavailable=(node,error,label)=>{
+      node.textContent=error?.name==='TimeoutError'?'Timed out. ':'No data for '+label+'.';
+      if(error?.name==='TimeoutError'){
+        const retry=document.createElement('button');
+        retry.type='button';retry.textContent='Retry';
+        retry.addEventListener('click',()=>panel.querySelector('#zebra-field-load').click());
+        node.append(retry);
+      }
+    };
+    fetch(endpoint+'?view=volume',{cache:'no-store',signal:AbortSignal.timeout(12000)}).then(async response=>{
       const data=await response.json();
-      if(request===inspection && !fullHistory) renderVolume(volumeOut,data.volume_reconciliation,data.cached_as_of);
-    }).catch(()=>{ /* Full history is an independent source for the same view. */ });
+      if(data.state==='READ_TIMED_OUT')throw new DOMException('Volume read timed out','TimeoutError');
+      if(!response.ok)throw Error('No retained volume snapshot');
+      if(request===inspection && !fullHistory){
+        renderVolume(volumeOut,data.volume_reconciliation,data.cached_as_of);
+        volumeLoaded=true;
+      }
+    }).catch(error=>{if(request===inspection&&!fullHistory)unavailable(volumeOut,error,'daily volume reconciliation');});
     try {
-      const response=await fetch(endpoint,{cache:'no-store'});
-      const data=await response.json();if(!response.ok)throw Error(data.state || 'Unavailable');
+      const response=await fetch(endpoint,{cache:'no-store',signal:AbortSignal.timeout(15000)});
+      const data=await response.json();if(data.state==='READ_TIMED_OUT')throw new DOMException('History read timed out','TimeoutError');if(!response.ok)throw Error(data.state || 'Unavailable');
       if(request!==inspection)return;
       fullHistory=true;
       const h=data.history;const row=h.rows.at(-1);const close=row?.fields?.close;
@@ -51,8 +65,8 @@
         'Missing latest fields: '+(row?.capabilities?.missing?.join(', ')||'none'),
         'The most recent '+data.row_limit+' observed sessions are shown; exchange-calendar gaps split windows.'];
       historyOut.replaceChildren(...lines.map(t=>{const p=document.createElement('p');p.textContent=t;return p;}));
-      if(!volumeOut.childElementCount) renderVolume(volumeOut,data.volume_reconciliation);
+      if(!volumeLoaded) renderVolume(volumeOut,data.volume_reconciliation);
       if(close?.alternatives?.length){const p=document.createElement('p');p.textContent='Other close observations: '+JSON.stringify(close.alternatives);historyOut.append(p);}
-    } catch(e){if(request===inspection)historyOut.textContent='Zebra history unavailable: '+e.message;}
+    } catch(e){if(request===inspection)unavailable(historyOut,e,'historical field coverage');}
   });
 })();

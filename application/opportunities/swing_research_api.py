@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import hmac
 import os
 from flask import Blueprint, jsonify, request
+from application.bounded_dashboard_read import retained_read
 from .swing_research import accept_dataset, research_status
 
 
@@ -35,6 +36,7 @@ def create_research_blueprint(factory):
             repository.close()
 
     @bp.get('/api/v1/swing-research/historical-readiness')
+    @retained_read(workers=1)
     def historical_readiness():
         import json
         from .ost_data import ROOT

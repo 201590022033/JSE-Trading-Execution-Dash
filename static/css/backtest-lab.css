@@ -6,6 +6,7 @@ body:has(#backtest-lab.active) #market-overview{display:none}
 #backtest-lab .bl-stats{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px}
 #backtest-lab .bl-stats div{min-width:100px}#backtest-lab .bl-stats strong{display:block;font-size:19px}
 #backtest-lab .bl-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+#backtest-lab .bl-buttons[hidden]{display:none}
 #backtest-lab button[aria-pressed=true]{border-color:var(--blue);color:var(--blue)}
 #backtest-lab .bl-scroll{overflow-x:auto;max-width:100%}#backtest-lab table{min-width:640px;width:100%;border-collapse:collapse}
 #backtest-lab .bl-scroll:has(#bl-trades){height:320px;overflow:auto}
