@@ -851,7 +851,9 @@ function mergeEntryRules(rules) {
         if (generation === selectionGeneration) evidenceSummary.textContent = 'Exact setup evidence unavailable.';
       });
     }
-    window.RadarMomentum?.mount(evidenceSummary, hasCachedEvidence ? cachedEvidence : evidenceRequest);
+    const selectedEvidence = hasCachedEvidence ? cachedEvidence : evidenceRequest;
+    window.RadarMomentum?.mount(evidenceSummary, selectedEvidence);
+    window.RadarBreakoutPullback?.mount(evidenceSummary, selectedEvidence);
     try {
       if (product !== 'CASH_SHARE') throw new Error('Exact product quote unavailable');
       const quote=await json(`/api/v1/strategy-radar/quotes/${encodeURIComponent(instrument)}?view=swing`);
