@@ -372,7 +372,7 @@ function mergeEntryRules(rules) {
         showSelectionError('The selected share is no longer in the current watch list.');
         document.getElementById('radar-selected-trace').replaceChildren(); document.getElementById('radar-selected-actions').replaceChildren();
         const plan=document.getElementById('plan-instrument'); if (plan) plan.value='';
-        for (const key of ['entry','quantity','stop_trigger','stop_limit','target','trailing_distance','holding_horizon']) document.getElementById(`plan-${key}`).value='';
+        for (const key of ['entry','quantity','stop_trigger','stop_limit','target','trailing_distance','holding_horizon',...(window.radarSizeSuggestion?.fields || [])]) document.getElementById(`plan-${key}`).value='';
         renderPlanSummary();
       }
       if (!document.getElementById('radar-points').contains(document.activeElement)) renderRadar();
@@ -649,7 +649,7 @@ function mergeEntryRules(rules) {
     const radarHadFocus=document.getElementById('radar-points').contains(document.activeElement);
     if (selectedWatch !== instrument) {
       planRevision++;
-      for (const key of ['entry','quantity','stop_trigger','stop_limit','target','trailing_distance','holding_horizon']) document.getElementById(`plan-${key}`).value='';
+      for (const key of ['entry','quantity','stop_trigger','stop_limit','target','trailing_distance','holding_horizon',...(window.radarSizeSuggestion?.fields || [])]) document.getElementById(`plan-${key}`).value='';
     }
     selectedWatch=instrument;
     const plan = document.getElementById('plan-instrument');
@@ -1153,6 +1153,7 @@ function mergeEntryRules(rules) {
     ];
     for (const [name,text] of rows) { const row=document.createElement('tr'); const heading=line(row,'th',name); heading.scope='row'; line(row,'td',text); table.append(row); }
     target.append(table);
+    window.radarSizeSuggestion?.mount(target, planForm, lastPlan, radarEvaluations.get(selectedWatch), radarView === 'intraday');
     line(target, 'p', lastPlan ? 'Scenario estimate · account tariffs unverified.' : 'Account tariffs unverified.');
     const basis = line(target, 'details', '');
     basis.className = 'radar-plan-basis';
@@ -1173,7 +1174,7 @@ function mergeEntryRules(rules) {
     document.querySelectorAll('.plan-cfd').forEach(node => { node.hidden = product !== 'CFD'; });
   }
   document.getElementById('plan-product')?.addEventListener('change', () => { restoredExpected=null; updatePlanProduct(); if (selectedWatch) { publishSelection(); renderSelection(); } });
-  document.getElementById('plan-instrument')?.addEventListener('change', event => { const key=event.target.value; if (currentWatches.some(w=>w.instrument===key)) selectRadarWatch(key); else { selectedWatch=null; selectionGeneration++; lastPlan=null; window.uimSelection?.clear(); for (const field of ['entry','quantity','stop_trigger','stop_limit','target','trailing_distance','holding_horizon']) document.getElementById(`plan-${field}`).value=''; renderRadar(); renderPlanSummary(); document.getElementById('radar-selected-title').textContent='Select a watched share'; showSelectionError('Selected plan instrument is not a current watch.'); document.getElementById('radar-selected-trace').replaceChildren(); document.getElementById('radar-selected-actions').replaceChildren(); } });
+  document.getElementById('plan-instrument')?.addEventListener('change', event => { const key=event.target.value; if (currentWatches.some(w=>w.instrument===key)) selectRadarWatch(key); else { selectedWatch=null; selectionGeneration++; lastPlan=null; window.uimSelection?.clear(); for (const field of ['entry','quantity','stop_trigger','stop_limit','target','trailing_distance','holding_horizon',...(window.radarSizeSuggestion?.fields || [])]) document.getElementById(`plan-${field}`).value=''; renderRadar(); renderPlanSummary(); document.getElementById('radar-selected-title').textContent='Select a watched share'; showSelectionError('Selected plan instrument is not a current watch.'); document.getElementById('radar-selected-trace').replaceChildren(); document.getElementById('radar-selected-actions').replaceChildren(); } });
   function invalidatePlan() {
     planRevision++;
     lastPlan=null;
@@ -1187,7 +1188,7 @@ function mergeEntryRules(rules) {
     event.preventDefault();
     const target = document.getElementById('manual-plan-results');
     const status = document.getElementById('manual-plan-status');
-    const keys = ['product','direction','price_unit','entry','quantity','stop_trigger','stop_limit','target','trailing_mode','trailing_distance','holding_horizon','brokerage_rate','spread_bps','contract_size','financing','extra_cost','fee_per_leg','margin_rate'];
+    const keys = ['product','direction','price_unit','entry','quantity','stop_trigger','stop_limit','target','trailing_mode','trailing_distance','holding_horizon','brokerage_rate','spread_bps','contract_size','financing','extra_cost','fee_per_leg','margin_rate',...(window.radarSizeSuggestion?.fields || [])];
     const payload = Object.fromEntries(keys.map(key => [key, planValue(key)]));
     const requestedInstrument=planValue('instrument');
     const revision=++planRevision;
