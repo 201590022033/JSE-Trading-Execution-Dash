@@ -4,6 +4,7 @@ const $=id=>document.getElementById('bl-'+id), esc=x=>String(x??'—').replace(/
 const money=x=>'R '+Number(x||0).toLocaleString('en-ZA',{maximumFractionDigits:2}), num=x=>Number(x||0);
 let data=null, sectorData=null, windowData=null, strategy=0, selected=0, instrument=null, activated=false, runId=null;
 let savedRuns=[], indexRequest=0, resultRequest=0, previousHandoff;
+let watchedShares=new Set(), replayProfiles=[], pendingReplay=null, completedReplay=null, indexUnavailable=false;
 const api=async(url,options)=>{const r=await fetch(url,{cache:'no-store',...options});const body=await r.json();return {ok:r.ok,body};};
 async function showEventPreparation(key){
  const choice=$('research-choice'); if(!choice)return;
@@ -93,6 +94,10 @@ function renderRunDetails(summary){
   ['Instruments',Object.keys(summary.instruments).join(', ')],
   ['Strategies',summary.strategies.map(profile=>profile.id+' v'+profile.version).join(', ')],
   [share+' input coverage',period.first_session ? period.first_session+' to '+period.last_session+' · '+period.session_count+' sessions' : 'Dates unavailable'],
+  ...(data.meta.data_quality ? [['Data quality',data.meta.data_quality]] : []),
+  ...(data.meta.coverage?.[share]?.longest_contiguous_sessions !== undefined
+     ? [['Longest contiguous input',data.meta.coverage[share].longest_contiguous_sessions+' sessions']] : []),
+  ...Object.entries(data.meta.replay_assumptions || {}).map(([key,value])=>[key.replaceAll('_',' '),value]),
  ];
  const metadata=document.createElement('dl');
  for(const [label,value] of rows){
@@ -133,25 +138,28 @@ function selectShare(preferredRun){
  const share=$('share').value;
  const matches=savedRuns.filter(run=>Object.hasOwn(run.instruments,share));
  $('runs').replaceChildren(...matches.map(run=>option(run.titles_by_instrument[share],run.run_id)));
+ updateReplayControl(share);
  $('run-choice').hidden=matches.length===0;
  $('no-runs').hidden=!share||matches.length>0;
  const preferred=matches.find(run=>run.run_id===preferredRun)||matches.find(run=>run.matches_exact_identity)||matches[0];
  if(!preferred){
   ++resultRequest;
   clearResult();
-  $('status').textContent=share ? 'No saved results for '+share+'.' : 'No saved results available.';
+  $('status').textContent=indexUnavailable ? 'The saved results index is unavailable.' :
+   share ? 'No saved results for '+share+'.' : 'No saved results available.';
   return;
  }
  $('runs').value=preferred.run_id;
  return selectResult(preferred.run_id);
 }
-async function activate(force=false){
+async function activate(force=false, targetRun){
  const handoff=window.strategyRadarHandoff;
  if(activated && previousHandoff===handoff && !force)return;
  const first=!activated, changed=previousHandoff!==handoff;
  activated=true;previousHandoff=handoff;
  if(first||force){
   loadDailyForward();loadProspective();loadHypotheses();loadFxStudy();loadRealFunnel();loadZebra();loadRadarPrices();
+  loadReplayProfiles();
  }
  const currentShare=$('share').value,currentRun=$('runs').value;
  const requestNumber=++indexRequest;
@@ -173,9 +181,10 @@ async function activate(force=false){
    api('/api/v1/strategy-radar/watches').catch(()=>null),
   ]);
   if(requestNumber!==indexRequest)return;
-  if(!index.ok)throw Error('Saved result index unavailable');
-  savedRuns=index.body.runs;
-  const watched=watchList?.ok ? (watchList.body.watches||[]).map(watch=>watch.instrument) : [];
+  indexUnavailable=!index.ok;
+  savedRuns=index.ok ? index.body.runs : [];
+  const watched=watchList?.ok ? (watchList.body.watches||[]).filter(watch=>watch.state!=='ARCHIVED').map(watch=>watch.instrument) : [];
+  watchedShares=new Set(watched);
   const requested=handoff?.product==='CASH_SHARE' ? handoff.instrument : null;
   const shares=[...new Set([...watched,...savedRuns.flatMap(run=>Object.keys(run.instruments)),requested].filter(Boolean))].sort();
   $('share').replaceChildren(...shares.map(share=>option(share,share)));
@@ -187,13 +196,14 @@ async function activate(force=false){
    || shares[0] || '';
   const errors=$('run-errors'), list=errors.querySelector('ul');
   list.replaceChildren();
-  for(const failure of index.body.could_not_verify){
+  const unverified=index.body.could_not_verify||[];
+  for(const failure of unverified){
    const item=document.createElement('li');
    item.textContent=failure.run_file+' · '+failure.reason;
    list.append(item);
   }
-  errors.hidden=!index.body.could_not_verify.length;
-  await selectShare(changed ? null : currentRun);
+  errors.hidden=!unverified.length;
+  await selectShare(targetRun || (changed ? null : currentRun));
  }catch(error){
   if(requestNumber===indexRequest){
    activated=false;
@@ -201,6 +211,105 @@ async function activate(force=false){
   }
  }
 }
+function updateReplayControl(share){
+ $('run-request').hidden=!share;
+ const enabled=watchedShares.has(share)&&replayProfiles.some(profile=>profile.available)&&!pendingReplay;
+ $('request-run').disabled=!enabled;
+ $('submit-replay').disabled=!enabled;
+ $('run-unavailable').textContent=enabled ? '' : !watchedShares.has(share) ? 'Select a watched share to request a replay.'
+  : pendingReplay ? 'The requested replay is still in progress.'
+  : replayProfiles.find(profile=>profile.reason?.includes('B04'))?.reason || 'No compatible exact strategy is currently available.';
+}
+async function loadReplayProfiles(){
+ try{
+  const response=await api('/api/v1/backtest-lab/jobs');
+  if(!response.ok)throw Error();
+  replayProfiles=response.body.profiles;
+ }catch(error){replayProfiles=[];}
+ const available=replayProfiles.filter(profile=>profile.available);
+ const select=$('replay-profile'),previous=select.value;
+ select.replaceChildren(...available.map(profile=>option(profile.name+' · v'+profile.version,profile.id+'@'+profile.version)));
+ if(Array.from(select.options).some(item=>item.value===previous))select.value=previous;
+ const unavailable=$('unavailable-profiles');
+ unavailable.replaceChildren();
+ for(const profile of replayProfiles.filter(profile=>!profile.available)){
+  const item=document.createElement('li');
+  item.textContent=profile.id+' v'+profile.version+' · '+profile.reason;
+  unavailable.append(item);
+ }
+ updateReplayControl($('share').value);
+}
+async function checkReplay(job){
+ if(pendingReplay!==job)return;
+ const progress=$('job-progress');
+ try{
+  const response=await api('/api/v1/backtest-lab/jobs/'+encodeURIComponent(job.id));
+  if(pendingReplay!==job)return;
+  if(!response.ok)throw Error(response.body.error || 'The replay status is temporarily unavailable.');
+  const result=response.body;
+  if(result.state==='COMPLETED'){
+   completedReplay={id:result.run_id,share:job.share};
+   progress.textContent=job.share+' replay complete.';
+   $('open-replay').hidden=false;
+   finishReplay();
+   if($('share').value===job.share)activate(true,result.run_id);
+   return;
+  }
+  if(result.state==='FAILED'){
+   progress.textContent=result.error || 'The replay failed.';
+   finishReplay();
+   return;
+  }
+  progress.textContent=job.share+(result.state==='RUNNING' ? ' replay running…' : ' replay queued…');
+  job.errors=0;
+ }catch(error){
+  progress.textContent=error.message || 'Could not read the replay status.';
+  if(++job.errors>=3){finishReplay();return;}
+ }
+ setTimeout(()=>checkReplay(job),1500);
+}
+function finishReplay(){
+ pendingReplay=null;updateReplayControl($('share').value);
+}
+$('open-replay').addEventListener('click',()=>{
+ if(!completedReplay)return;
+ $('share').value=completedReplay.share;
+ activate(true,completedReplay.id);
+});
+$('request-run').addEventListener('click',()=>{
+ const controls=$('replay-controls');
+ controls.hidden=!controls.hidden;
+ $('request-run').setAttribute('aria-expanded',String(!controls.hidden));
+ if(!controls.hidden)$('replay-profile').focus();
+});
+$('replay-form').addEventListener('submit',async event=>{
+ event.preventDefault();
+ if(pendingReplay)return;
+ const chosen=replayProfiles.find(profile=>profile.available && profile.id+'@'+profile.version===$('replay-profile').value);
+ if(!chosen)return;
+ const share=$('share').value, progress=$('job-progress');
+ const job={share,errors:0};
+ pendingReplay=job;
+ $('open-replay').hidden=true;
+ updateReplayControl(share);
+ progress.textContent='Submitting the replay…';
+ try{
+  const response=await api('/api/v1/backtest-lab/jobs',{
+   method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    instrument:share,family:'H1',strategy_id:chosen.id,strategy_version:chosen.version,
+    product:'CASH_SHARE',timeframe:'1d',first_session:$('replay-start').value,
+    last_session:$('replay-end').value,request_id:crypto.randomUUID(),
+   }),
+  });
+  if(!response.ok)throw Error(response.body.error);
+  job.id=response.body.job_id;
+  progress.textContent=response.body.notice || share+' replay queued…';
+  setTimeout(()=>checkReplay(job),1500);
+ }catch(error){
+  progress.textContent=error.message || 'The replay could not be submitted.';
+  finishReplay();
+ }
+});
 document.querySelector('nav button[data-tab="backtest-lab"]').addEventListener('click',()=>activate());
 document.addEventListener('backtest-lab:refresh',()=>activate(true));
 $('share').addEventListener('change',()=>selectShare());

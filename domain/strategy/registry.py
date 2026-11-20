@@ -37,6 +37,10 @@ class StrategyProfileRegistry:
         version = strategy_profile_version if strategy_profile_version is not None else (self._current.get(strategy_profile_id) or self._research[strategy_profile_id])
         return self._profiles[(strategy_profile_id, version)]
 
+    def registered_profiles(self):
+        '''All registered exact identities, including Lab-only research profiles.'''
+        return tuple(self._profiles.values())
+
     def current_profiles(self):
         return tuple(self.resolve(key) for key in self._current)
 

@@ -106,7 +106,7 @@ app.register_blueprint(create_research_blueprint(runtime_repository))
 from application.opportunities.local_backtest_reports import create_local_backtest_blueprint
 app.register_blueprint(create_local_backtest_blueprint())
 from application.backtest_lab.blueprint import create_backtest_lab_blueprint
-app.register_blueprint(create_backtest_lab_blueprint())
+app.register_blueprint(create_backtest_lab_blueprint(radar_factory=strategy_radar_service))
 from application.opportunities.dashboard_activity import create_dashboard_activity_blueprint
 app.register_blueprint(create_dashboard_activity_blueprint())
 from application.opportunities.learning_overview import create_learning_overview_blueprint

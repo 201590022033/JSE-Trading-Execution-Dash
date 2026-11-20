@@ -23,6 +23,35 @@ def enqueue(service, lane, *, instrument=None, request_id=None):
     finally: journal.close()
 
 
+def enqueue_exact(service, request):
+    from application.backtest_lab.exact_run_job import EXACT_REQUEST, validate_request
+
+    spec = validate_request(request, service)
+    journal = LearningJournal(service.folder / 'work-roster.sqlite3')
+    try:
+        return journal.enqueue({**spec, 'lane': 'backtester', 'request_kind': EXACT_REQUEST})
+    finally:
+        journal.close()
+
+
+def exact_status(service, identity):
+    from contextlib import closing
+    import json
+    import sqlite3
+    from application.backtest_lab.exact_run_job import EXACT_REQUEST
+
+    path = (service.folder / 'work-roster.sqlite3').resolve()
+    if not path.is_file():
+        return None
+    with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)) as db:
+        row = db.execute('SELECT spec,state,result FROM jobs WHERE id=?', (identity,)).fetchone()
+    if row is None or json.loads(row[0]).get('request_kind') != EXACT_REQUEST:
+        return None
+    spec, state, result = row
+    return {'job_id': identity, 'instrument': json.loads(spec)['instrument'],
+            'state': state, **(json.loads(result) if result else {})}
+
+
 def run_lane(service, lane, *, invoke=None):
     """Execute one retained-source or explicitly submitted deterministic job."""
     import subprocess
@@ -36,6 +65,18 @@ def run_lane(service, lane, *, invoke=None):
         try:
             job = journal.claim_next(lane, max_attempts=1 if lane == 'backtester' else 3)
             if job is None: return {'state': 'IDLE'}
+            if lane == 'backtester' and job['spec'].get('request_kind'):
+                from application.backtest_lab.exact_run_job import RunUnavailable, run_job
+
+                try:
+                    result = {'run_id': run_job(service, job['spec']), 'model_calls_requested': 0}
+                    state = 'COMPLETED'
+                except RunUnavailable as exc:
+                    state, result = 'FAILED', {'error': str(exc)}
+                except Exception as exc:
+                    state, result = 'FAILED', {'error': f'Saved-replay worker failed ({type(exc).__name__}).'}
+                journal.finish(job['id'], state, result)
+                return {'state': state, 'job_id': job['id'], **result}
             command = ([sys.executable, str(root/'scripts/sens_runtime_bridge.py'), 'tick'] if lane == 'sens' else
                        [sys.executable, str(root/'scripts/run_component_learning.py'),
                         '--instrument', job['spec']['instrument'], '--cycles', '1'])
