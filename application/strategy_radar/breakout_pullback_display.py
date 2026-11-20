@@ -45,28 +45,32 @@ def _comparison(path, modified, size):
 
 def retained_validation(instrument, benchmark, path=None):
     path = COMPARISON if path is None else path
-    fallback = {'state': 'NOT_YET_VALIDATED', 'label': 'not yet validated'}
+    fallback = {'state': 'NOT_YET_VALIDATED', 'label': 'not yet validated (artifact unavailable)'}
     try:
         stat = path.stat()
         payload = _comparison(path, stat.st_mtime_ns, stat.st_size)
         if payload['benchmark'] != benchmark:
             return fallback
-        research = payload['instruments'][instrument]['variants']['C']
-        count = research['summary']['closed_trades']
+        variants = payload['instruments'][instrument]['variants']
+        count = variants['C']['summary']['closed_trades']
+        original = variants['A']['summary']['closed_trades']
         floor = payload['minimum_closed_trades']
-        if type(count) is not int or count < 0 or type(floor) is not int or floor < 30:
+        if (any(type(value) is not int or value < 0 for value in (count, original))
+                or type(floor) is not int or floor < 30):
             return fallback
         noun = 'trade' if count == 1 else 'trades'
         return {'state': 'RETROSPECTIVE_COMPARISON', 'closed_trades': count,
                 'minimum_closed_trades': floor, 'window': payload['window'],
-                'label': f'W06 retrospective · {count} closed {noun} · '
-                         + ('insufficient sample' if count < floor else 'review required')}
+                'label': f'W06 comparison: {count} closed {instrument} breakout/pullback {noun} '
+                         f'({original} original-rule trades), '
+                         + (f'below the {floor}-trade floor.' if count < floor else f'{floor}-trade count floor reached.')
+                         + ' Not validated.'}
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return fallback
 
 
 def _rows(folder, key):
-    if not key or not key.replace('_', '').isalnum():
+    if folder is None or not key or not key.replace('_', '').isalnum():
         return []
     try:
         return _read_object(Path(folder) / 'daily-cache' / (key + '.json'),

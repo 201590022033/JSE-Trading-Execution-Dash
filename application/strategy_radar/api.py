@@ -426,7 +426,8 @@ def create_radar_blueprint(factory):
                 daily_reference['momentum_state'] = momentum_state(service, instrument, trace)
                 from .breakout_pullback_display import breakout_pullback_display
                 daily_reference['breakout_pullback'] = breakout_pullback_display(
-                    service.folder, instrument, trace.get('benchmark_instrument'), trace['evaluated_at'])
+                    getattr(service, 'folder', None), instrument, trace.get('benchmark_instrument'),
+                    trace.get('evaluated_at'))
             else:
                 trace=evaluate_watch(service,instrument,profile)
             frozen = {} if request.args.get('view') == 'summary' else {'historical_research': historical_research(instrument)}

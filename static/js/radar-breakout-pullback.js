@@ -33,7 +33,7 @@
     }
     line(panel, 'p', 'Score ' + number(result.score) + ' · uncalibrated rank, not a probability · ' +
       result.components_evaluable + ' of ' + result.components_total + ' components evaluable');
-    line(panel, 'p', 'Validation · ' + (result.validation?.label || 'not yet validated'));
+    line(panel, 'p', 'Validation · ' + (result.validation?.label || 'not yet validated (artifact unavailable)'));
     if (Object.keys(result.rules).length) {
       const list = line(panel, 'ul', '');
       for (const [name, rule] of Object.entries(result.rules)) {
