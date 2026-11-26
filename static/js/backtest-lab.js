@@ -5,7 +5,8 @@ const money=x=>'R '+Number(x||0).toLocaleString('en-ZA',{maximumFractionDigits:2
 let data=null, sectorData=null, windowData=null, strategy=0, selected=0, instrument=null, activated=false, runId=null;
 let savedRuns=[], indexRequest=0, resultRequest=0, previousHandoff;
 let funnelInstrument;
-let watchedShares=new Set(), watchState='loading', pendingReplay=null, completedReplay=null, indexState='idle';
+let replayShares=new Map(), pendingReplay=null, completedReplay=null, indexState='idle';
+let replayHistory=null, replayHistoryRequest=0, replayShare='';
 const staticShares=Array.from($('share').options, item=>item.value);
 async function api(url,{timeout=12000,...options}={}){
  const r=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(timeout),...options});
@@ -220,6 +221,18 @@ function option(label,value){
 }
 function selectShare(preferredRun){
  const share=$('share').value;
+ if(share!==replayShare){
+  replayShare=share;
+  ++replayHistoryRequest;
+  replayHistory=null;
+  $('replay-controls').hidden=true;
+  $('request-run').setAttribute('aria-expanded','false');
+  $('retry-history').hidden=true;
+  $('replay-history').textContent='';
+  for(const input of [$('replay-start'),$('replay-end')]){
+   input.value='';input.removeAttribute('min');input.removeAttribute('max');
+  }
+ }
  funnelScope();
  const matches=indexState==='loaded'?savedRuns.filter(run=>Object.hasOwn(run.instruments,share)):[];
  $('runs').replaceChildren(...matches.map(run=>option(run.titles_by_instrument[share],run.run_id)));
@@ -246,22 +259,6 @@ function extendShares(keys){
  }
  if(current)select.value=current;
 }
-async function refreshWatchedShares(){
- watchState='loading';
- updateReplayControl($('share').value);
- try{
-  const response=await api('/api/v1/strategy-radar/watches',{timeout:15000});
-  if(!response.ok)throw Error();
-  watchedShares=new Set((response.body.watches||[]).filter(watch=>watch.state!=='ARCHIVED').map(watch=>watch.instrument));
-  extendShares(watchedShares);
-  watchState='loaded';
-  updateReplayControl($('share').value);
- }catch(error){
-  watchState='failed';
-  updateReplayControl($('share').value);
-  readState($('run-unavailable'),error,'Watched-share eligibility unavailable.',refreshWatchedShares);
- }
-}
 async function activate(force=false,targetRun){
  const handoff=window.strategyRadarHandoff;
  if(activated&&previousHandoff===handoff&&!force)return;
@@ -270,7 +267,7 @@ async function activate(force=false,targetRun){
  const requested=handoff?.product==='CASH_SHARE'?handoff.instrument:null;
  extendShares([...staticShares,requested]);
  if(changed&&requested)$('share').value=requested;
- if(first)refreshWatchedShares();
+ if(first)loadReplayProfiles();
  const pendingShare=$('share').value,currentRun=$('runs').value;
  const requestNumber=++indexRequest;
  ++resultRequest;
@@ -314,13 +311,56 @@ async function activate(force=false,targetRun){
 }
 function updateReplayControl(share){
  $('run-request').hidden=!share;
- const hasProfile=$('replay-profile').options.length>0;
- $('submit-replay').disabled=!watchedShares.has(share)||!hasProfile||!!pendingReplay;
- if(watchState==='failed')return;
- $('run-unavailable').textContent=pendingReplay?'The requested replay is still in progress.'
-  : !hasProfile?'No compatible exact strategy is currently available.'
-  : watchState==='loading'?'Checking watched-share eligibility…'
-  : !watchedShares.has(share)?'Select a watched share to submit a replay.' : '';
+ const enabled=replayShares.has(share)&&$('replay-profile').options.length>0&&!pendingReplay;
+
+ $('submit-replay').disabled=!enabled || replayHistory?.instrument!==share;
+ const mapped=[...replayShares].find(([key,symbol])=>key!==share && symbol===share);
+ $('run-unavailable').textContent=enabled ? 'The replay checks retained daily history for the selected dates. It does not add a live watch.'
+  : pendingReplay ? 'The requested replay is still in progress.'
+  : !$('replay-profile').options.length
+   ? 'No compatible exact strategy is currently available.'
+  : mapped ? 'This code is available for saved results. For a new replay select '+mapped[0]+' ('+share+').'
+  : 'This instrument is outside the recognized Zebra cash-share list for new replays.';
+}
+async function loadReplayHistory(share){
+ const requestNumber=++replayHistoryRequest, status=$('replay-history');
+ replayHistory=null;
+ $('retry-history').hidden=true;
+ status.textContent='Checking retained daily history for '+share+'…';
+ updateReplayControl(share);
+ try{
+  const result=await api('/api/v1/backtest-lab/replay-history/'+encodeURIComponent(share));
+  if(requestNumber!==replayHistoryRequest)return;
+  if(!result.ok)throw Error(result.body.error || 'The history check failed.');
+  const history=result.body;
+  if(history.instrument!==share)throw Error('The history returned for a different share.');
+  replayHistory=history;
+  const {first_session:first,last_session:last}=history;
+  for(const [input,value] of [[$('replay-start'),first],[$('replay-end'),last]]){
+   input.min=first;input.max=last;
+   if(!input.value||input.value<first||input.value>last)input.value=value;
+  }
+  status.textContent=share+' · '+history.qualified_sessions+' usable daily OHLCV sessions · '+first+' to '+last
+   +' · Close sources: '+history.close_sources.join(', ')+'. '
+   +history.unqualified_observed_sessions+' retained sessions excluded. Dates in this span can have gaps. '
+   +'The replay checks the requested window and benchmark again when it runs.';
+ }catch(error){
+  if(requestNumber!==replayHistoryRequest)return;
+  status.textContent=error.message || 'The history check failed.';
+  $('retry-history').hidden=false;
+ }
+ updateReplayControl(share);
+}
+async function loadReplayProfiles(){
+ try{
+  const response=await api('/api/v1/backtest-lab/jobs',{timeout:15000});
+  if(!response.ok)throw Error();
+  replayShares=new Map((response.body.instruments||[]).map(item=>[item.instrument,item.symbol]));
+  extendShares(replayShares.keys());
+  updateReplayControl($('share').value);
+ }catch(error){
+  readState($('run-unavailable'),error,'Replay share catalog unavailable.',loadReplayProfiles);
+ }
 }
 async function checkReplay(job){
  if(pendingReplay!==job)return;
@@ -363,13 +403,17 @@ $('request-run').addEventListener('click',()=>{
  const controls=$('replay-controls');
  controls.hidden=!controls.hidden;
  $('request-run').setAttribute('aria-expanded',String(!controls.hidden));
- if(!controls.hidden)$('replay-profile').focus();
+ if(!controls.hidden){
+  if(!replayHistory)loadReplayHistory($('share').value);
+  $('replay-profile').focus();
+ }
 });
+$('retry-history').addEventListener('click',()=>loadReplayHistory($('share').value));
 $('replay-form').addEventListener('submit',async event=>{
  event.preventDefault();
  if(pendingReplay)return;
  const [strategyId,strategyVersion]=$('replay-profile').value.split('@');
- if(!strategyId||!strategyVersion||!watchedShares.has($('share').value))return;
+ if(!strategyId||!strategyVersion||!replayShares.has($('share').value)||replayHistory?.instrument!==$('share').value)return;
  const share=$('share').value, progress=$('job-progress');
  const job={share,errors:0};
  pendingReplay=job;

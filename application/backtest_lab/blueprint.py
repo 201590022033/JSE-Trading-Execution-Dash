@@ -725,7 +725,7 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
     def replay_jobs():
         if radar_factory is None or request.remote_addr not in ('127.0.0.1', '::1'):
             return response({'error': 'The replay job control is available on the local dashboard.'}, 403)
-        from .exact_run_job import RunUnavailable, available_profiles
+        from .exact_run_job import RunUnavailable, available_profiles, replay_instruments
         from application.strategy_radar.roster import enqueue_exact, start_lane
 
         if request.method == 'GET':
@@ -734,7 +734,8 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
                 for profile in profiles:
                     if profile['available']:
                         profile.update(available=False, reason='The dashboard saved-results folder is not configured.')
-            return response({'profiles': profiles, 'family': 'H1', 'product': 'CASH_SHARE', 'timeframe': '1d'})
+            return response({'profiles': profiles, 'instruments': replay_instruments(radar_factory().root),
+                             'family': 'H1', 'product': 'CASH_SHARE', 'timeframe': '1d'})
         origin_header = request.headers.get('Origin')
         try:
             origin = urlsplit(origin_header or '')
@@ -756,6 +757,22 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
             return response({'job_id': job_id, 'state': 'QUEUED',
                              'notice': 'The worker could not start. The queued job remains available to the monitor.'}, 202)
         return response({'job_id': job_id, 'state': 'QUEUED'}, 202)
+
+    @bp.get('/api/v1/backtest-lab/replay-history/<instrument>')
+    def exact_replay_history(instrument):
+        if radar_factory is None or request.remote_addr not in ('127.0.0.1', '::1'):
+            return response({'error': 'Replay history is available on the local dashboard.'}, 403)
+        from .exact_run_job import RunUnavailable, replay_history, replay_instruments
+
+        service = radar_factory()
+        if not any(item['instrument'] == instrument for item in replay_instruments(service.root)):
+            return response({'error': 'Select a recognized Zebra cash share.'}, 422)
+        try:
+            return response(replay_history(service, instrument))
+        except RunUnavailable as exc:
+            return response({'error': str(exc)}, 422)
+        except OSError:
+            return response({'error': 'The retained history could not be read. Try again.'}, 503)
 
     @bp.get('/api/v1/backtest-lab/jobs/<job_id>')
     def replay_job(job_id):

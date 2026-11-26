@@ -11,6 +11,8 @@ from tempfile import NamedTemporaryFile
 
 from application.opportunities.session_freshness import latest_expected_session
 from application.opportunities.zebra_screen_data import load_zebra_screen_data
+from application.opportunities.zebra_instruments import mappings
+from application.opportunities.research_classification import classifications
 from application.strategy_radar.exact_daily_review import PROFILE, WARMUP, _qualified
 from application.strategy_radar.swing_radar import _FEATURE_PROFILE_VERSION, _FIELDS, _NAMES, snapshot
 from domain.backtest import engine as lab_engine
@@ -78,11 +80,26 @@ def available_profiles():
     return sorted(result, key=lambda item: (not item['available'], item['id'], item['version']))
 
 
+def replay_instruments(root):
+    """List recognized cash shares; the worker validates their retained bars."""
+    from market_chart_registry import MARKET_CHART_INSTRUMENTS
+
+    codes = mappings(Path(root) / 'runtime/local-swing-data/radar-public-prices')
+    labels = classifications(codes)['instruments']
+    return [
+        {'instrument': key, 'symbol': symbol}
+        for key, symbol in codes.items()
+        if (MARKET_CHART_INSTRUMENTS[key].asset_class == 'cash_equity'
+            if key in MARKET_CHART_INSTRUMENTS
+            else 'ETF' not in labels.get(key, {}).get('industry', '').upper())
+    ]
+
+
 def validate_request(body, service):
     if not isinstance(body, dict) or set(body) != set(FIELDS) or any(not isinstance(body[key], str) for key in FIELDS):
         raise RunUnavailable('Supply the share, family, exact strategy version, product, timeframe and date range.')
     if not re.fullmatch(r'[A-Z0-9_]{2,16}', body['instrument']) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,80}', body['request_id']):
-        raise RunUnavailable('Use a watched share code and a valid request ID.')
+        raise RunUnavailable('Use a research share code and a valid request ID.')
     identity = body['strategy_id'], body['strategy_version']
     try:
         DEFAULT_STRATEGY_REGISTRY.resolve(*identity)
@@ -101,12 +118,11 @@ def validate_request(body, service):
     latest = latest_expected_session(service.clock())
     if not latest or last > latest:
         raise RunUnavailable('End the range on or before the latest completed session in the reviewed JSE calendar.')
-    watch = service.store.get(body['instrument'])
-    if not watch or watch['state'] == 'ARCHIVED':
-        raise RunUnavailable('Select a watched share.')
     reason = dependency_reason()
     if reason:
         raise RunUnavailable(reason)
+    if not any(item['instrument'] == body['instrument'] for item in replay_instruments(service.root)):
+        raise RunUnavailable('Select a recognized Zebra cash share. Saved results can use a different instrument code.')
     return dict(body)
 
 
@@ -142,6 +158,28 @@ def _inputs(item, last, as_of):
             continue
         qualified.append(bar)
     return qualified, lineage, partial
+
+
+def replay_history(service, instrument):
+    """Describe the same qualified share bars that the replay runner uses."""
+    now = service.clock()
+    last = latest_expected_session(now)
+    if not last:
+        raise RunUnavailable('The latest completed JSE session is unavailable.')
+    item = load_zebra_screen_data(service.root, now=now, instruments={instrument})['instruments'].get(instrument)
+    if item is None or item.get('asset_class') != 'cash_equity':
+        raise RunUnavailable('No eligible retained Zebra cash-share history was found for this share.')
+    bars, _, partial = _inputs(item, last, now)
+    if not bars:
+        raise RunUnavailable('No qualified retained daily OHLCV bars are available for this share.')
+    return {
+        'instrument': instrument,
+        'first_session': bars[0]['timestamp'],
+        'last_session': bars[-1]['timestamp'],
+        'qualified_sessions': len(bars),
+        'unqualified_observed_sessions': len(partial),
+        'close_sources': sorted({bar['_source'] for bar in bars}),
+    }
 
 
 def _radar_trace(instrument, history, benchmark, reference, clock):
@@ -229,8 +267,8 @@ def build_run(spec, instruments, as_of):
     """Build an immutable-format report from retained inputs and the existing engine."""
     instrument = spec['instrument']
     item = instruments.get(instrument)
-    if item is None or item.get('asset_class') not in {'cash_equity', None}:
-        raise RunUnavailable('No eligible retained Zebra cash-share history was found for this watch.')
+    if item is None or item.get('asset_class') != 'cash_equity':
+        raise RunUnavailable('No eligible retained Zebra cash-share history was found for this share.')
     start, last = spec['first_session'], spec['last_session']
     identity = spec['strategy_id'], spec['strategy_version']
     legacy_lab = identity in LAB_IDENTITIES
@@ -246,6 +284,8 @@ def build_run(spec, instruments, as_of):
         source = 'Existing Zebra mixed-source Lab evaluator'
     bars, lineage, partial = _inputs(item, last, as_of)
     in_scope = [bar for bar in bars if bar['timestamp'] >= start]
+    if not in_scope:
+        raise RunUnavailable('No qualified retained daily OHLCV bars in the requested date range. Choose a range with usable history.')
     warmup = [bar for bar in bars if bar['timestamp'] < start]
     if identity == EXACT_IDENTITY:
         warmup = warmup[-(WARMUP - 1):]
