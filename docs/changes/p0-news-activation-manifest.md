@@ -1,68 +1,23 @@
-# P0 retained-news activation manifest — review only
+# Retained-news transfer and verification, 26 November 2026
 
-This is a proposed procedure, not authorization or evidence of production writes.
-Do not execute until the owner authorizes activation and the remaining readiness
-items are resolved.
+The one-time transfer copied the audited 72 Hermes receipts to the dashboard database. The legacy cluster contained 82 when copied. The transfer used the November 18 review cutoff and left ten later receipts in the source.
 
-## Ownership and scope
+## Ownership and backup
 
-The source is PostgreSQL `localhost:55432/trading_local_20261015`, account
-`hermes-local-research-v1`, kind `hermes-news-input`. The target is PostgreSQL
-`localhost:5433/trading`, the same account and kind. The 18 November read-only
-preflight found 72 source captures, zero matching target IDs and zero conflicts;
-repeat this check at activation because counts can change. The SENS bridge
-remains unchanged by default; news delivery requires `include_news=True`.
+The original source was the stopped PostgreSQL 18 cluster for trading_local_20261015 on port 55432. All 1,835 files were hash-checked before startup of an isolated loopback copy. PostgreSQL completed crash recovery on that copy. The destination was trading on port 5433. The running dashboard used this destination for event preparation.
 
-Copy each original `capture_id`, exact payload and original `received_at` as
-the record's availability clock. Publication timestamps, URLs and article
-evidence IDs remain inside the unchanged payload. Headline-only summaries remain
-headline-only; keyword associations are candidate links requiring review.
-Existing identical identities are skipped; conflicting immutable identities
-abort the transaction. No source records are updated or deleted.
+Both custom-format backups were listed and restored into separate scratch databases. Snapshot counts matched for paper_accounts, paper_records and paper_record_archives. The source counts were 10, 9,003 and 0. The target counts were 9, 3,203 and 0. Local backup sizes were 5,127,804 and 1,257,961 bytes respectively. The manifests and restore receipts are under runtime/backups/news-transfer-20261126-093749 and are excluded from Git.
 
-## Required preflight and backup
+## One-time delivery
 
-1. Resolve both effective connection identities without printing credentials.
-   Verify database, host and port using a read-only SQL session.
-2. Take fresh `pg_dump` custom-format backups of both named databases, record
-   paths and byte sizes, verify each using `pg_restore --list`, and perform a
-   row-count restore check in a separately named scratch database. Never restore
-   into either live database during this check.
-3. Capture source/target counts by account and kind, IDs, payload hashes and
-   receipt clocks. Check all target identity conflicts before any write. Ensure
-   the dashboard's intended database ownership and activation route are agreed.
-4. Confirm collection and model workers will not be restarted or rescheduled.
-   Obtain explicit owner approval for the exact migration and activation steps.
+The operator invoked transfer_news_page on the read-only copy with a cutoff of 2026-11-18T12:53:33Z. The target repository owned the transaction. Each capture retained its original account, kind, ID, availability clock and payload. All 72 target rows matched the source before commit and on repeat. A second invocation added zero. A preliminary transaction-wrapper error rolled back before the successful transfer.
 
-## Transaction and verification
+The existing event-preparation endpoint and News & SENS page displayed the original November 19 SARB decision and all three historical Moneyweb links. The rates, inflation and rand headlines remain keyword candidates requiring review. No model was invoked by the transfer.
 
-Invoke the existing bridge explicitly once with `include_news=True`, against a
-read-only source and the explicitly verified target. The target bridge uses one
-transaction; any identity conflict or exception rolls back its writes. Record
-the bridge receipt ID, source count, new count and existing count. Re-read each
-target payload by original ID and compare exact payload, account, kind and
-availability time to source; check publication and receipt clocks. Check that
-the three SARB article receipts and existing calendar event are present and
-that headline-only candidates are labelled unverified. Re-run the bridge and
-require zero new records. Independently compare before/after counts and hashes.
+## Repeating an explicitly requested bridge delivery
 
-## Failure recovery and rollback
+The existing scheduled path retains its SENS-only input. For a separate news-enabled invocation, the script accepts --bridge-only --include-news. This requires the expected local source and target to be available. A new invocation uses the current clock and can include later receipts than the historical transfer.
 
-If the transaction fails, retain the error and verify that target counts and
-identities match the preflight snapshot before any retry. An idempotent rerun is
-appropriate only after resolving any immutable-identity conflict. If it commits
-but downstream verification fails, keep the immutable imported evidence and
-disable only the explicit future news-delivery option; do not delete receipts,
-reset archives, or overwrite the production database. A full restore is a
-separate owner-approved recovery action after a tested scratch restore and
-assessment of intervening writes. Preserve backups and the verification log.
+The integrated runner retains the current dashboard's bounded paging and checkpoint contract. Each invocation commits its target changes together. It then atomically replaces its local cursor file. SENS-only and news-enabled invocations have separate files and share the existing process lock. Pending cursors produce a partial receipt and exit code 3. A subsequent invocation checks the head again and resumes the older page. A conflict aborts the transaction. A failure after commit but before cursor persistence can replay the same page safely using immutable identities.
 
-## Remaining blockers
-
-The current live dashboard uses the legacy PostgreSQL endpoint. The target
-macro records live in `trading`, so copying news alone does not establish a
-single live event-preparation path. The runtime database ownership/activation
-decision and deployment must be explicitly resolved. No live dashboard result
-is claimed. The bridge's existing 5,000-record fail-closed transfer ceiling and
-the source reader's bounded scan window need further design/validation before
-an unqualified long-term operational claim.
+For any further transfer, verify both database identities, take and scratch-restore fresh backups, and compare the exact IDs, clocks and payloads before and after delivery. Retain the receipt and repeat to check for duplicates. Investigate identity conflicts before retrying. If downstream delivery fails, preserve imported receipts and inspect the read path. A production restore requires separate approval and reconciliation of intervening writes.

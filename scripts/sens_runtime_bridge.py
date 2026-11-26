@@ -6,6 +6,9 @@ from urllib.parse import urlsplit
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 
 def main():
+    include_news = '--include-news' in sys.argv
+    if include_news and '--bridge-only' not in sys.argv:
+        raise ValueError('News delivery requires --bridge-only')
     if '--bridge-only' not in sys.argv:
         subprocess.run([sys.executable,str(ROOT/'scripts/anticipatory_radar.py'),'tick'],cwd=ROOT,check=True)
     from runtime_persistence import runtime_repository
@@ -20,7 +23,7 @@ def main():
     with process_lock(ROOT/'runtime/sens-runtime-bridge.lock'):
         from application.opportunities.ost_data import atomic_json
         from urllib.parse import quote
-        checkpoint = ROOT/'runtime/sens-runtime-bridge-cursors.json'
+        checkpoint = ROOT/'runtime'/('sens-news-bridge-cursors.json' if include_news else 'sens-runtime-bridge-cursors.json')
         try:
             cursors = json.loads(checkpoint.read_text(encoding='utf-8'))
         except FileNotFoundError:
@@ -28,10 +31,12 @@ def main():
         source=runtime_repository(database_url=source_url+('&' if '?' in source_url else '?')+'options='+quote('-c default_transaction_read_only=on'));target=runtime_repository(database_url=target_url)
         try:
             with source.transaction():
-                result=sync(source,target,datetime.now(timezone.utc),cursors=cursors)
+                result=sync(source,target,datetime.now(timezone.utc),cursors=cursors,include_news=include_news)
             if result['next_cursors'] != cursors:
                 atomic_json(checkpoint, result['next_cursors'])
-            print(json.dumps(result))
+            print(json.dumps(result), flush=True)
+            if result['next_cursors']:
+                raise SystemExit(3)
         finally:source.close();target.close()
 def run_with_macro(bridge=main, invoke=subprocess.Popen, args=None):
     # A legacy bridge failure must not prevent the independent macro check.
