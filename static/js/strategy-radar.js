@@ -571,13 +571,19 @@ function mergeEntryRules(rules) {
   function renderRadar() {
     const counts = document.getElementById('radar-counts');
     const evaluated = currentWatches.map(watch => radarEvaluations.get(watch.instrument));
+    const meetsEntry = item => radarView === 'swing'
+      ? item?.entry_conditions_met === true : item?.state === 'ENTRY_MET';
+    const entryMet = evaluated.filter(meetsEntry);
     counts.replaceChildren();
     for (const [label, count, css] of [
       ['Developing', evaluated.filter(item => item?.state === 'DEVELOPING').length, 'developing'],
-      ['Entry met', evaluated.filter(item => item?.state === 'ENTRY_MET').length, 'met'],
+      ['Entry met', entryMet.length, 'met'],
       ['Data limited', evaluated.filter(item => !item || item.state === 'UNKNOWN' || item.unknown > 0 ||
         item.data_quality?.stale || item.data_quality?.partial).length, 'limited']
-    ]) line(counts, 'span', `${label} (${count})`).className = 'radar-count-' + css;
+    ]) line(counts, 'span', label + ' (' + count + ')').className =
+      'radar-count-' + (css === 'met' && !count ? 'inactive' : css);
+    const provisional = entryMet.filter(item => item.data_quality?.provisional || item.benchmark_quality?.provisional);
+    if (provisional.length) line(counts, 'span', 'Provisional entry: ' + provisional.map(item => item.instrument).join(', '));
     const container = document.getElementById('radar-points'); container.replaceChildren();
     const empty=document.getElementById('radar-empty-message'); empty.hidden = currentWatches.length > 0;
     empty.textContent='No watched shares yet.';
@@ -610,10 +616,10 @@ function mergeEntryRules(rules) {
       const button = document.createElement('button'); button.type='button';
       const evidence=radarEvidence.get(watch.instrument);
       const backtest=evidenceMatches(evidence,watch.instrument,evaluation,document.getElementById('plan-product').value,radarView) ? evidence?.backtests?.[0] : null;
-      button.textContent = watch.instrument; button.className = unknown ? 'radar-unknown' : backtest ? 'radar-backtested' : 'radar-untested';
+      button.textContent = watch.instrument; button.className = meetsEntry(evaluation) ? 'radar-entry-met' : unknown ? 'radar-unknown' : 'radar-untested';
       button.style.left = `${50 + radius*Math.cos(angle)}%`; button.style.top = `${50 + radius*Math.sin(angle)}%`;
       button.setAttribute('aria-pressed',String(selectedWatch === watch.instrument));
-      const label=`${watch.instrument}: ${unknown ? 'no usable evaluation' : `${backtest ? 'matched historical evidence, ' + backtest.label.replaceAll('_',' ').toLowerCase() : 'backtest not linked'}, ${passed} of ${applicable} conditions passed, ${evaluation.unknown ?? 'unknown number'} unknown`}; ${radarView==='swing'?'daily':'five-minute'} profile${evaluation?.data_quality?.calendar_unverified ? '; calendar unverified' : ''}${evaluation?.data_quality?.stale ? '; stale historical' : ''}${evaluation?.data_quality?.provisional || evaluation?.benchmark_quality?.provisional ? '; provisional conflicting fields' : ''}${evaluation?.data_quality?.partial ? '; partial fields' : ''}; evaluated ${evaluation?.evaluated_at || 'unknown'}; current quote freshness not shown`;
+      const label=`${watch.instrument}${meetsEntry(evaluation) ? ": entry met" : ""}: ${unknown ? 'no usable evaluation' : `${backtest ? 'matched historical evidence, ' + backtest.label.replaceAll('_',' ').toLowerCase() : 'backtest not linked'}, ${passed} of ${applicable} conditions passed, ${evaluation.unknown ?? 'unknown number'} unknown`}; ${radarView==='swing'?'daily':'five-minute'} profile${evaluation?.data_quality?.calendar_unverified ? '; calendar unverified' : ''}${evaluation?.data_quality?.stale ? '; stale historical' : ''}${evaluation?.data_quality?.provisional || evaluation?.benchmark_quality?.provisional ? '; provisional conflicting fields' : ''}${evaluation?.data_quality?.partial ? '; partial fields' : ''}; evaluated ${evaluation?.evaluated_at || 'unknown'}; current quote freshness not shown`;
       button.setAttribute('aria-label',label); button.title=label;
       button.onclick=()=>selectRadarWatch(watch.instrument); container.append(button);
     });
@@ -665,6 +671,125 @@ function mergeEntryRules(rules) {
     }
     renderSelection();
   }
+  async function showResearchScenario(instrument, product, generation) {
+    const panel = document.getElementById('radar-research-proposal') || document.createElement('section');
+    panel.id = 'radar-research-proposal';
+    document.getElementById('radar-plan-summary').before(panel);
+    panel.replaceChildren();
+    if (radarView !== 'swing' || product !== 'CASH_SHARE') {
+      line(panel, 'p', 'The daily cash-share proposal does not cover this profile.');
+      return;
+    }
+    line(panel, 'p', 'Loading research proposal…');
+    const current = () => generation === selectionGeneration && selectedWatch === instrument;
+    try {
+      const proposal = await json('/api/v1/strategy-radar/research-proposal/' + encodeURIComponent(instrument) + '?product=CASH_SHARE');
+      if (!current()) return;
+      panel.replaceChildren();
+      line(panel, 'h5', instrument + ' · daily long research scenario');
+      line(panel, 'p', [proposal.strategy_id, proposal.strategy_version, proposal.session, proposal.state, proposal.freshness].filter(Boolean).join(' · '));
+      if (proposal.stop_reference == null || proposal.target_reference == null) {
+        line(panel, 'p', 'Available entry reference: ' + (proposal.entry_reference ?? 'unavailable') + ' · ' + (proposal.reason || 'Incomplete price history'));
+        return;
+      }
+      const fields = {product, direction:'LONG', price_unit:'ZAR', entry:proposal.entry_reference.toFixed(2),
+        stop_trigger:proposal.stop_reference.toFixed(2), target:proposal.target_reference.toFixed(2),
+        risk_budget:'5000', notional_cap:'100000', holding_horizon:'3 trading sessions', trailing_mode:'NONE',
+        spread_bps:'20', brokerage_rate:'0.005', stop_limit:'', trailing_distance:''};
+      line(panel, 'p', 'Historical entry R' + fields.entry + ' · stop R' + fields.stop_trigger + ' · target R' + fields.target);
+      line(panel, 'p', 'Illustrative replay settings: 3 sessions, R5,000 price-risk budget and R100,000 position cap. Cash calculator assumes 0.5% brokerage and 20 bps spread. Historical close is a reference price. Account tariffs and fills are unverified.');
+      const trail = proposal.trailing_preview;
+      if (trail) {
+        line(panel, 'p', 'Experimental momentum trail · arms on a completed close at R' + trail.activation.toFixed(2)
+          + ' using the reference entry. Current indicative distance R' + trail.distance.toFixed(2) + ' (' + trail.percent.toFixed(2)
+          + '% of reference close, ' + trail.multiple + ' × ATR). Initial stop applies until armed; updates take effect next session.');
+      }
+      const calculate = values => json('/api/v1/strategy-radar/trade-plan', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(values)});
+      const sizing = await calculate(fields);
+      if (!current()) return;
+      if (!sizing.size_suggestion) {
+        line(panel, 'p', sizing.size_suggestion_message || 'Quantity unavailable');
+        return;
+      }
+      fields.quantity = sizing.size_suggestion.quantity;
+      const plan = await calculate(fields);
+      if (!current()) return;
+      const estimate = plan.target_estimate || {};
+      line(panel, 'p', fields.quantity + ' shares · estimated loss at stop R' + plan.stop_estimate?.estimated_loss + ' · estimated costs at target R' + (estimate.estimated_costs_including_spread ?? estimate.total_costs) + ' · projected net at target R' + (estimate.net_profit ?? estimate.net_pnl));
+      const loadScenario = (overrides = {}) => {
+        for (const [key,value] of Object.entries({...fields, ...overrides})) {
+          const field = document.getElementById('plan-'+key);
+          if (field) field.value = value;
+        }
+        const picker = document.getElementById('plan-instrument');
+        if (![...picker.options].some(option => option.value === instrument)) {
+          picker.add(new Option(instrument, instrument));
+        }
+        picker.value = instrument;
+        invalidatePlan();
+        planForm.closest('details').open = true;
+        document.getElementById('manual-plan-status').textContent =
+          instrument + ' · scenario loaded. Review assumptions and calculate.';
+      };
+      const action = (label, handler) => {
+        const button = line(panel, 'button', label);
+        button.type = 'button';
+        button.onclick = handler;
+      };
+      const hasManualScenario = () => planValue('instrument') === instrument &&
+        planValue('product') === 'CASH_SHARE' && planValue('direction') === 'LONG' &&
+        Number(planValue('entry')) > 0 && Number(planValue('stop_trigger')) > 0;
+      action('Use fixed-stop proposal', () => loadScenario());
+      if (trail) {
+        line(panel, 'p', 'Manual trailing values are static distances. The research replay has a separate activation and daily update rule.');
+        const distance = trail.distance.toFixed(2);
+        const percent = trail.percent.toFixed(2);
+        const applyTrail = (mode, amount) => {
+          if (!hasManualScenario()) {
+            loadScenario({trailing_mode:mode, trailing_distance:amount});
+            return;
+          }
+          const cents = mode === 'PRICE' && planValue('price_unit') === 'ZAR_CENTS';
+          document.getElementById('plan-trailing_mode').value = mode;
+          document.getElementById('plan-trailing_distance').value = cents
+            ? String(Math.round(Number(amount)*100)) : amount;
+          invalidatePlan();
+          planForm.closest('details').open = true;
+          document.getElementById('manual-plan-status').textContent = 'Trail loaded. Review and calculate.';
+        };
+        if (Number(distance) > 0) action('Use trail · R' + distance, () => applyTrail('PRICE', distance));
+        if (Number(percent) > 0 && Number(percent) < 100) {
+          action('Use trail · ' + percent + '%', () => applyTrail('PERCENT', percent));
+        }
+      }
+      const offset = Number((Number(fields.stop_trigger) * Number(fields.spread_bps) / 10000).toFixed(2));
+      const limit = (Number(fields.stop_trigger) - offset).toFixed(2);
+      if (offset > 0 && Number(limit) > 0) {
+        line(panel, 'p', 'Illustrative sell limit R' + limit + ' uses the 20 bps scenario assumption as a buffer below the initial trigger. A gap below the limit can leave the exit unfilled. The loss estimate assumes a fill at the trigger.');
+        action('Use stop limit · R' + limit, () => {
+          if (!hasManualScenario()) {
+            loadScenario({stop_limit:limit});
+            return;
+          }
+          const trigger = Number(planValue('stop_trigger'));
+          const bps = Number(planValue('spread_bps'));
+          const factor = planValue('price_unit') === 'ZAR_CENTS' ? 100 : 1;
+          const buffer = Math.round(trigger / factor * bps / 100) / 100;
+          const suggested = (trigger / factor - buffer).toFixed(2);
+          if (buffer > 0 && Number(suggested) > 0) {
+            document.getElementById('plan-stop_limit').value = factor === 100 ? String(Math.round(Number(suggested)*100)) : suggested;
+            invalidatePlan();
+          }
+          planForm.closest('details').open = true;
+          document.getElementById('manual-plan-status').textContent = buffer > 0 && Number(suggested) > 0
+            ? 'Stop limit loaded from the current trigger and spread assumption. Review and calculate.'
+            : 'Enter a positive spread assumption that produces a limit below the trigger.';
+        });
+      }
+    } catch (error) {
+      if (current()) line(panel, 'p', 'Research scenario unavailable: ' + error.message);
+    }
+  }
   async function renderSelection() {
     const watch=currentWatches.find(item=>item.instrument===selectedWatch); if (!watch) return;
     if (indicatorPanel.hidden || indicatorPanel.dataset.instrument !== watch.instrument) {
@@ -673,6 +798,7 @@ function mergeEntryRules(rules) {
     }
     const generation=++selectionGeneration;
     const instrument=watch.instrument, product=document.getElementById('plan-product').value, evaluation=radarEvaluations.get(instrument);
+    showResearchScenario(instrument, product, generation);
     document.getElementById('radar-selected-title').textContent = `${instrument} · ${document.getElementById('plan-product').selectedOptions[0].textContent}`;
     const badge=document.getElementById('radar-selected-badge');
     if (badge) badge.textContent=evaluation ? `${evaluation.strategy_id || 'Profile unavailable'}${evaluation.strategy_version ? ' v'+evaluation.strategy_version : ''} · ${evaluation.state || 'UNKNOWN'} · ${evaluation.passed ?? '?'} / ${evaluation.applicable ?? '?'} passed · ${evaluation.unknown ?? '?'} unknown${evaluation.data_quality?.calendar_unverified ? ' · CALENDAR UNVERIFIED' : ''}${evaluation.data_quality?.stale ? ' · STALE historical' : ''}${evaluation.data_quality?.provisional || evaluation.benchmark_quality?.provisional ? ' · PROVISIONAL conflicting sources' : ''}${evaluation.data_quality?.partial ? ' · PARTIAL fields' : ''}` : 'Profile evaluation unavailable';
@@ -1025,7 +1151,7 @@ function mergeEntryRules(rules) {
   async function loadCatalog() {
     try {
       const data = await json('/api/v1/strategy-radar/catalog');
-      for (const instrument of data.instruments) { const option = document.createElement('option'); option.value = option.textContent = instrument; select.append(option); document.getElementById('intraday-instrument')?.append(option.cloneNode(true)); document.getElementById('quote-instrument')?.append(option.cloneNode(true)); document.getElementById('plan-instrument')?.append(option.cloneNode(true)); document.getElementById('viewpoint-csv-instrument')?.append(option.cloneNode(true)); }
+      for (const instrument of data.instruments) { const option = document.createElement('option'); option.value = option.textContent = instrument; select.append(option); document.getElementById('intraday-instrument')?.append(option.cloneNode(true)); document.getElementById('quote-instrument')?.append(option.cloneNode(true)); const picker = document.getElementById('plan-instrument'); if (picker && ![...picker.options].some(item => item.value === instrument)) picker.append(option.cloneNode(true)); document.getElementById('viewpoint-csv-instrument')?.append(option.cloneNode(true)); }
       if (selectedWatch && [...document.getElementById('plan-instrument').options].some(option=>option.value===selectedWatch)) document.getElementById('plan-instrument').value=selectedWatch;
     } catch (error) { status.textContent = error.message; }
   }
@@ -1152,6 +1278,9 @@ function mergeEntryRules(rules) {
     const rows = [
       ['Estimated costs at target', zar(costs)], ['Projected net at target', zar(net)],
       ['Entry', price('entry')], ['Stop', price('stop_trigger')], ['Target', price('target')],
+      ['Stop-limit price', planValue('stop_limit') ? price('stop_limit') : 'No limit price specified'],
+      ['Trailing stop', planValue('trailing_mode') === 'NONE' ? 'Off · fixed-stop scenario'
+        : value('trailing_distance', planValue('trailing_mode') === 'PERCENT' ? '%' : ' ' + unit)],
       ['Quantity', value('quantity', quantityUnit ? ` ${quantityUnit}` : '')],
       ['Hold', value('holding_horizon')]
     ];

@@ -23,7 +23,7 @@ class ResearchProposalTests(unittest.TestCase):
         result = self.get()
         self.assertEqual(result['state'], 'HISTORICAL_REFERENCE')
         self.assertEqual(result['session'], '2026-11-06')
-        self.assertEqual(result['strategy_version'], '1.1.0')
+        self.assertEqual(result['strategy_version'], '1.1.2')
         self.assertEqual(result['source_fields']['close']['sources'], ['FIXTURE_SOURCE'])
         self.assertEqual(len(result['source_sha256']), 64)
         self.assertLess(result['stop_reference'], result['entry_reference'])
@@ -34,6 +34,19 @@ class ResearchProposalTests(unittest.TestCase):
         self.assertNotIn('ALIGNED_BENCHMARK_UNAVAILABLE', result['missing'])
         self.assertIn('Benchmark is not evaluated by this geometry-only proposal', result['limitations'])
         self.assertFalse(result['live_execution'])
+
+    def test_trail_preview_uses_initial_r_and_matches_replay_geometry(self):
+        from decimal import Decimal
+        from domain.backtest.daily_trail import trail_reference
+        result = self.get()
+        rows = [dict(session=row['session'], **{k:row['fields'][k]['value'] for k in ('high','low','close')})
+                for row in self.fixture.rows if result['window_start_session'] <= row['session'] <= result['session']]
+        entry, stop = (Decimal(str(result[k])) for k in ('entry_reference','stop_reference'))
+        trail = trail_reference(rows, entry, stop, stop, entry, momentum=True)
+        self.assertAlmostEqual(result['trailing_preview']['activation'], float(2*entry-stop))
+        self.assertAlmostEqual(result['trailing_preview']['distance'], float(trail['distance']))
+        self.assertGreaterEqual(trail_reference(rows, entry, stop, entry, entry, momentum=True)['trigger'], entry)
+        self.assertIsNone(trail_reference(rows[-10:], entry, stop, stop, entry, momentum=True))
 
     def test_missing_source_conflict_stale_and_product_are_explicit(self):
         self.assertEqual(self.get(product='CFD')['reason'], 'PRODUCT_UNSUPPORTED')
@@ -184,3 +197,4 @@ class ResearchProposalTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

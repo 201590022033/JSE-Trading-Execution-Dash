@@ -49,7 +49,6 @@ class ExactBacktestJobTests(unittest.TestCase):
         self.service = SimpleNamespace(
             root=self.folder, folder=self.folder / 'roster',
             clock=lambda: datetime(2026, 11, 19, 19, tzinfo=timezone.utc),
-            store=SimpleNamespace(get=lambda key: {'state': 'ACTIVE'} if key == 'MTN' else None),
         )
         self.service.folder.mkdir()
         app = Flask(__name__)
@@ -108,7 +107,10 @@ class ExactBacktestJobTests(unittest.TestCase):
         self.assertEqual(path.read_bytes(), before)
 
     def test_validates_identity_and_exposes_unavailable_versions(self):
-        profiles = self.client.get(URL).json['profiles']
+        catalogue = self.client.get(URL).json
+        profiles = catalogue['profiles']
+        self.assertIn({'instrument': 'SASOL', 'symbol': 'SOL'}, catalogue['instruments'])
+        self.assertNotIn('ETF_STX40', {row['instrument'] for row in catalogue['instruments']})
         self.assertEqual({(row['id'], row['version']) for row in profiles if row['available']},
                          exact_run_job.SUPPORTED_IDENTITIES)
         self.assertTrue(all(row['reason'] for row in profiles if not row['available']))
@@ -118,7 +120,7 @@ class ExactBacktestJobTests(unittest.TestCase):
             ({'timeframe': '5m'}, 'no supported cash-share daily replay'),
             ({'family': 'H2'}, 'H1 selected-share research'),
             ({'last_session': '2027-01-04'}, 'latest completed session'),
-            ({'instrument': 'VOD'}, 'Select a watched share'),
+            ({'instrument': 'ETF_STX40'}, 'recognized Zebra cash share'),
         ]:
             resp = self.client.post(URL, json={**self.request, **replacements})
             self.assertEqual(resp.status_code, 422, resp.json)
@@ -126,6 +128,28 @@ class ExactBacktestJobTests(unittest.TestCase):
         self.assertEqual(self.client.post(URL, json=self.request, headers={'Origin': 'https://example.test'}).status_code, 403)
         self.assertEqual(self.client.post(URL, json=self.request,
                          environ_overrides={'REMOTE_ADDR': '192.0.2.3'}).status_code, 403)
+        self.launch.assert_not_called()
+
+    def test_unwatched_sasol_runs_under_the_retained_instrument_identity(self):
+        self.instruments['SASOL'] = observations(70)
+        history = self.client.get('/api/v1/backtest-lab/replay-history/SASOL')
+        self.assertEqual(history.status_code, 200, history.json)
+        self.assertEqual(history.json['qualified_sessions'], 70)
+        self.assertEqual(history.json['first_session'], self.request['first_session'])
+        self.assertEqual(history.json['close_sources'], ['FIXTURE'])
+        self.launch.assert_not_called()
+        reply = self.client.post(URL, json={**self.request, 'instrument': 'SASOL'})
+        self.assertEqual(reply.status_code, 202, reply.json)
+        outcome = run_lane(self.service, 'backtester')
+        self.assertEqual(outcome['state'], 'COMPLETED', outcome)
+        result = self.client.get('/api/v1/backtest-lab/runs/' + outcome['run_id']).json
+        self.assertEqual(set(result['meta']['coverage']), {'SASOL'})
+
+    def test_history_preflight_rejects_missing_data_and_non_cash_share(self):
+        for share, reason in [('SASOL', 'No eligible retained'), ('ETF_STX40', 'recognized Zebra cash share')]:
+            response = self.client.get('/api/v1/backtest-lab/replay-history/' + share)
+            self.assertEqual(response.status_code, 422)
+            self.assertIn(reason, response.json['error'])
         self.launch.assert_not_called()
 
     def test_supported_component_and_lab_paths_keep_exact_identities(self):
@@ -154,3 +178,12 @@ class ExactBacktestJobTests(unittest.TestCase):
             outcome = run_lane(self.service, 'backtester')
         self.assertEqual(outcome['state'], 'FAILED')
         self.assertIn('No eligible retained Zebra cash-share history', self.client.get(URL + '/' + job).json['error'])
+
+    def test_range_with_no_qualified_bars_fails_without_saving_a_result(self):
+        reply = self.client.post(URL, json={**self.request, 'first_session': '2026-11-02',
+                                           'last_session': '2026-11-03'})
+        self.assertEqual(reply.status_code, 202, reply.json)
+        self.assertEqual(run_lane(self.service, 'backtester')['state'], 'FAILED')
+        self.assertIn('No qualified retained daily OHLCV bars',
+                      self.client.get(URL + '/' + reply.json['job_id']).json['error'])
+        self.assertEqual(list(self.folder.rglob('*.json')), [])

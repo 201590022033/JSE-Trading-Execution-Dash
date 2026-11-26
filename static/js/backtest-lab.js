@@ -4,7 +4,8 @@ const $=id=>document.getElementById('bl-'+id), esc=x=>String(x??'—').replace(/
 const money=x=>'R '+Number(x||0).toLocaleString('en-ZA',{maximumFractionDigits:2}), num=x=>Number(x||0);
 let data=null, sectorData=null, windowData=null, strategy=0, selected=0, instrument=null, activated=false, runId=null;
 let savedRuns=[], indexRequest=0, resultRequest=0, previousHandoff;
-let watchedShares=new Set(), replayProfiles=[], pendingReplay=null, completedReplay=null, indexUnavailable=false;
+let replayShares=new Map(), replayProfiles=[], replayCatalogue=null, pendingReplay=null, completedReplay=null, indexUnavailable=false;
+let replayHistory=null, replayHistoryRequest=0, replayShare='';
 const api=async(url,options)=>{const r=await fetch(url,{cache:'no-store',...options});const body=await r.json();return {ok:r.ok,body};};
 async function showEventPreparation(key){
  const choice=$('research-choice'); if(!choice)return;
@@ -31,6 +32,13 @@ function rejectedTrace(){const item=(data.strategies[strategy].run.rejected_bars
 function render(){if(!data)return;const s=data.strategies[strategy],tr=s.run.trades, eq=s.run.equity,last=eq.length?num(eq[eq.length-1].equity):num(data.meta.initial_cash),hold=tr.length?tr.reduce((a,t)=>a+num(t.held),0)/tr.length:null;
  $('stats').innerHTML=[['Net result',money(last-data.meta.initial_cash)],['Return',((last/data.meta.initial_cash-1)*100).toFixed(1)+'%'],['Trades',tr.length],['Win rate',s.sum.win==null?'—':s.sum.win+'%'],['Max drawdown',s.sum.mdd+'%'],['Average hold',hold==null?'—':hold.toFixed(1)+' sessions']].map(([a,b])=>'<div><span class="muted">'+esc(a)+'</span><strong>'+esc(b)+'</strong></div>').join('');
  $('strategies').innerHTML=data.strategies.map((v,i)=>'<button type="button" data-index="'+i+'" aria-pressed="'+(i===strategy)+'">'+esc([v.name,v.strategy_profile_id&&v.strategy_profile_version ? v.strategy_profile_id+' v'+v.strategy_profile_version : ''].filter(Boolean).join(' · '))+'</button>').join('');$('description').textContent=s.source+'. '+s.desc;
+ const trailStats=s.trail_comparison;
+ if(trailStats) $('stats').insertAdjacentHTML('beforeend',[
+   ['Armed',trailStats.armed],['Changed exits vs '+trailStats.comparator,trailStats.changed_exits],
+   ['Matched closed entries',trailStats.matched_closed_entries],['Paired net difference',money(trailStats.paired_net_difference_zar)],
+   ['Gap exits',trailStats.gap_stop_exits],['Gap exit net',money(trailStats.gap_stop_net_zar)],
+   ['Ambiguous exits',trailStats.ambiguous_exits],['Mean giveback upper bound (R)',trailStats.mean_giveback_r_upper_bound?.toFixed(2) ?? 'Unavailable']
+ ].map(([label,value])=>'<div><span class="muted">'+esc(label)+'</span><strong>'+esc(value)+'</strong></div>').join(''));
  table('compare',['Strategy','Signals','Traded','Win rate','Net result','Max drawdown','Desk bucket'],data.strategies.map((v,i)=>'<tr tabindex="0" data-index="'+i+'" class="'+(i===strategy?'bl-selected':'')+'"><td>'+esc(v.name)+'</td><td>'+v.sum.signals+'</td><td>'+v.sum.traded+'</td><td>'+esc(v.sum.win==null?'—':v.sum.win+'%')+'</td><td>'+money(v.sum.net)+'</td><td>'+esc(v.sum.mdd)+'%</td><td>'+esc(v.sum.verdict)+'</td></tr>'));
  bars('funnel',[['Bars checked',s.funnel.checked],...s.conds.map((c,i)=>[c,s.funnel.passed[i]])]);$('rejected').innerHTML=(s.run.rejected_bars||[]).map((r,i)=>'<option value="'+i+'">'+esc(r.inst)+' · '+esc(r.session)+'</option>').join('');rejectedTrace();let final={};s.run.decisions.forEach(d=>{if(d.state!=='TRAIL_NEXT_SESSION')final[d.id]=d.state;});let counts={};const names={FILLED:'Filled',RESERVED:'Reserved / pending',POSITION_EXISTS:'Already holding it',NO_CAPITAL:'Not enough cash',EXPIRED:'Expired unfilled',INVALIDATED_BEFORE_CLOSE:'Stop hit before entry',CAPITAL_REJECTED:'Cash rule rejected'};Object.values(final).forEach(v=>{const label=names[v]||v;counts[label]=(counts[label]||0)+1;});bars('outcomes',Object.entries(counts));
  table('trades',['Instrument','Entry','Exit','Sessions','Exit reason','Fees and costs','Net result','Excess vs STX40','Strategy profile'],tr.map((t,i)=>'<tr tabindex="0" data-index="'+i+'" class="'+(i===selected?'bl-selected':'')+'"><td>'+esc(t.instrument)+'</td><td>'+esc(t.entry_session)+'</td><td>'+esc(t.exit_session)+'</td><td>'+esc(t.held)+'</td><td>'+esc(t.reason)+(t.ambiguous?' (ambiguous)':'')+'</td><td>'+money(num(t.fees)+num(t.execution_cost))+'</td><td>'+money(t.net_pnl)+'</td><td>'+esc((s.relative_outcomes||[]).find(a=>a.id===t.id)?.excess_return == null ? '—' : (((s.relative_outcomes||[]).find(a=>a.id===t.id).excess_return)*100).toFixed(2)+'%')+'</td><td>'+esc(t.strategy_profile_id)+' '+esc(t.strategy_profile_version)+'</td></tr>'));
@@ -142,6 +150,18 @@ function option(label,value){
 }
 function selectShare(preferredRun){
  const share=$('share').value;
+ if(share!==replayShare){
+  replayShare=share;
+  ++replayHistoryRequest;
+  replayHistory=null;
+  $('replay-controls').hidden=true;
+  $('request-run').setAttribute('aria-expanded','false');
+  $('retry-history').hidden=true;
+  $('replay-history').textContent='';
+  for(const input of [$('replay-start'),$('replay-end')]){
+   input.value='';input.removeAttribute('min');input.removeAttribute('max');
+  }
+ }
  const matches=savedRuns.filter(run=>Object.hasOwn(run.instruments,share));
  $('runs').replaceChildren(...matches.map(run=>option(run.titles_by_instrument[share],run.run_id)));
  updateReplayControl(share);
@@ -165,7 +185,7 @@ async function activate(force=false, targetRun){
  activated=true;previousHandoff=handoff;
  if(first||force){
   loadDailyForward();loadProspective();loadHypotheses();loadFxStudy();loadRealFunnel();loadZebra();loadRadarPrices();
-  loadReplayProfiles();
+  replayCatalogue=loadReplayProfiles();
  }
  const currentShare=$('share').value,currentRun=$('runs').value;
  const requestNumber=++indexRequest;
@@ -185,15 +205,18 @@ async function activate(force=false, targetRun){
   const [index,watchList]=await Promise.all([
    api('/api/v1/backtest-lab/runs/index?'+params),
    api('/api/v1/strategy-radar/watches').catch(()=>null),
+   replayCatalogue,
   ]);
   if(requestNumber!==indexRequest)return;
   indexUnavailable=!index.ok;
   savedRuns=index.ok ? index.body.runs : [];
   const watched=watchList?.ok ? (watchList.body.watches||[]).filter(watch=>watch.state!=='ARCHIVED').map(watch=>watch.instrument) : [];
-  watchedShares=new Set(watched);
   const requested=handoff?.product==='CASH_SHARE' ? handoff.instrument : null;
-  const shares=[...new Set([...watched,...savedRuns.flatMap(run=>Object.keys(run.instruments)),requested].filter(Boolean))].sort();
-  $('share').replaceChildren(...shares.map(share=>option(share,share)));
+  const shares=[...new Set([...watched,...savedRuns.flatMap(run=>Object.keys(run.instruments)),...replayShares.keys(),requested].filter(Boolean))].sort();
+  $('share').replaceChildren(...shares.map(share=>{
+   const symbol=replayShares.get(share);
+   return option(symbol && symbol!==share ? share+' ('+symbol+')' : share,share);
+  }));
   $('share').disabled=shares.length===0;
   $('share').value=(changed&&requested)
    || shares.find(share=>share===currentShare)
@@ -219,19 +242,53 @@ async function activate(force=false, targetRun){
 }
 function updateReplayControl(share){
  $('run-request').hidden=!share;
- const enabled=watchedShares.has(share)&&replayProfiles.some(profile=>profile.available)&&!pendingReplay;
+ const enabled=replayShares.has(share)&&replayProfiles.some(profile=>profile.available)&&!pendingReplay;
  $('request-run').disabled=!enabled;
- $('submit-replay').disabled=!enabled;
- $('run-unavailable').textContent=enabled ? '' : !watchedShares.has(share) ? 'Select a watched share to request a replay.'
+ $('submit-replay').disabled=!enabled || replayHistory?.instrument!==share;
+ const mapped=[...replayShares].find(([key,symbol])=>key!==share && symbol===share);
+ $('run-unavailable').textContent=enabled ? 'The replay checks retained daily history for the selected dates. It does not add a live watch.'
   : pendingReplay ? 'The requested replay is still in progress.'
-  : replayProfiles.find(profile=>profile.reason?.includes('B04'))?.reason || 'No compatible exact strategy is currently available.';
+  : !replayProfiles.some(profile=>profile.available)
+   ? replayProfiles.find(profile=>profile.reason?.includes('B04'))?.reason || 'No compatible exact strategy is currently available.'
+  : mapped ? 'This code is available for saved results. For a new replay select '+mapped[0]+' ('+share+').'
+  : 'This instrument is outside the recognized Zebra cash-share list for new replays.';
+}
+async function loadReplayHistory(share){
+ const requestNumber=++replayHistoryRequest, status=$('replay-history');
+ replayHistory=null;
+ $('retry-history').hidden=true;
+ status.textContent='Checking retained daily history for '+share+'…';
+ updateReplayControl(share);
+ try{
+  const result=await api('/api/v1/backtest-lab/replay-history/'+encodeURIComponent(share));
+  if(requestNumber!==replayHistoryRequest)return;
+  if(!result.ok)throw Error(result.body.error || 'The history check failed.');
+  const history=result.body;
+  if(history.instrument!==share)throw Error('The history returned for a different share.');
+  replayHistory=history;
+  const {first_session:first,last_session:last}=history;
+  for(const [input,value] of [[$('replay-start'),first],[$('replay-end'),last]]){
+   input.min=first;input.max=last;
+   if(!input.value||input.value<first||input.value>last)input.value=value;
+  }
+  status.textContent=share+' · '+history.qualified_sessions+' usable daily OHLCV sessions · '+first+' to '+last
+   +' · Close sources: '+history.close_sources.join(', ')+'. '
+   +history.unqualified_observed_sessions+' retained sessions excluded. Dates in this span can have gaps. '
+   +'The replay checks the requested window and benchmark again when it runs.';
+ }catch(error){
+  if(requestNumber!==replayHistoryRequest)return;
+  status.textContent=error.message || 'The history check failed.';
+  $('retry-history').hidden=false;
+ }
+ updateReplayControl(share);
 }
 async function loadReplayProfiles(){
  try{
   const response=await api('/api/v1/backtest-lab/jobs');
   if(!response.ok)throw Error();
   replayProfiles=response.body.profiles;
- }catch(error){replayProfiles=[];}
+  replayShares=new Map((response.body.instruments||[]).map(item=>[item.instrument,item.symbol]));
+ }catch(error){replayProfiles=[];replayShares=new Map();}
  const available=replayProfiles.filter(profile=>profile.available);
  const select=$('replay-profile'),previous=select.value;
  select.replaceChildren(...available.map(profile=>option(profile.name+' · v'+profile.version,profile.id+'@'+profile.version)));
@@ -286,13 +343,17 @@ $('request-run').addEventListener('click',()=>{
  const controls=$('replay-controls');
  controls.hidden=!controls.hidden;
  $('request-run').setAttribute('aria-expanded',String(!controls.hidden));
- if(!controls.hidden)$('replay-profile').focus();
+ if(!controls.hidden){
+  if(!replayHistory)loadReplayHistory($('share').value);
+  $('replay-profile').focus();
+ }
 });
+$('retry-history').addEventListener('click',()=>loadReplayHistory($('share').value));
 $('replay-form').addEventListener('submit',async event=>{
  event.preventDefault();
  if(pendingReplay)return;
  const chosen=replayProfiles.find(profile=>profile.available && profile.id+'@'+profile.version===$('replay-profile').value);
- if(!chosen)return;
+ if(!chosen||replayHistory?.instrument!==$('share').value)return;
  const share=$('share').value, progress=$('job-progress');
  const job={share,errors:0};
  pendingReplay=job;

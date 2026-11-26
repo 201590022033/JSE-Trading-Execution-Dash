@@ -9,7 +9,9 @@ from application.opportunities.session_freshness import latest_expected_session,
 
 VERSION = 'swing-close-reference-v2'
 STRATEGY = 'jse_swing_3_5d'
-STRATEGY_VERSION = '1.1.0'
+from .swing_radar import _FEATURE_PROFILE_VERSION as STRATEGY_VERSION
+from domain.backtest.daily_trail import trail_reference
+from decimal import Decimal
 _ACCEPTED = {'SINGLE_SOURCE', 'AGREEMENT', 'THREE_PROVIDER_AGREEMENT'}
 _CONFLICT = 'CONFLICT_NO_CONSENSUS'
 
@@ -208,8 +210,12 @@ def research_proposal(service, instrument, product, *, now=None):
     limitations = base['limitations'] + (['Geometry uses Zebra-selected conflicting fields and is conditional, not a confirmed value'] if conflicting else [])
     if invalid_declared_latest:
         limitations.append('Cache latest-session metadata is invalid; selected date is conditional')
+    history = [dict(session=row['session'], **{key: row[key]['value'] for key in ('high','low','close')}) for row in suffix]
+    entry_d, stop_d = Decimal(str(closes[-1])), Decimal(str(stop))
+    trail = trail_reference(history, entry_d, stop_d, stop_d, entry_d, momentum=True)
     return {**base, 'state': 'CONDITIONAL_REFERENCE' if conditional else 'HISTORICAL_REFERENCE', 'reason': None,
             'limitations': limitations,
+            'trailing_preview': {key:float(value) for key,value in trail.items()} if trail else None,
             'source_bars': len(suffix), 'qualified_hlc_sessions': len(suffix),
             'window_start_session': suffix[0]['session'], 'window_end_session': suffix[-1]['session'],
             'atr_initialization': 'FIRST_14_TRUE_RANGES_THEN_WILDER_ON_CONTIGUOUS_WINDOW',

@@ -11,6 +11,8 @@ from tempfile import NamedTemporaryFile
 
 from application.opportunities.session_freshness import latest_expected_session
 from application.opportunities.zebra_screen_data import load_zebra_screen_data
+from application.opportunities.zebra_instruments import mappings
+from application.opportunities.research_classification import classifications
 from application.strategy_radar.exact_daily_review import PROFILE, WARMUP, _qualified
 from application.strategy_radar.swing_radar import _FEATURE_PROFILE_VERSION, _FIELDS, _NAMES, snapshot
 from domain.backtest import engine as lab_engine
@@ -78,11 +80,26 @@ def available_profiles():
     return sorted(result, key=lambda item: (not item['available'], item['id'], item['version']))
 
 
+def replay_instruments(root):
+    """List recognized cash shares; the worker validates their retained bars."""
+    from market_chart_registry import MARKET_CHART_INSTRUMENTS
+
+    codes = mappings(Path(root) / 'runtime/local-swing-data/radar-public-prices')
+    labels = classifications(codes)['instruments']
+    return [
+        {'instrument': key, 'symbol': symbol}
+        for key, symbol in codes.items()
+        if (MARKET_CHART_INSTRUMENTS[key].asset_class == 'cash_equity'
+            if key in MARKET_CHART_INSTRUMENTS
+            else 'ETF' not in labels.get(key, {}).get('industry', '').upper())
+    ]
+
+
 def validate_request(body, service):
     if not isinstance(body, dict) or set(body) != set(FIELDS) or any(not isinstance(body[key], str) for key in FIELDS):
         raise RunUnavailable('Supply the share, family, exact strategy version, product, timeframe and date range.')
     if not re.fullmatch(r'[A-Z0-9_]{2,16}', body['instrument']) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,80}', body['request_id']):
-        raise RunUnavailable('Use a watched share code and a valid request ID.')
+        raise RunUnavailable('Use a research share code and a valid request ID.')
     identity = body['strategy_id'], body['strategy_version']
     try:
         DEFAULT_STRATEGY_REGISTRY.resolve(*identity)
@@ -101,12 +118,11 @@ def validate_request(body, service):
     latest = latest_expected_session(service.clock())
     if not latest or last > latest:
         raise RunUnavailable('End the range on or before the latest completed session in the reviewed JSE calendar.')
-    watch = service.store.get(body['instrument'])
-    if not watch or watch['state'] == 'ARCHIVED':
-        raise RunUnavailable('Select a watched share.')
     reason = dependency_reason()
     if reason:
         raise RunUnavailable(reason)
+    if not any(item['instrument'] == body['instrument'] for item in replay_instruments(service.root)):
+        raise RunUnavailable('Select a recognized Zebra cash share. Saved results can use a different instrument code.')
     return dict(body)
 
 
@@ -142,6 +158,28 @@ def _inputs(item, last, as_of):
             continue
         qualified.append(bar)
     return qualified, lineage, partial
+
+
+def replay_history(service, instrument):
+    """Describe the same qualified share bars that the replay runner uses."""
+    now = service.clock()
+    last = latest_expected_session(now)
+    if not last:
+        raise RunUnavailable('The latest completed JSE session is unavailable.')
+    item = load_zebra_screen_data(service.root, now=now, instruments={instrument})['instruments'].get(instrument)
+    if item is None or item.get('asset_class') != 'cash_equity':
+        raise RunUnavailable('No eligible retained Zebra cash-share history was found for this share.')
+    bars, _, partial = _inputs(item, last, now)
+    if not bars:
+        raise RunUnavailable('No qualified retained daily OHLCV bars are available for this share.')
+    return {
+        'instrument': instrument,
+        'first_session': bars[0]['timestamp'],
+        'last_session': bars[-1]['timestamp'],
+        'qualified_sessions': len(bars),
+        'unqualified_observed_sessions': len(partial),
+        'close_sources': sorted({bar['_source'] for bar in bars}),
+    }
 
 
 def _radar_trace(instrument, history, benchmark, reference, clock):
@@ -225,12 +263,36 @@ def _signals(instrument, bars, start, matches, series, identity):
     return signals, traces, rejected, condition_names, {'checked': checked, 'passed': funnel}, unknown
 
 
+def trail_metrics(strategy, baseline):
+    """Pair only identical entry fills and sizes. Excursion includes the ambiguous exit bar."""
+    trades = strategy['run']['trades']
+    fills = {t['id']:t for t in baseline['run']['trades']}
+    pairs = [(t,fills[t['id']]) for t in trades if t['id'] in fills
+             and all(t[key] == fills[t['id']][key] for key in ('entry_session','entry','quantity'))]
+    stops = {row['id']:Decimal(str(row['stop'])) for row in strategy['run']['signals']}
+    giveback = []
+    for trade in trades:
+        risk = Decimal(trade['entry'])-stops[trade['id']]
+        if risk > 0:
+            excursion = Decimal(trade['favorable_daily_range_r_bound'])
+            giveback.append(max(Decimal(0), excursion-(Decimal(trade['exit'])-Decimal(trade['entry']))/risk))
+    return {'matched_closed_entries':len(pairs), 'unpaired_variant_trades':len(trades)-len(pairs),
+            'unpaired_baseline_trades':len(fills)-len(pairs),
+            'armed':len({d['id'] for d in strategy['run']['decisions'] if d['state'].startswith('TRAIL_')}),
+            'changed_exits':sum((a['exit_session'],a['exit'])!=(b['exit_session'],b['exit']) for a,b in pairs),
+            'paired_net_difference_zar':round(sum(float(a['net_pnl'])-float(b['net_pnl']) for a,b in pairs),2),
+            'ambiguous_exits':sum(bool(t['ambiguous']) for t in trades),
+            'gap_stop_exits':sum(t['reason']=='GAP_STOP' for t in trades),
+            'gap_stop_net_zar':round(sum(float(t['net_pnl']) for t in trades if t['reason']=='GAP_STOP'),2),
+            'mean_giveback_r_upper_bound':float(sum(giveback)/len(giveback)) if giveback else None}
+
+
 def build_run(spec, instruments, as_of):
     """Build an immutable-format report from retained inputs and the existing engine."""
     instrument = spec['instrument']
     item = instruments.get(instrument)
-    if item is None or item.get('asset_class') not in {'cash_equity', None}:
-        raise RunUnavailable('No eligible retained Zebra cash-share history was found for this watch.')
+    if item is None or item.get('asset_class') != 'cash_equity':
+        raise RunUnavailable('No eligible retained Zebra cash-share history was found for this share.')
     start, last = spec['first_session'], spec['last_session']
     identity = spec['strategy_id'], spec['strategy_version']
     legacy_lab = identity in LAB_IDENTITIES
@@ -246,6 +308,8 @@ def build_run(spec, instruments, as_of):
         source = 'Existing Zebra mixed-source Lab evaluator'
     bars, lineage, partial = _inputs(item, last, as_of)
     in_scope = [bar for bar in bars if bar['timestamp'] >= start]
+    if not in_scope:
+        raise RunUnavailable('No qualified retained daily OHLCV bars in the requested date range. Choose a range with usable history.')
     warmup = [bar for bar in bars if bar['timestamp'] < start]
     if identity == EXACT_IDENTITY:
         warmup = warmup[-(WARMUP - 1):]
@@ -316,6 +380,32 @@ def build_run(spec, instruments, as_of):
         'run': {'signals': traces, 'rejected_bars': rejected, 'decisions': run['decisions'],
                 'trades': trades, 'equity': equity},
     }]
+    if identity == EXACT_IDENTITY:
+        from dataclasses import replace
+        original = {t['id']:t for t in trades}
+        for mode, title in [('DAILY_VOLATILITY','B · Volatility trail'), ('DAILY_MOMENTUM','C · Momentum trail')]:
+            variant = runner(manifests, [replace(signal, trail=mode) for signal in signals],
+                             as_of=as_of, initial_cash=Decimal(INITIAL_CASH), costs=costs)
+            closed = variant['trades']
+            armed = {d['id'] for d in variant['decisions'] if d['state'].startswith('TRAIL_')}
+            changed = sum((t['exit_session'], t['exit']) != (original[t['id']]['exit_session'], original[t['id']]['exit'])
+                          for t in closed if t['id'] in original and t['entry']==original[t['id']]['entry'] and t['quantity']==original[t['id']]['quantity'])
+            peak_value = INITIAL_CASH
+            dd = 0
+            for row in variant['equity']:
+                balance = float(row['equity'])
+                peak_value = max(peak_value, balance)
+                dd = min(dd, balance/peak_value-1)
+            net = float(variant['equity'][-1]['equity'])-INITIAL_CASH if variant['equity'] else 0
+            strategies.append({**strategies[0], 'id':mode, 'name':title, 'engine_config_hash':variant['config_hash'],
+                'sum':{**strategies[0]['sum'], 'traded':len(closed), 'net':round(net,2), 'mdd':round(dd*100,2),
+                       'win':round(100*sum(float(t['net_pnl'])>0 for t in closed)/len(closed),1) if closed else None,
+                       'stocks':len({t['instrument'] for t in closed}),
+                       'verdict':f'Research only · {len(armed)} armed · {changed} exits changed on matched fills'},
+                'run':{**strategies[0]['run'], 'trades':closed, 'equity':variant['equity'], 'decisions':variant['decisions']}})
+        for index, strategy in enumerate(strategies):
+            comparator = strategies[max(0,index-1)]
+            strategy['trail_comparison'] = dict(comparator=comparator['id'], **trail_metrics(strategy, comparator))
     meta = {
         'grade': 'ASSUMPTION_LIMITED', 'data_basis': 'ZEBRA_EXACT_DAILY_RESEARCH', 'data_quality': quality,
         'created_at': as_of.isoformat(), 'created_at_basis': 'RUN_CAPTURE_CLOCK', 'live_execution': False,

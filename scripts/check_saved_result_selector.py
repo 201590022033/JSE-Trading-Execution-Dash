@@ -58,6 +58,14 @@ def check_selector():
                     route.fulfill(body=body, content_type=content_type)
                 elif path == '/api/v1/strategy-radar/watches':
                     route.fulfill(json={'watches': [{'instrument': 'MTN'}, {'instrument': 'VOD'}]})
+                elif path == '/api/v1/backtest-lab/jobs':
+                    route.fulfill(json={'profiles': [{'id': 'fixture', 'version': '1', 'name': 'Fixture',
+                                                       'available': True}],
+                                        'instruments': [{'instrument': 'SASOL', 'symbol': 'SOL'}]})
+                elif path == '/api/v1/backtest-lab/replay-history/SASOL':
+                    route.fulfill(json={'instrument': 'SASOL', 'first_session': '2026-03-02',
+                                        'last_session': '2026-09-25', 'qualified_sessions': 143,
+                                        'unqualified_observed_sessions': 0, 'close_sources': ['FIXTURE']})
                 elif path.startswith('/api/v1/backtest-lab/'):
                     response = client.get(path)
                     route.fulfill(status=response.status_code, body=response.get_data(),
@@ -91,8 +99,17 @@ def check_selector():
             expect(page.locator('#bl-run-metadata')).to_contain_text(exact_id)
             share.select_option('SOL')
             expect(selector.locator('option')).to_have_count(2)
+            expect(page.locator('#bl-run-unavailable')).to_contain_text('SASOL (SOL)')
             selector.select_option(initial_id)
             expect(page.locator('#bl-run-metadata')).to_contain_text(initial_id)
+            share.select_option('SASOL')
+            replay = page.get_by_role('button', name='Run a backtest for this share')
+            expect(replay).to_be_enabled()
+            replay.click()
+            expect(page.get_by_role('combobox', name='Exact strategy version')).to_be_visible()
+            expect(page.locator('#bl-replay-history')).to_contain_text('143 usable daily OHLCV sessions')
+            expect(page.get_by_label('From', exact=True)).to_have_value('2026-03-02')
+            expect(page.get_by_role('button', name='Submit replay')).to_be_enabled()
             share.select_option('MTN')
             expect(page.locator('#bl-content')).to_be_hidden()
             expect(page.locator('#bl-run-details')).to_be_hidden()

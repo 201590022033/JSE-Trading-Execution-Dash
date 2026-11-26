@@ -13,7 +13,7 @@ GROUPS=(('H1','Selected share',('SASOL','BTI','FSR','ABSPJ')),
 
 def coverage(root):
     root=Path(root); studies={}; gold_runs=[]; fx_reports=[]
-    for instrument in ('SASOL','BTI','FSR','ABSPJ','NEWGOLD'):
+    for instrument in ('SASOL','BTI','FSR','ABSPJ','NEWGOLD','MTN','VOD'):
         artifacts=set();families=set()
         for suffix in ('','_BOX','_PULL','_VCP'):
             try:
@@ -63,14 +63,15 @@ def coverage(root):
         except (OSError,ValueError,TypeError): continue
     rows=[]
     for code,name,members in GROUPS:
+        seen=[{'instrument':k,'verified_artifact_count':studies[k]['count'],'families':studies[k]['families']} for k in members if k in studies]
         if code == 'H7':
             rows.append({'id':code, 'hypothesis':name, 'members':list(members), 'proposed':False,
-                         'component_examples':[], 'listed_vehicle_runs':[], 'price_only_studies':[],
-                         'reference_captures':0, 'status':'NO_RETAINED_EXAMPLE',
+                         'component_examples':seen, 'listed_vehicle_runs':[], 'price_only_studies':[],
+                         'reference_captures':0, 'status':'COMPONENT_EXAMPLES' if seen else 'NO_RETAINED_EXAMPLE',
                          'meaning':'Telecommunications research label for MTN and VOD. Its benchmark is broad market ETF_STX40.',
                          'benchmark_policy':'TELECOMMUNICATIONS_BROAD_ETF_STX40_OR_NO_DATA'})
             continue
-        seen=[{'instrument':k,'verified_artifact_count':studies[k]['count'],'families':studies[k]['families']} for k in members if k in studies]
+
         reference=references['ZAR_X'] if code=='H5' else references['GC_F']+references['GLD_JO'] if code=='H6' else 0
         listed=gold_runs if code=='H6' else []
         fx_studies=fx_reports if code=='H5' else []

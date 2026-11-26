@@ -74,7 +74,7 @@ class Signal:
             raise ValueError('identity, side and 3/4/5 horizon required')
         if self.exit_mode not in ('HORIZON_OR_TARGET','EMA21_CLOSE'):
             raise ValueError('unsupported component exit')
-        if self.trail not in ('NONE','ATR','STRUCTURE') or self.atr_period < 1 or self.expiry_days < 1:
+        if self.trail not in ('NONE','ATR','STRUCTURE','DAILY_VOLATILITY','DAILY_MOMENTUM') or self.atr_period < 1 or self.expiry_days < 1:
             raise ValueError('bounded explicit trail/expiry required')
 
 
@@ -262,6 +262,22 @@ def _replay(manifests, signals, *, as_of, initial_cash, account_currency,
             elif hit_target: close(key,b,target,'TARGET')
             elif s.exit_mode=='EMA21_CLOSE' and len(history)>=21 and ((c-ema_close(history,21))*side)<0: close(key,b,c,'EMA21_CLOSE')
             elif p['held']>=s.horizon: close(key,b,c,'HORIZON_CLOSE')
+            elif s.trail in ('DAILY_VOLATILITY','DAILY_MOMENTUM'):
+                from .daily_trail import trail_reference
+                if side != 1:
+                    raise ValueError('daily trail requires a long position')
+                p['best'] = max(p['best'], c)
+                if p['armed'] or c >= p['entry'] + p['initial_r']:
+                    p['armed'] = True
+                    observations = [dict(session=x.session, high=x.high, low=x.low, close=x.close) for x in history[-100:]]
+                    trail = trail_reference(observations, p['entry'], p['entry']-p['initial_r'], stop,
+                                            p['best'], momentum=s.trail == 'DAILY_MOMENTUM')
+                    if trail:
+                        p['stop'] = trail['trigger']
+                        p['invalidation'] = c <= p['stop']
+                    decisions.append(dict(id=s.id, at=at.isoformat(), session=b.session, state='TRAIL_NEXT_SESSION' if trail else 'TRAIL_INPUT_MISSING',
+                                          stop=str(p['stop']), previous_stop=str(stop),
+                                          **({k:str(v) for k,v in trail.items()} if trail else {})))
             elif s.trail!='NONE' and (p['armed'] or (c-p['entry'])*side>=p['initial_r']*s.trail_activation_r):
                 p['armed']=True
                 p['best']=max(p['best'],c) if side==1 else min(p['best'],c)

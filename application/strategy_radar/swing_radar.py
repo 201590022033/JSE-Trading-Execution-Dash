@@ -322,6 +322,7 @@ def evaluate_watches(service, *, now=None, instrument=None):
                         'strategy_version': _FEATURE_PROFILE_VERSION,
                         'timeframe_minutes': None, 'evaluated_at': now.isoformat(),
                         'state': 'UNKNOWN' if unknown == len(rules) else 'WATCHING', 'rules': rules,
+                        'entry_conditions_met': conditions.get('core_setup') if not (quality or {}).get('stale') and not (quality or {}).get('calendar_unverified') else None,
                         'passed': passed, 'unknown': unknown, 'applicable': len(rules),
                         'session': data.get('session'), 'missing': data.get('missing', []),
                         'source_bars': data.get('source_bars', 0), 'source_sha256': data.get('source_sha256'), 'values': data.get('values', {}), 'benchmark_instrument': watch.get('benchmark'),
