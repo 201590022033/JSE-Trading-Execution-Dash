@@ -44,6 +44,8 @@ def run_lane(service, lane, *, invoke=None):
                 completed = runner(command, cwd=root, capture_output=True, timeout=1800,
                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
                 result = {'returncode': completed.returncode, 'model_calls_requested': None if lane == 'sens' else 0}
+                if lane == 'sens' and completed.returncode == 3:
+                    result['bridge_state'] = 'PARTIAL_DELIVERY'
                 if lane == 'sens': result['model_call_accounting'] = 'SEE_MACRO_EXPECTATION_RECEIPTS'
                 state = 'COMPLETED' if completed.returncode == 0 else 'FAILED'
             except Exception as exc:

@@ -1,5 +1,6 @@
 """Read-only event preparation assembled from existing immutable receipts."""
 from datetime import timedelta
+import json
 from zoneinfo import ZoneInfo
 
 from . import research_calendar as calendar
@@ -10,14 +11,30 @@ from . import anticipatory_radar as radar
 import re
 
 SAST = ZoneInfo('Africa/Johannesburg')
-LIMIT = 5000
+PACKET_LIMIT = 50
 
 
-def _rows(repo, account, kind, now):
-    records = repo.paper_records(account, kind, as_of=now.isoformat(), limit=LIMIT)
-    if len(records) >= LIMIT:
-        raise ValueError('Event preparation receipt capacity reached')
-    return records
+def _event_receipts(repo, account, kind, event_id, now, *, limit):
+    """Return a bounded event-specific slice with stable ordering."""
+    if kind == 'macro-preparation':
+        event_field = ("json_extract(payload, '$.event.record_id')" if repo.backend == 'sqlite'
+                       else "payload::jsonb->'event'->>'record_id'")
+    else:
+        event_field = ("json_extract(payload, '$.event_id')" if repo.backend == 'sqlite'
+                       else "payload::jsonb->>'event_id'")
+    rows = repo._job_sql(
+        'SELECT payload FROM paper_records WHERE account_id=? AND kind=? AND available_at<=? '
+        f'AND {event_field}=? ORDER BY available_at DESC,record_id DESC LIMIT ?',
+        (account, kind, now.isoformat(), event_id, limit), rows=True)
+    return [json.loads(row[0]) for row in rows]
+
+
+def _attempt_result(repo, attempt_id, now):
+    rows = repo._job_sql(
+        'SELECT payload FROM paper_records WHERE record_id=? AND account_id=? AND kind=? AND available_at<=?',
+        (attempt_id + '-result', 'macro-expectations-v1', 'macro-expectation-result', now.isoformat()),
+        rows=True)
+    return json.loads(rows[0][0]) if rows else None
 
 
 def status(repo, now):
@@ -25,10 +42,6 @@ def status(repo, now):
     now = calendar._at(now)
     saved = calendar.status(repo, now)
     sidecars = {item['event_id']: item for item in macro_confirmations(repo, now)}
-    packets = _rows(repo, 'macro-preparation-v1', 'macro-preparation', now)
-    attempts = _rows(repo, 'macro-expectations-v1', 'macro-expectation-attempt', now)
-    results = {item['record_id']: item for item in
-               _rows(repo, 'macro-expectations-v1', 'macro-expectation-result', now)}
     shares = share_expectations(repo, now)['proposals']
     source_windows = {}
     warnings = {(item['event_id'], item['hours']): item for item in saved['warning_receipts']}
@@ -48,10 +61,13 @@ def status(repo, now):
             windows.append({'hours': hours, 'due_at': due.isoformat(),
                 'due_sast': due.astimezone(SAST).isoformat(), 'state': state,
                 'receipt_id': receipt['record_id'] if receipt else None})
-        event_packets = [p for p in packets if p.get('event', {}).get('record_id') == event_id]
-        event_attempts = [a for a in attempts if a.get('event_id') == event_id]
-        latest_attempt = max(event_attempts, key=lambda a:a['received_at'], default=None)
-        latest_result = results.get(latest_attempt['record_id'] + '-result') if latest_attempt else None
+        packet_page = _event_receipts(repo, 'macro-preparation-v1', 'macro-preparation',
+                                      event_id, now, limit=PACKET_LIMIT + 1)
+        event_packets = packet_page[:PACKET_LIMIT]
+        event_attempts = _event_receipts(repo, 'macro-expectations-v1', 'macro-expectation-attempt',
+                                         event_id, now, limit=1)
+        latest_attempt = event_attempts[0] if event_attempts else None
+        latest_result = _attempt_result(repo, latest_attempt['record_id'], now) if latest_attempt else None
         related = relevant_sources(repo, now, event) if event['event_key'].startswith(('SARB_MPC_', 'ZA_CPI_', 'ZA_RETAIL_')) else []
         candidate_evidence = []
         candidate_coverage = None
@@ -122,6 +138,7 @@ def status(repo, now):
             'windows': windows, 'next_warning': min(upcoming, key=lambda w:w['due_at']) if upcoming else None,
             'packets': [{k:p.get(k) for k in ('record_id','hours','due_at','received_at','state',
                         'analogues','coverage','usd_zar_5m_rows','required_data')} for p in event_packets],
+            'packet_coverage': {'returned': len(event_packets), 'truncated': len(packet_page) > PACKET_LIMIT},
             'macro_attempt': ({k:latest_attempt.get(k) for k in
                 ('record_id','event_id','event_key','state','received_at','model','model_digest')}
                 if latest_attempt else None),

@@ -6,6 +6,8 @@ from urllib.parse import urlsplit
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 
 def main():
+    if '--include-news' in sys.argv and '--bridge-only' not in sys.argv:
+        raise ValueError('News transfer requires --bridge-only')
     if '--bridge-only' not in sys.argv:
         subprocess.run([sys.executable,str(ROOT/'scripts/anticipatory_radar.py'),'tick'],cwd=ROOT,check=True)
     from runtime_persistence import runtime_repository
@@ -22,8 +24,10 @@ def main():
         source=runtime_repository(database_url=source_url+('&' if '?' in source_url else '?')+'options='+quote('-c default_transaction_read_only=on'));target=runtime_repository(database_url=target_url)
         try:
             with source.transaction():
-                result=sync(source,target,datetime.now(timezone.utc))
-            print(json.dumps(result))
+                result=sync(source,target,datetime.now(timezone.utc),include_news='--include-news' in sys.argv)
+            print(json.dumps(result), flush=True)
+            if result['state'] == 'PARTIAL_DELIVERY':
+                raise SystemExit(3)
         finally:source.close();target.close()
 def run_with_macro(bridge=main, invoke=subprocess.Popen, args=None):
     # A legacy bridge failure must not prevent the independent macro check.

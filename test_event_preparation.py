@@ -51,6 +51,27 @@ class EventPreparationTests(unittest.TestCase):
         self.assertEqual(found['link_state'],'KEYWORD_CANDIDATE_REQUIRES_REVIEW')
         self.assertEqual(found['available_at'],self.now.isoformat())
 
+    def test_three_retained_news_receipts_reach_same_sarb_event_after_transfer(self):
+        import json
+        from market_intelligence.hermes import capture_news_snapshot
+        from market_intelligence.sens_runtime_bridge import sync as transfer
+        source=SQLiteRepository(':memory:')
+        self.addCleanup(source.close)
+        captures=[]
+        for index, headline in enumerate(('SARB rates cliffhanger', 'Inflation heats up', 'Rand weakens')):
+            raw=json.dumps({'data':{'llm_used':False,'ai_available':False,'items':[{
+                'headline':headline,'summary':headline,'url':f'https://example.test/{index}',
+                'timestamp':self.now.isoformat(),'timestamp_kind':'published'}]}}).encode()
+            captures.append(capture_news_snapshot(source,raw,self.now))
+        first=transfer(source,self.repo,self.now,include_news=True)
+        self.assertEqual(first['counts']['hermes-news-input'],3)
+        self.assertEqual(transfer(source,self.repo,self.now,include_news=True)['new_records'],0)
+        event=next(e for e in status(self.repo,self.now)['events'] if e['event_key']=='SARB_MPC_2026-11')
+        self.assertEqual({item['source_receipt_id'] for item in event['candidate_evidence']},
+                         {item['capture_id'] for item in captures})
+        self.assertTrue(all(item['link_state']=='KEYWORD_CANDIDATE_REQUIRES_REVIEW'
+                            for item in event['candidate_evidence']))
+
     def test_event_evidence_remains_visible_after_current_news_window(self):
         from market_intelligence.hermes import capture_news_snapshot
         import json
@@ -121,6 +142,39 @@ class EventPreparationTests(unittest.TestCase):
         self.repo.save_paper_record('empty-result','macro-expectations-v1','macro-expectation-result',self.now.isoformat(),result)
         projected = next(e for e in status(self.repo,self.now)['events'] if e['event_id']==event['record_id'])
         self.assertEqual(projected['macro_result']['state'],'CITATION_INVALID')
+
+    def test_unrelated_attempt_archive_does_not_hide_event_and_result(self):
+        account = 'macro-expectations-v1'
+        event_id = self.packet['event']['record_id']
+        clock = self.now.isoformat()
+        self.repo.create_paper_account(account, {'mode': 'PAPER'})
+        with self.repo.transaction():
+            for i in range(5001):
+                rid = f'unrelated-{i:04}'
+                self.repo.save_paper_record(rid, account, 'macro-expectation-attempt', clock,
+                                            {'record_id': rid, 'event_id': 'other', 'received_at': clock})
+            for rid in ('a', 'b'):
+                self.repo.save_paper_record(rid, account, 'macro-expectation-attempt', clock,
+                                            {'record_id': rid, 'event_id': event_id, 'received_at': clock})
+            self.repo.save_paper_record('b-result', account, 'macro-expectation-result', clock,
+                                        {'record_id': 'b-result', 'received_at': clock, 'state': 'ABSTAIN'})
+        event = next(row for row in status(self.repo, self.now)['events'] if row['event_id'] == event_id)
+        self.assertEqual(event['macro_attempt']['record_id'], 'b')
+        self.assertEqual(event['macro_result']['record_id'], 'b-result')
+        self.assertFalse(event['packet_coverage']['truncated'])
+
+    def test_packet_slice_reports_truncation_without_removing_archive(self):
+        account = 'macro-preparation-v1'
+        event_id = self.packet['event']['record_id']
+        clock = self.now.isoformat()
+        for i in range(51):
+            rid = f'packet-{i:02}'
+            self.repo.save_paper_record(rid, account, 'macro-preparation', clock,
+                                        {'record_id': rid, 'event': {'record_id': event_id}, 'received_at': clock})
+        event = next(row for row in status(self.repo, self.now)['events'] if row['event_id'] == event_id)
+        self.assertEqual(event['packet_coverage'], {'returned': 50, 'truncated': True})
+        self.assertEqual(event['packets'][0]['record_id'], 'packet-50')
+        self.assertIsNotNone(self.repo.paper_record('packet-00'))
 
 
 if __name__ == '__main__':

@@ -5,6 +5,41 @@ from market_intelligence import anticipatory_radar as radar
 from market_intelligence.sens_runtime_bridge import sync
 
 class BridgeTests(unittest.TestCase):
+ def test_sync_resumes_over_capacity_and_reconciles_late_insert(self):
+  source=SQLiteRepository(':memory:');target=SQLiteRepository(':memory:')
+  self.addCleanup(source.close);self.addCleanup(target.close)
+  now=datetime.now(timezone.utc)
+  for i in range(5001):
+   radar.save(source,'sens-source',str(i),{'body':'retained'},now)
+  first=sync(source,target,now,page_size=250,max_pages=2)
+  self.assertEqual((first['state'],first['new_records'],first['receipt_id']),
+                   ('PARTIAL_DELIVERY',500,None))
+  # A newer record than the saved cursor must be found by the next sweep,
+  # even if its claimed receipt clock fits the original cutoff.
+  recent=source.paper_records(radar.ACCOUNT,'radar-sens-source',as_of=now.isoformat(),limit=1)[0]
+  late=dict(recent,record_id='radar-sens-source-'+('f'*64))
+  source.save_paper_record(late['record_id'],radar.ACCOUNT,'radar-sens-source',now.isoformat(),late)
+  rest=sync(source,target,now,page_size=250,max_pages=24)
+  self.assertEqual((rest['state'],rest['new_records']),('COMPLETE',4501))
+  self.assertIsNone(target.paper_record(late['record_id']))
+  self.assertEqual(sync(source,target,now)['new_records'],1)
+  self.assertEqual(target.paper_record(late['record_id']),late)
+  self.assertEqual(sync(source,target,now)['new_records'],0)
+
+ def test_page_conflict_preserves_previous_commit_but_not_success_receipt(self):
+  source=SQLiteRepository(':memory:');target=SQLiteRepository(':memory:')
+  self.addCleanup(source.close);self.addCleanup(target.close)
+  now=datetime.now(timezone.utc)
+  older=radar.save(source,'sens-source','older',{'body':'source'},now-timedelta(days=1))
+  newer=radar.save(source,'sens-source','newer',{'body':'source'},now)
+  radar.save(target,'sens-source','older',{'body':'conflict'},now-timedelta(days=1))
+  with self.assertRaisesRegex(ValueError,older['record_id']):
+   sync(source,target,now,page_size=1)
+  self.assertEqual(target.paper_record(newer['record_id']),newer)
+  self.assertEqual(radar.rows(target,'sens-bridge',now),[])
+  checkpoint=target.paper_account('sens-retained-bridge-v1-sens-only')['sweep']
+  self.assertEqual(checkpoint['cursor'][1],older['record_id'])
+
  def test_sens_pages_over_5000_preserve_ties_and_retry(self):
   from market_intelligence.sens_runtime_bridge import transfer_sens_page
   source=SQLiteRepository(':memory:');target=SQLiteRepository(':memory:');self.addCleanup(source.close);self.addCleanup(target.close)
@@ -73,6 +108,18 @@ class BridgeTests(unittest.TestCase):
   self.assertEqual(radar.rows(target,'sens-bridge',now),[])
 
 class MacroDispatchTests(unittest.TestCase):
+ def test_roster_does_not_mark_partial_delivery_complete(self):
+  import tempfile
+  from pathlib import Path
+  from types import SimpleNamespace
+  from application.strategy_radar.roster import enqueue, run_lane
+  with tempfile.TemporaryDirectory() as folder:
+   service=SimpleNamespace(folder=Path(folder))
+   enqueue(service,'sens')
+   result=run_lane(service,'sens',invoke=lambda *a,**k:SimpleNamespace(returncode=3))
+   self.assertEqual(result['state'],'FAILED')
+   self.assertEqual(result['bridge_state'],'PARTIAL_DELIVERY')
+
  def test_macro_check_still_runs_after_independent_bridge_failure(self):
   from scripts.sens_runtime_bridge import run_with_macro
   calls=[]

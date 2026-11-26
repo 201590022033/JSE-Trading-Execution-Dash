@@ -57,37 +57,73 @@ def transfer_news_page(source, target, now, *, limit=200, cursor=None):
             'next_cursor':{'received_at':boundary['received_at'],'capture_id':boundary['capture_id']} if boundary else None,
             'original_receipts_preserved':True,'model_calls':0}
 
-def sync(source, target, now, *, include_news=False):
-    pending=[]
-    for kind in KINDS:
-        records=source.paper_records(radar.ACCOUNT,kind,as_of=now.isoformat(),limit=5000)
-        if len(records)>=5000: raise ValueError('SENS bridge capacity reached; no partial delivery')
-        pending.extend((kind,r) for r in records)
-    news = source.paper_records(HERMES, 'hermes-news-input', as_of=now.isoformat(), limit=5000) if include_news else []
-    if len(news) >= 5000: raise ValueError('News bridge capacity reached; no partial delivery')
-    counts={k:0 for k in KINDS}
-    counts['hermes-news-input'] = 0
-    with target.transaction():
-        target.create_paper_account(radar.ACCOUNT,{'mode':'PAPER','purpose':'RESEARCH_ONLY'})
-        for kind,record in pending:
-            prior=target.paper_record(record['record_id'])
-            if prior is not None and prior!=record: raise ValueError('conflicting retained SENS identity')
-            target.save_paper_record(record['record_id'],radar.ACCOUNT,kind,record['received_at'],record)
-            counts[kind]+=prior is None
-        if news:
-            target.create_paper_account(HERMES,{'mode':'PAPER','purpose':'RESEARCH_ONLY_NO_BALANCE'})
-        for record in news:
-            rid=record['capture_id']
-            prior=target.paper_record(rid)
-            if prior is not None and prior!=record: raise ValueError('conflicting retained news identity')
-            target.save_paper_record(rid,HERMES,'hermes-news-input',record['received_at'],record)
-            counts['hermes-news-input']+=prior is None
-        radar.ensure_scope(target,now)
-        receipt=radar.save(target,'sens-bridge',sorted([r['record_id'] for _,r in pending]+[r['capture_id'] for r in news]),
-            {'state':'RETAINED_SENS_CONNECTED','source_database':'trading_local_20261015:55432',
-             'destination_database':'trading:5433','record_counts':{k:sum(kind==k for kind,_ in pending) for k in KINDS},
-             **({'retained_news_count':len(news)} if include_news else {}),
-             'original_receipts_preserved':True,'model_calls':0},now)
-    return {'new_records':sum(counts.values()),'counts':counts,'receipt_id':receipt['record_id']}
+def sync(source, target, now, *, include_news=False, page_size=200, max_pages=24):
+    """Deliver bounded pages and resume a sweep from its last committed page.
 
+    A fixed cutoff and descending keyset are used per sweep. A source row
+    inserted behind a processed cursor is found on the next sweep.
+    """
+    from hashlib import sha256
 
+    if type(page_size) is not int or not 1 <= page_size <= 500:
+        raise ValueError('Bridge page size must be between 1 and 500')
+    if type(max_pages) is not int or not 1 <= max_pages <= 100:
+        raise ValueError('Bridge page budget must be between 1 and 100')
+
+    news_kind = 'hermes-news-input'
+    stream = {kind: (radar.ACCOUNT, 'record_id', 'RESEARCH_ONLY') for kind in KINDS}
+    if include_news:
+        stream[news_kind] = (HERMES, 'capture_id', 'RESEARCH_ONLY_NO_BALANCE')
+    checkpoint = 'sens-retained-bridge-v1-' + ('with-news' if include_news else 'sens-only')
+    target.create_paper_account(checkpoint, {'mode': 'PAPER', 'purpose': 'RESEARCH_ONLY_BRIDGE_CHECKPOINT'})
+    counts = dict.fromkeys((*KINDS, news_kind), 0)
+
+    for _ in range(max_pages):
+        with target.paper_account_transaction(checkpoint) as account:
+            progress = account.get('sweep')
+            if progress is None:
+                progress = {'as_of': now.isoformat(), 'kind_index': 0, 'cursor': None,
+                            'counts': dict.fromkeys(stream, 0), 'digest': ''}
+            kinds = tuple(stream)
+            kind = kinds[progress['kind_index']]
+            source_account, identity_key, purpose = stream[kind]
+            cursor = progress['cursor']
+            boundary = {'before_record_id': cursor[1]} if cursor else {}
+            records = source.paper_records(source_account, kind,
+                                           as_of=cursor[0] if cursor else progress['as_of'],
+                                           limit=page_size + 1, **boundary)
+            if records:
+                target.create_paper_account(source_account, {'mode': 'PAPER', 'purpose': purpose})
+            for record in records[:page_size]:
+                rid = record[identity_key]
+                old = target.paper_record(rid)
+                if old is not None and old != record:
+                    raise ValueError(f'conflicting retained bridge identity: {rid}')
+                target.save_paper_record(rid, source_account, kind, record['received_at'], record)
+                counts[kind] += old is None
+                progress['counts'][kind] += 1
+                progress['digest'] = sha256((progress['digest'] + ':' + rid).encode()).hexdigest()
+
+            if len(records) > page_size:
+                next_record = records[page_size]
+                progress['cursor'] = [next_record['received_at'], next_record[identity_key]]
+            else:
+                progress['kind_index'] += 1
+                progress['cursor'] = None
+            if progress['kind_index'] < len(stream):
+                account['sweep'] = progress
+                continue
+
+            radar.ensure_scope(target, now)
+            receipt = radar.save(target, 'sens-bridge', [checkpoint, progress['digest']],
+                {'state': 'RETAINED_SENS_CONNECTED', 'source_database': 'trading_local_20261015:55432',
+                 'destination_database': 'trading:5433',
+                 'record_counts': {key: progress['counts'][key] for key in KINDS},
+                 **({'retained_news_count': progress['counts'][news_kind]} if include_news else {}),
+                 'original_receipts_preserved': True, 'model_calls': 0}, now)
+            account.pop('sweep', None)
+            return {'state': 'COMPLETE', 'new_records': sum(counts.values()), 'counts': counts,
+                    'receipt_id': receipt['record_id']}
+
+    return {'state': 'PARTIAL_DELIVERY', 'new_records': sum(counts.values()), 'counts': counts,
+            'receipt_id': None}
