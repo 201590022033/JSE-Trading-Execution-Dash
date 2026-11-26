@@ -121,6 +121,14 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
     def folder():
         root=directory() if callable(directory) else directory if directory is not None else os.environ.get('LOCAL_BACKTEST_REPORT_DIR','')
         return Path(root)/'lab' if root else None
+    def warm_saved_index():
+        from threading import Thread
+        root = folder()
+        if root is not None and root.is_dir():
+            Thread(target=saved_run_index.warm, args=(root,), name='backtest-index', daemon=True).start()
+
+    bp.warm_saved_index = warm_saved_index
+
     def response(data,status=200):
         data['live_execution']=False
         out=jsonify(data);out.headers['Cache-Control']='no-store'
@@ -410,23 +418,39 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
         try:return response({'state':'AVAILABLE','study':component_report(root.parent/'component-research'/(study_id+'.json'))})
         except (OSError,ValueError,KeyError,TypeError,AttributeError):return response({'state':'NOT_FOUND'},404)
 
+    from application.bounded_dashboard_read import retained_read
+
+    @bp.get('/api/v1/backtest-lab/w06/<instrument>')
+    def w06_sample(instrument):
+        from application.strategy_radar.breakout_pullback_display import retained_validation
+        return response(retained_validation(instrument, 'ETF_STX40'))
+
     @bp.get('/api/v1/backtest-lab/zebra-fields/<instrument>')
     def zebra_field_history(instrument):
         """Expose field availability and retained provenance for research."""
         if not re.fullmatch(r'[A-Z0-9_]{2,16}', instrument):
             return response({'state':'INVALID_INSTRUMENT'},400)
-        from application.opportunities.zebra_volume_reconciliation import reconcile_volume
         if request.args.get('view') == 'volume':
-            root = Path(__file__).resolve().parents[2]
-            cache = root / 'runtime/local-swing-data/strategy-radar/daily-cache' / f'{instrument}.json'
-            try:
-                snapshot = json.loads(cache.read_text(encoding='utf-8'))
-                rows = snapshot['daily']['history']['rows'][-600:]
-                return response({'state': 'AVAILABLE', 'instrument': instrument,
-                                 'cached_as_of': snapshot.get('as_of'), 'row_limit': 600,
+            return cached_zebra_volume(instrument)
+        return cached_zebra_fields(instrument)
+
+    @retained_read(workers=1)
+    def cached_zebra_volume(instrument):
+        from application.opportunities.zebra_volume_reconciliation import reconcile_volume
+        root = Path(__file__).resolve().parents[2]
+        cache = root / 'runtime/local-swing-data/strategy-radar/daily-cache' / f'{instrument}.json'
+        try:
+            snapshot = json.loads(cache.read_text(encoding='utf-8'))
+            rows = snapshot['daily']['history']['rows'][-600:]
+            return response({'state': 'AVAILABLE', 'instrument': instrument,
+                             'cached_as_of': snapshot.get('as_of'), 'row_limit': 600,
                                  'volume_reconciliation': reconcile_volume(rows), 'research_only': True})
-            except (OSError, ValueError, KeyError, TypeError, AttributeError):
-                return response({'state': 'ZEBRA_CACHE_UNAVAILABLE', 'instrument': instrument}, 404)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return response({'state': 'ZEBRA_CACHE_UNAVAILABLE', 'instrument': instrument}, 404)
+
+    @retained_read()
+    def cached_zebra_fields(instrument):
+        from application.opportunities.zebra_volume_reconciliation import reconcile_volume
         from application.opportunities.zebra_screen_data import load_zebra_screen_data
         from application.backtest_lab.zebra_field_windows import benchmark_input_keys, describe
         root = Path(__file__).resolve().parents[2]

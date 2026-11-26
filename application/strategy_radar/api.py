@@ -277,9 +277,20 @@ def create_radar_blueprint(factory):
                        rejected_files=errors, collection=collection, prepared_context=prepared,
                        live_execution=False)
 
+    from application.bounded_dashboard_read import retained_read
+
+    @retained_read()
+    def cached_indicators(instrument):
+        return retained_intraday(instrument, indicators_only=True)
+
     @bp.get('/api/v1/strategy-radar/intraday/<instrument>')
     def intraday(instrument):
         if not local(): return jsonify(error='Local dashboard only'), 403
+        if request.args.get('view') == 'indicators':
+            return cached_indicators(instrument)
+        return retained_intraday(instrument)
+
+    def retained_intraday(instrument, *, indicators_only=False):
         from datetime import datetime
         from application.opportunities.prospective_prices import ost_daily_context
         from .intraday_aggregation import derive_30m_records
@@ -298,7 +309,7 @@ def create_radar_blueprint(factory):
                 history = {}
             indicators = dict(five_minute_indicators=indicator_snapshot(records, as_of=now),
                               daily_indicators=daily_indicator_snapshot(history, as_of=now))
-            if request.args.get('view') == 'indicators':
+            if indicators_only:
                 return jsonify(**indicators, live_execution=False)
             derived = derive_30m_records(records, as_of=now)
             data = merge_bars(records + derived)

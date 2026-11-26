@@ -154,13 +154,15 @@
         refreshAfterRequest = false;
         try {
           const response = await fetch('/api/v1/data-freshness', {cache:'no-store', signal:AbortSignal.timeout(20000)});
+          const payload = await response.json();
+          if (payload.state==='READ_TIMED_OUT') throw new DOMException('Retained read timed out','TimeoutError');
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          freshnessSnapshot = await response.json();
+          freshnessSnapshot = payload;
           freshnessFailure = '';
           for (const area of Object.keys(freshnessAreas)) renderFreshness(area);
         } catch (error) {
           freshnessFailure = error.name === 'TimeoutError'
-            ? 'The latest freshness check timed out.' : `The latest freshness check failed (${error.message}).`;
+            ? 'The latest freshness check timed out. Retry with Check status.' : `The latest freshness check failed (${error.message}).`;
           for (const area of Object.keys(freshnessAreas)) renderFreshness(area);
         }
       } while (refreshAfterRequest);
@@ -203,8 +205,9 @@
     show(id, 'checking', 'Checking data availability…');
     try {
       const response = await fetch(definitions[id][0], {cache:'no-store', signal:AbortSignal.timeout(20000)});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
+      if (data.state==='READ_TIMED_OUT') throw new DOMException('Retained read timed out','TimeoutError');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       if (id === 'technical-view') {
         const instrument = document.getElementById('instrument')?.value;
         if (!instrument) { show(id, 'attention', 'Select an instrument to check its technical history.'); return; }
@@ -217,7 +220,7 @@
       }
       const [state, text] = assess(id, data);
       show(id, state, text);
-    } catch (error) { show(id, error.name === 'TimeoutError' ? 'attention' : 'unavailable', `Status check unavailable: ${error.message}`); }
+    } catch (error) { show(id, error.name === 'TimeoutError' ? 'attention' : 'unavailable', error.name==='TimeoutError' ? 'Timed out. Retry with Check status.' : 'No status data available.'); }
   }
   Object.entries(definitions).forEach(([id]) => {
     const nav = document.querySelector(`nav button[data-tab="${id}"]`);

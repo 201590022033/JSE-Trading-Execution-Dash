@@ -1,6 +1,7 @@
 """An in-memory, verified index of existing Backtest Lab run files."""
 from datetime import date, datetime, timezone
 from functools import lru_cache
+from threading import Lock
 
 
 def _title(summary, instrument=None):
@@ -16,7 +17,7 @@ def _title(summary, instrument=None):
     if len(strategies) > 1:
         strategy = f'{len(strategies)} strategies, including {strategy}'
     period = f"{span['first_session']} to {span['last_session']}" if span['first_session'] else 'dates unavailable'
-    clock = 'as of' if 'NOT_WALL_CLOCK' in summary['created_at_basis'] else 'saved'
+    clock = 'replay cutoff (simulated)' if 'NOT_WALL_CLOCK' in summary['created_at_basis'] else 'saved'
     return f"{scope or 'Unspecified instruments'} · {strategy} · {period} · {clock} {summary['created_at'][:10]}"
 
 
@@ -83,22 +84,51 @@ class SavedRunIndex:
             if _fingerprint(path) != fingerprint:
                 raise ValueError('run changed while being indexed')
             return summary
-        self._verified = verified
+        self._lock = Lock()
+
+        @lru_cache(maxsize=4)
+        def summaries(entries):
+            runs, failures = [], []
+            for path, fingerprint in entries:
+                try:
+                    if fingerprint is None:
+                        raise OSError('Could not stat the file.')
+                    summary = verified(path, fingerprint)
+                except OSError:
+                    failures.append({'run_file': path.name, 'reason': 'Could not read the file.'})
+                except (ValueError, KeyError, TypeError, AttributeError, IndexError, OverflowError):
+                    failures.append({'run_file': path.name, 'reason': 'File identity, contents or metadata failed verification.'})
+                else:
+                    runs.append({
+                        **summary, 'title': _title(summary),
+                        'titles_by_instrument': {key: _title(summary, key) for key in summary['instruments']},
+                    })
+            runs.sort(key=lambda run: (datetime.fromisoformat(run['created_at']), run['run_id']), reverse=True)
+            return runs, failures
+
+        self._summaries = summaries
+
+    def _snapshot(self, folder):
+        with self._lock:
+            entries = []
+            for path in sorted(folder.glob('*.json')):
+                try:
+                    fingerprint = _fingerprint(path)
+                except OSError:
+                    fingerprint = None
+                entries.append((path, fingerprint))
+            snapshot = self._summaries(tuple(entries))
+            if snapshot[1]:
+                # Retry unverifiable files while still reusing verified per-file summaries.
+                self._summaries.cache_clear()
+            return snapshot
+
+    def warm(self, folder):
+        self._snapshot(folder)
 
     def list(self, folder, selection=None):
-        runs, failures = [], []
-        for path in sorted(folder.glob('*.json')):
-            try:
-                summary = self._verified(path, _fingerprint(path))
-            except OSError:
-                failures.append({'run_file': path.name, 'reason': 'Could not read the file.'})
-            except (ValueError, KeyError, TypeError, AttributeError, IndexError, OverflowError):
-                failures.append({'run_file': path.name, 'reason': 'File identity, contents or metadata failed verification.'})
-            else:
-                runs.append({
-                    **summary, 'title': _title(summary),
-                    'titles_by_instrument': {instrument: _title(summary, instrument) for instrument in summary['instruments']},
-                    'matches_exact_identity': _exact(summary, selection) if selection else None,
-                })
-        runs.sort(key=lambda run: (datetime.fromisoformat(run['created_at']), run['run_id']), reverse=True)
-        return {'runs': runs, 'could_not_verify': failures}
+        runs, failures = self._snapshot(folder)
+        return {'runs': [
+            {**run, 'matches_exact_identity': _exact(run, selection) if selection else None}
+            for run in runs
+        ], 'could_not_verify': failures}
