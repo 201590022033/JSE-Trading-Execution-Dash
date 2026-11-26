@@ -6,8 +6,6 @@ from tempfile import TemporaryDirectory
 from jinja2 import Environment
 from playwright.sync_api import expect, sync_playwright
 
-from application.backtest_lab.exact_run_job import available_profiles
-
 from test_backtest_lab import BacktestLabTests
 
 
@@ -15,8 +13,12 @@ def check_selector():
     root = Path(__file__).resolve().parents[1]
     template = (root / 'templates/dashboard.html').read_text(encoding='utf-8')
     lab = template[template.index('<section id="backtest-lab"'):template.index('<section id="portfolio"')]
+    profiles_fixture = [
+        {'id': 'fixture', 'version': str(version), 'name': 'Fixture', 'available': True}
+        for version in (1, 2)
+    ]
     lab = Environment(autoescape=True).from_string(lab).render(
-        backtest_shares=['MTN', 'VOD'], backtest_profiles=available_profiles(),
+        backtest_shares=['MTN', 'VOD'], backtest_profiles=profiles_fixture,
     )
     html = (
         '<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/lab.css">'
@@ -78,8 +80,7 @@ def check_selector():
                     sector_timeouts.clear()
                     route.fulfill(status=503, json={'state': 'READ_TIMED_OUT'})
                 elif path == '/api/v1/backtest-lab/jobs':
-                    route.fulfill(json={'profiles': [{'id': 'fixture', 'version': '1', 'name': 'Fixture',
-                                                       'available': True}],
+                    route.fulfill(json={'profiles': profiles_fixture,
                                         'instruments': [{'instrument': 'SASOL', 'symbol': 'SOL'}]})
                 elif path == '/api/v1/backtest-lab/replay-history/SASOL':
                     route.fulfill(json={'instrument': 'SASOL', 'first_session': '2026-03-02',
