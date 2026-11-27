@@ -11,7 +11,7 @@ from .vod_mtn_accounting import account
 def pilot_status(folder, now=None):
     if not folder.is_dir():
         return {'state':'NOT_REGISTERED'}
-    from scripts.vod_mtn_forward import SHARES, canonical, read_plan
+    from scripts.vod_mtn_forward import ROOT, SHARES, canonical, dependencies, read_plan
 
     ids = [p.stem for p in folder.glob('*.json') if re.fullmatch('[0-9a-f]{64}',p.stem)]
     if not ids:
@@ -21,7 +21,16 @@ def pilot_status(folder, now=None):
     plan_id = ids[0]
     clock = now or datetime.now(timezone.utc)
     try:
-        plan = read_plan(plan_id, folder)
+        try:
+            plan = read_plan(plan_id, folder)
+        except ValueError as error:
+            if str(error) != 'frozen dependency changed':
+                raise
+            saved = json.loads((folder / (plan_id + '.json')).read_bytes())['rule_file_sha256']
+            current = dependencies(ROOT)
+            return {'state':'FROZEN_DEPENDENCY_CHANGED', 'plan_id':plan_id,
+                    'changed_files':sorted(key for key in saved.keys() | current.keys()
+                                           if saved.get(key) != current.get(key))}
         sessions = plan['sessions']
         cutoffs = {day:datetime.fromisoformat(day).replace(tzinfo=timezone.utc)+timedelta(days=1)
                    for day in sessions}
