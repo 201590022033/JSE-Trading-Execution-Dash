@@ -118,6 +118,17 @@ class ComponentTests(unittest.TestCase):
   self.assertNotIn('TRAIL_NEXT_SESSION',[x['state'] for x in high['decisions']])
   self.assertEqual(low['trades'][0]['exit_session'],'3')
   self.assertEqual(low['trades'][0]['exit'],'111.1')
+ def test_cash_replay_rejects_short_even_with_trailing_configured(self):
+  from decimal import Decimal as D
+  from research.fixtures.daily_oracle import fixture
+  from domain.backtest.component_engine import Signal, replay
+  market=fixture([(100,101,99,100),(100,101,97,98),(98,102,96,99),(99,101,96,98),(98,100,96,97)])
+  signal=Signal('short',market.instrument,'0',market.sessions[0].close_at,D(110),D(1100),D(120),
+                side=-1,trail='ATR',target_r=None)
+  result=replay((market,),(signal,),as_of=market.bars[-1].available_at,initial_cash=2000)
+  self.assertIn('CASH_LONG_ONLY',[item['state'] for item in result['decisions']])
+  self.assertEqual(result['trades'],[])
+
  def test_daily_momentum_trail_updates_after_close_and_gaps_at_next_open(self):
   from decimal import Decimal as D
   from dataclasses import replace
