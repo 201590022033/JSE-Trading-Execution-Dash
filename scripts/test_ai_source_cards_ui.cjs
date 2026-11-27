@@ -53,7 +53,7 @@ let macroFails = false;
 const requests=[];
 const selector = {options:[{value:'NPN'}], value:'', dispatchEvent() { this.changed=true; }};
 const selectionMessage = element(); let navigated = false;
-const context = {URL, URLSearchParams, Date, Math, Number, String, Set, Event:class {},
+const context = {window:{}, URL, URLSearchParams, Date, Math, Number, String, Set, Event:class {},
   $:selector => nodes[selector.slice(1)],
   esc:value => String(value ?? '—').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),
   num:value => value ?? '—', when:value => value || 'unknown',
@@ -107,6 +107,7 @@ vm.runInNewContext(source.slice(start, end) + '\nthis.run = refreshAnticipatoryR
   assert(requests.some(url => url.includes('radar-sources/sens-fixture?receipt_id=sens-fixture')));
   const handoff = panel.buttons.find(button => button.dataset.sourceInstrument === 'NPN');
   assert(handoff); handoff.onclick();
+  assert.strictEqual(context.window.strategyRadarHandoff.instrument, 'NPN');
   assert(navigated); assert.equal(selector.value, 'NPN'); assert(selector.changed);
   assert.match(selectionMessage.textContent, /NPN selected/);
   const history = panel.children.find(child => child.children?.some(item => item.textContent === 'Retained source history'));

@@ -186,9 +186,15 @@ def _load_json(path, limit=4_000_000):
     return raw, json.loads(raw)
 
 
-def _public_captures(folder, codes, now, diagnostics):
+def _capture_files(folder, prefixes):
+    if prefixes is None:
+        return sorted(folder.glob('*.json'))
+    return sorted(path for prefix in set(prefixes) for path in folder.glob(prefix + '-*.json'))
+
+
+def _public_captures(folder, codes, now, diagnostics, *, selected=None):
     catalog = research_catalog()
-    for path in sorted(folder.glob('*.json')):
+    for path in _capture_files(folder, selected):
         try:
             raw, item = _load_json(path)
             key = item['instrument']; code = codes.get(key)
@@ -209,11 +215,12 @@ def _public_captures(folder, codes, now, diagnostics):
             diagnostics['YAHOO']['invalid_captures'] += 1
 
 
-def _sharedata_captures(folder, codes, now, diagnostics):
+def _sharedata_captures(folder, codes, now, diagnostics, *, selected=None):
     from scripts.capture_sharedata_prices import verify_identity_receipt
     reverse = defaultdict(list)
     for key,code in codes.items(): reverse[code].append(key)
-    for path in sorted(folder.glob('*.json')):
+    prefixes = None if selected is None else [codes[key] for key in selected if key in codes]
+    for path in _capture_files(folder, prefixes):
         try:
             raw, item = _load_json(path)
             digest=sha256(raw).hexdigest(); code=item['symbol']; keys=reverse.get(code,[])
@@ -244,8 +251,8 @@ def _sharedata_captures(folder, codes, now, diagnostics):
             diagnostics['SHAREDATA']['invalid_captures'] += 1
 
 
-def _eodhd_captures(folder, codes, now, diagnostics):
-    for path in sorted((folder/'eodhd').glob('*.json')):
+def _eodhd_captures(folder, codes, now, diagnostics, *, selected=None):
+    for path in _capture_files(folder/'eodhd', selected):
         try:
             raw,item=_load_json(path);digest=sha256(raw).hexdigest();key=item['instrument'];code=codes.get(key)
             if (not code or path.stem != key+'-'+digest or item.get('symbol')!=code+'.JSE' or
@@ -491,18 +498,17 @@ def load_zebra_screen_data(root=None, now=None, *, max_rows=None, instruments=No
       except (OSError,ValueError,TypeError,AttributeError,UnicodeError): continue
     diagnostics={p:{'accepted_captures':0,'invalid_captures':0} for p in SOURCE_PRIORITY}
     intake=root.parent/'jse-strategy-research/data/p1-prospective-events-2026-10-28/intake'
+    selected=set(instruments) if instruments is not None else None
     def captures():
-        yield from _public_captures(folder/'radar-public-prices',codes,now,diagnostics)
-        yield from _sharedata_captures(folder/'sharedata-prices',codes,now,diagnostics)
-        yield from _eodhd_captures(folder,codes,now,diagnostics)
+        yield from _public_captures(folder/'radar-public-prices',codes,now,diagnostics,selected=selected)
+        yield from _sharedata_captures(folder/'sharedata-prices',codes,now,diagnostics,selected=selected)
+        yield from _eodhd_captures(folder,codes,now,diagnostics,selected=selected)
         yield from _iress_captures(intake,codes,now,diagnostics)
         yield from _iress_time_series_captures(folder,codes,now,diagnostics)
         yield from _prospective_iress_captures(folder,codes,now,diagnostics)
         yield from _sens_research_iress_captures(intake.parents[1] / 'sens-learning',codes,now,diagnostics)
         yield from _ost_captures(folder,codes,now,diagnostics)
-    # Restrict merging, not identity validation: an individual research view
-    # need not normalize every other issuer's entire archive.
-    selected=set(instruments) if instruments is not None else None
+    # Keep global identity mappings available while validating selected files.
     data=merge_captures((c for c in captures() if selected is None or c['instrument'] in selected),
                         now=now,max_rows=max_rows)
     from market_chart_registry import MARKET_CHART_INSTRUMENTS

@@ -1,0 +1,10 @@
+# Prioritised remediation roadmap
+
+1. **P1 — Restore research selection contracts.** Agree the instrument identity and watched-roster admission contract. Unify selector and backend reason reporting. Expose runnable versus retained-only hypotheses and ensure the appropriate existing runner receives each exact identity. Owner checkpoint: SOL/SASOL and MTN controls, dataset eligibility and selected-run manifest.
+2. **P1 — Join the trader workflow.** Keep the verified Scan → Technical handoff. Add explicit and testable links between share research, exact Lab result, plan and draft review using the same context. Show automatically available fields and manual inputs with exact strategy/provider attribution. Owner checkpoint: both browser journeys reach validated paper drafts in isolation.
+3. **P1 — Verify simulated position lifecycle and economics.** Agree gross and net risk fields and supported trailing semantics. Instrument units/cost assumptions and late/gapped fills must be exposed. Prove long and short trailing independently in isolated replay before calling it implemented in Trade Management.
+4. **P1 — Diagnose data and UI state degradation.** Correlate transient marker disappearance and source availability with runtime requests, task receipts, process state and store identity. Compare active build fingerprints and produce component-level health for independently stale inputs.
+5. **P2 — Improve discovery and layout.** Clarify labels, duplicate-looking results, narrow navigation, attribution and status. Preserve archived research and advanced screens.
+6. **Separate proposal — Unified Calendar.** Establish source/identity and freshness contracts first. Review the calendar design with the owner before implementation.
+
+The immediate approval decision is the replay admission/hypothesis contract, especially whether historical research should be runnable without enrolling a live watch. Existing data and collectors should remain intact through all phases. Reassess with a full-width browser and isolated, production-equivalent data before approving release.

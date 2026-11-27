@@ -843,7 +843,9 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
                     'signal_window':item['signal_window'], 'limitations':item['limitations'],
                     'state':'REGISTERED_NOT_AUTOMATICALLY_SCORED'})
             except (OSError,ValueError,TypeError,KeyError): continue
-        return response({'state':'AVAILABLE','plans':plans,'research_only':True})
+        from .vod_mtn_status import pilot_status
+        return response({'state':'AVAILABLE','plans':plans,
+                         'vod_mtn':pilot_status(directory/'vod-mtn'), 'research_only':True})
     @bp.get('/api/v1/backtest-lab/fx-component-studies')
     def fx_component_studies():
         root=folder()

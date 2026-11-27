@@ -135,6 +135,22 @@ async function loadAutomaticTechnicalScreen(instrumentId) {
     else renderAutomaticTechnicalScreen(item,share);
   }
 }
+function linkTechnicalReplay(item, share) {
+  const instrument = item.research_key || share?.display_symbol;
+  if (!instrument || item.provenance?.asset_class !== 'cash_equity') return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Review exact daily Backtest';
+  button.onclick = () => {
+    window.strategyRadarHandoff = Object.freeze({
+      instrument, product:'CASH_SHARE', strategy_id:'jse_swing_3_5d',
+      strategy_version:'1.1.2', timeframe_minutes:null
+    });
+    document.querySelector('nav button[data-tab="backtest-lab"]').click();
+  };
+  $('#canonical-technical-screen').append(button);
+}
+
 function reviewTechnicalScreen(item) {
   const share=opportunityShare(item);
   if (item.research_screen) {
@@ -146,6 +162,7 @@ function reviewTechnicalScreen(item) {
       $('#notice').textContent='Saved research evidence is shown below; this share is not yet in the technical chart selector.';
     }
     renderZebraTechnicalScreen(item);
+    linkTechnicalReplay(item, share);
     return;
   }
   if (!share) return;
@@ -154,6 +171,7 @@ function reviewTechnicalScreen(item) {
   selectedChanged(item);
   // Keep the clicked snapshot, even if a newer worker cycle finishes meanwhile.
   renderAutomaticTechnicalScreen(item,share);
+  linkTechnicalReplay(item, share);
 }
 function renderZebraTechnicalScreen(item) {
   const technical=item.input_evidence?.technical || {};
@@ -1081,6 +1099,7 @@ async function refreshAnticipatoryRadar() {
     sourcePanel.querySelectorAll('[data-source-detail]').forEach(button => button.onclick = () => showRetainedSource(button));
     sourcePanel.querySelectorAll('[data-source-instrument]').forEach(button => button.onclick = () => {
       const instrument = button.dataset.sourceInstrument;
+      window.strategyRadarHandoff = Object.freeze({instrument, product:'CASH_SHARE'});
       document.querySelector('nav button[data-tab="backtest-lab"]')?.click();
       const selector = document.getElementById('bl-research-instrument');
       const message = document.getElementById('bl-research-choice');
@@ -1117,7 +1136,7 @@ async function refreshAnticipatoryRadar() {
         historyStatus.textContent = page.receipt_window_truncated ? (cursor ? 'This archive is large. Use Load older sources to continue.' : 'The bounded receipt window could not advance; use a source-specific lookup.') : '';
         historyButton.textContent = cursor ? 'Load older sources' : 'No more sources in this window';
         historyButton.disabled = !cursor;
-      } catch (error) { historyList.textContent = error.message; historyButton.disabled = false; }
+      } catch (error) { historyStatus.textContent = error.message; historyButton.disabled = false; }
     };
     history.append(historyTitle, historyButton, historyStatus, historyList, historyOrder); sourcePanel.append(history);
     const m=d.metrics;

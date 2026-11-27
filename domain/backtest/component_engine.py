@@ -58,6 +58,7 @@ class Signal:
     side: int = 1
     strategy_profile_id: str | None = None
     strategy_profile_version: str | None = None
+    stop_limit_bps: Decimal | None = None
 
     def __post_init__(self):
         object.__setattr__(self, 'decision_at', utc(self.decision_at, 'decision_at'))
@@ -67,6 +68,11 @@ class Signal:
             value = N(getattr(self, name))
             if value <= 0: raise ValueError('positive geometry and budgets required')
             object.__setattr__(self, name, value)
+        if self.stop_limit_bps is not None:
+            offset = N(self.stop_limit_bps)
+            if not 0 < offset < 10000 or self.side != 1:
+                raise ValueError('stop-limit research requires a long and a positive offset below 10000 bps')
+            object.__setattr__(self, 'stop_limit_bps', offset)
         if self.target_r is not None:
             object.__setattr__(self, 'target_r', N(self.target_r))
             if self.target_r <= 0: raise ValueError('positive target required')
@@ -197,9 +203,12 @@ def _replay(manifests, signals, *, as_of, initial_cash, account_currency,
                 total += p['collateral']+(mark-p['entry'])*p['qty']*adapter.multiplier*p['signal'].side*rate
         return money(total)
 
-    def close(key,b,price,reason,ambiguous=False):
+    def close(key,b,price,reason,ambiguous=False,*,minimum_fill=None):
         p=positions.pop(key); s=p['signal']; adapter=adapters[key]; rate=adapter.rate(b.session)
-        fill=costs.fill(price,-s.side); notional=p['qty']*fill*adapter.multiplier*rate
+        fill=costs.fill(price,-s.side)
+        if minimum_fill is not None:
+            fill=max(fill,minimum_fill)
+        notional=p['qty']*fill*adapter.multiplier*rate
         fee=costs.fee(notional,-s.side)
         if adapter.margin_fraction == 1:
             proceeds=notional
@@ -244,6 +253,7 @@ def _replay(manifests, signals, *, as_of, initial_cash, account_currency,
                 p['qty']*=action.split
                 for field in ('entry','entry_mid','stop','initial_r','best'): p[field]/=action.split
                 if p['target'] is not None: p['target']/=action.split
+                if 'pending_limit' in p: p['pending_limit']/=action.split
                 dividend=money(p['qty']*action.dividend*adapter.multiplier*rate*side)
                 post(at,s.id,'DISTRIBUTION',dividend); p['distributions']+=dividend
             financing=money(adapter.financing(p,b.session,p['previous_session']))
@@ -256,6 +266,29 @@ def _replay(manifests, signals, *, as_of, initial_cash, account_currency,
             hit_target=target is not None and (h>=target if side==1 else l<=target)
             gap_stop=o<=stop if side==1 else o>=stop
             gap_target=target is not None and (o>=target if side==1 else o<=target)
+            if 'pending_limit' in p:
+                limit = p['pending_limit']
+                if o >= limit or c >= limit:
+                    close(key,b,max(o,limit),'STOP_LIMIT_RECOVERY',minimum_fill=limit)
+                else:
+                    decisions.append(dict(id=s.id,at=at.isoformat(),session=b.session,
+                                          state='STOP_LIMIT_UNFILLED',limit=str(limit)))
+                continue
+            if s.stop_limit_bps is not None and (p['invalidation'] or gap_stop or (hit_stop and not gap_target)):
+                limit = stop*(1-s.stop_limit_bps/10000)
+                execution_reference = o if p['invalidation'] or gap_stop else stop
+                if execution_reference >= limit:
+                    close(key,b,execution_reference,'STOP_LIMIT_AT_TRIGGER',hit_stop and hit_target,minimum_fill=limit)
+                else:
+                    # After a gap trigger, a subsequent recovery can fill at the limit.
+                    # A high alone does not prove queue priority, so require a close back above it.
+                    if c >= limit:
+                        close(key,b,limit,'STOP_LIMIT_RECOVERY',minimum_fill=limit)
+                    else:
+                        p['pending_limit'] = limit
+                        decisions.append(dict(id=s.id,at=at.isoformat(),session=b.session,
+                                              state='STOP_LIMIT_UNFILLED',limit=str(limit)))
+                continue
             if p['invalidation'] or gap_stop: close(key,b,o,'NEXT_OPEN_INVALIDATION' if p['invalidation'] else 'GAP_STOP',hit_stop and hit_target)
             elif gap_target: close(key,b,target,'GAP_TARGET_LIMIT')
             elif hit_stop: close(key,b,stop,'AMBIGUOUS_STOP_FIRST' if hit_target else 'STOP',hit_target)
@@ -333,7 +366,7 @@ def _replay(manifests, signals, *, as_of, initial_cash, account_currency,
             decisions.append(dict(id=sid,at=now.isoformat(),state='EXPIRED'))
     result=dict(engine_version=VERSION,execution_enabled=False,grade='SYNTHETIC' if all(m.grade=='SYNTHETIC' for m in manifests) else 'ASSUMPTION_LIMITED',
                 dataset_hashes={m.instrument:m.sha256 for m in manifests},
-                config_hash=configuration_hash(dict(signals=[asdict(s) for s in signals],costs=asdict(costs),actions=[asdict(a) for a in actions],
+                config_hash=configuration_hash(dict(signals=[{k:v for k,v in asdict(s).items() if k!='stop_limit_bps' or v is not None} for s in signals],costs=asdict(costs),actions=[asdict(a) for a in actions],
                     initial_cash=str(initial),account_currency=account_currency,adapters={k:a.configuration() for k,a in adapters.items()})),
                 ledger=ledger,decisions=decisions,trades=trades,equity=equity,cash=str(cash),reserved=str(reserved),
                 pending_orders=sorted(orders),open_positions=sorted(positions),cost_basis=costs.basis,

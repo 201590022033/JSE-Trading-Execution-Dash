@@ -653,7 +653,27 @@ function mergeEntryRules(rules) {
       }
     }
   }
+  let linkedReplay = null;
+  window.addEventListener('radar-plan-from-replay', ({detail}) => {
+    const evaluation = radarEvaluations.get(detail.instrument);
+    if (radarView !== 'swing' || !currentWatches.some(watch=>watch.instrument===detail.instrument) ||
+        evaluation?.strategy_id !== detail.strategyId || evaluation?.strategy_version !== detail.version) {
+      const banner = document.getElementById('bl-result-banner');
+      const notice = document.createElement('span');
+      notice.textContent = ' Open the daily Radar profile with this share on its watch list to link the plan.';
+      banner.append(notice);
+      return;
+    }
+    document.querySelector('nav button[data-tab="market-overview"]').click();
+    document.getElementById('plan-product').value = 'CASH_SHARE';
+    updatePlanProduct();
+    linkedReplay = detail;
+    selectRadarWatch(detail.instrument);
+    document.querySelector('.radar-plan-editor').open = true;
+    document.querySelector('.radar-plan-card').scrollIntoView({block:'nearest'});
+  });
   function selectRadarWatch(instrument) {
+    if (linkedReplay?.instrument !== instrument) linkedReplay = null;
     restoredExpected=null;
     const radarHadFocus=document.getElementById('radar-points').contains(document.activeElement);
     if (selectedWatch !== instrument) {
@@ -1296,6 +1316,11 @@ function mergeEntryRules(rules) {
     ];
     for (const [name,text] of rows) { const row=document.createElement('tr'); const heading=line(row,'th',name); heading.scope='row'; line(row,'td',text); table.append(row); }
     target.append(table);
+    if (linkedReplay?.instrument === selectedWatch && radarView === 'swing' && planValue('product') === 'CASH_SHARE') {
+      line(target, 'p', 'Linked historical replay · ' + linkedReplay.strategyId + ' v' +
+        linkedReplay.version + ' · ' + linkedReplay.runId);
+    }
+
     window.radarSizeSuggestion?.mount(target, planForm, lastPlan, radarEvaluations.get(selectedWatch), radarView === 'intraday');
     line(target, 'p', lastPlan ? 'Scenario estimate · account tariffs unverified.' : 'Account tariffs unverified.');
     const basis = line(target, 'details', '');
@@ -1342,6 +1367,20 @@ function mergeEntryRules(rules) {
       if (planValue('instrument')!==requestedInstrument || keys.some(key=>planValue(key)!==payload[key])) { status.textContent='Scenario changed while calculating; calculate again.'; return; }
       lastPlan=plan; renderPlanSummary();
       status.textContent = `${planValue('instrument')} · ${plan.product} · ${plan.state === 'COMPLETE' ? 'scenario calculated' : 'more information needed'}`;
+      if (plan.state === 'COMPLETE' && payload.direction === 'LONG' && plan.product === 'CASH_SHARE' &&
+          linkedReplay?.instrument === requestedInstrument && radarView === 'swing') {
+        const draft = line(target, 'details', '');
+        line(draft, 'summary', 'Review calculated paper draft');
+        line(draft, 'p', requestedInstrument + ' · Long cash share · ZAR · ' + plan.quantity + ' shares');
+        line(draft, 'p', linkedReplay.strategyId + ' v' + linkedReplay.version + ' · saved replay ' + linkedReplay.runId);
+        const {entry, stop_trigger, stop_limit, target: targetPrice} = plan.prices_zar;
+        line(draft, 'p', 'Entry R' + entry + ' · stop trigger R' + stop_trigger + ' · target R' + targetPrice);
+        if (stop_limit != null) line(draft, 'p', 'Stop limit R' + stop_limit + ' · gap below the limit can leave the exit unfilled.');
+        line(draft, 'p', 'Holding period: ' + (plan.holding_horizon || 'unspecified'));
+        if (plan.trailing?.distance != null) line(draft, 'p', 'Manual trail: ' + plan.trailing.distance + ' ' + plan.trailing.unit);
+        if (plan.stop_estimate) line(draft, 'p', 'Estimated loss at stop R' + plan.stop_estimate.estimated_loss);
+        line(draft, 'p', 'Research only. Account tariffs and broker field mapping require separate verification.');
+      }
       if (plan.missing.length) line(target,'p',`Missing or unsupported: ${plan.missing.join(', ')}`);
       const displayed = {...plan.prices_zar, quantity:plan.quantity};
       if (plan.trailing?.distance != null) displayed[plan.trailing.mode === 'PERCENT' ? 'trailing_percent' : 'trailing_distance'] = plan.trailing.distance;

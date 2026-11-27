@@ -282,6 +282,7 @@ def trail_metrics(strategy, baseline):
             'changed_exits':sum((a['exit_session'],a['exit'])!=(b['exit_session'],b['exit']) for a,b in pairs),
             'paired_net_difference_zar':round(sum(float(a['net_pnl'])-float(b['net_pnl']) for a,b in pairs),2),
             'ambiguous_exits':sum(bool(t['ambiguous']) for t in trades),
+            'stop_limit_unfilled_sessions':sum(d['state']=='STOP_LIMIT_UNFILLED' for d in strategy['run']['decisions']),
             'gap_stop_exits':sum(t['reason']=='GAP_STOP' for t in trades),
             'gap_stop_net_zar':round(sum(float(t['net_pnl']) for t in trades if t['reason']=='GAP_STOP'),2),
             'mean_giveback_r_upper_bound':float(sum(giveback)/len(giveback)) if giveback else None}
@@ -383,8 +384,9 @@ def build_run(spec, instruments, as_of):
     if identity == EXACT_IDENTITY:
         from dataclasses import replace
         original = {t['id']:t for t in trades}
-        for mode, title in [('DAILY_VOLATILITY','B · Volatility trail'), ('DAILY_MOMENTUM','C · Momentum trail')]:
-            variant = runner(manifests, [replace(signal, trail=mode) for signal in signals],
+        for mode, title in [('DAILY_VOLATILITY','B · Volatility trail'), ('DAILY_MOMENTUM','C · Momentum trail'), ('STOP_LIMIT','D · Momentum trail with stop limit')]:
+            variant = runner(manifests, [replace(signal, trail='DAILY_MOMENTUM' if mode=='STOP_LIMIT' else mode,
+                                      stop_limit_bps=Decimal(20) if mode=='STOP_LIMIT' else None) for signal in signals],
                              as_of=as_of, initial_cash=Decimal(INITIAL_CASH), costs=costs)
             closed = variant['trades']
             armed = {d['id'] for d in variant['decisions'] if d['state'].startswith('TRAIL_')}

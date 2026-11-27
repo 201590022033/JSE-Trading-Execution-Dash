@@ -118,6 +118,49 @@ class ComponentTests(unittest.TestCase):
   self.assertNotIn('TRAIL_NEXT_SESSION',[x['state'] for x in high['decisions']])
   self.assertEqual(low['trades'][0]['exit_session'],'3')
   self.assertEqual(low['trades'][0]['exit'],'111.1')
+ def test_daily_momentum_trail_updates_after_close_and_gaps_at_next_open(self):
+  from decimal import Decimal as D
+  from dataclasses import replace
+  from application.opportunities.session_freshness import next_session
+  from research.fixtures.daily_oracle import fixture
+  from domain.backtest.component_engine import Signal, replay
+  from datetime import datetime, timedelta
+  from domain.backtest.data import Bar, Session
+  prices=[(100,101,99,100)]*17+[(100,102,99,100),(100,111,98,110),(102,104,100,103)]
+  days=['2026-05-04']
+  while len(days)<len(prices):
+   days.append(next_session(days[-1]))
+  clocks=[datetime.fromisoformat(day+'T15:00:00+00:00') for day in days]
+  sessions=tuple(Session(day,clock-timedelta(hours=8),clock) for day,clock in zip(days,clocks))
+  bars=tuple(Bar(day,clock,*(D(value) for value in row),D(1000))
+             for day,clock,row in zip(days,clocks,prices))
+  m=replace(fixture(),sessions=sessions,bars=bars)
+  signal=Signal('trail',m.instrument,days[16],m.sessions[16].close_at,D(92),D(1100),D(120),
+                trail='DAILY_MOMENTUM',target_r=None)
+  result=replay((m,),(signal,),as_of=m.sessions[-1].close_at,initial_cash=2000)
+  update=next(d for d in result['decisions'] if d['state']=='TRAIL_NEXT_SESSION')
+  self.assertEqual(update['session'],days[18])
+  self.assertGreater(D(update['stop']),D(102))
+  self.assertEqual(result['trades'][0]['exit_session'],days[19])
+  self.assertEqual(result['trades'][0]['reason'],'GAP_STOP')
+  self.assertEqual(D(result['trades'][0]['exit']),D(102))
+ def test_stop_limit_remains_open_after_gap_and_recovers_at_limit(self):
+  from decimal import Decimal as D
+  from dataclasses import replace
+  from research.fixtures.daily_oracle import fixture
+  from domain.backtest.component_engine import Signal, replay, Costs
+  m=fixture([(100,101,98,100),(100,103,99,102),(85,91,81,87),(86,89,83,87),(88,91,87,90)])
+  signal=Signal('limit',m.instrument,'0',m.sessions[0].close_at,D(90),D(1100),D(120),target_r=None)
+  def run(s,index):return replay((m,),(s,),as_of=m.sessions[index].close_at,initial_cash=2000,costs=Costs(slippage_bps=5))
+  self.assertEqual(run(signal,2)['trades'][0]['reason'],'GAP_STOP')
+  limited=replace(signal,stop_limit_bps=D(20))
+  interim=run(limited,3)
+  self.assertEqual(interim['trades'],[])
+  self.assertEqual(interim['equity'][-1]['positions'],1)
+  self.assertEqual(sum(row['state']=='STOP_LIMIT_UNFILLED' for row in interim['decisions']),2)
+  recovered=run(limited,4)['trades'][0]
+  self.assertEqual(recovered['reason'],'STOP_LIMIT_RECOVERY')
+  self.assertEqual(D(recovered['exit']),D('89.82'))
  def test_versioned_default_preserves_prior_engine_results(self):
   from decimal import Decimal as D
   from research.fixtures.daily_oracle import fixture
