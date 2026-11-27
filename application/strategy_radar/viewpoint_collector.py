@@ -235,7 +235,7 @@ class ViewPointCollector:
                     break
         return result
 
-    def export_watches(self, page, watches):
+    def export_watches(self, page, watches, *, progress=None):
         from playwright.sync_api import Error
 
         page.set_default_timeout(2500)
@@ -270,7 +270,11 @@ class ViewPointCollector:
                 try:
                     stage = 'export table'
                     symbol = f'{code}.JSE'
+                    if progress:
+                        progress('DOWNLOADING')
                     name, raw = _export(page, symbol)
+                    if progress:
+                        progress('IMPORTING')
                     stage = 'parse CSV'
                     now = datetime.now(timezone.utc)
                     records = viewpoint_table_csv(raw, instrument, symbol, now, file_name=name,
@@ -315,12 +319,17 @@ class ViewPointCollector:
                     if response.exists():
                         continue
                     try:
-                        watches = json.loads(request.read_text(encoding='utf-8'))['watches']
+                        command = json.loads(request.read_text(encoding='utf-8'))
+                        watches = command['watches']
                     except (OSError, ValueError, KeyError):
                         continue
                     chart = _viewpoint_chart(context)
-                    result = (self.export_watches(chart, watches) if chart else
-                              {'state': 'OST_SIGN_IN_OR_CHART_SETUP_REQUIRED', 'instruments': {}})
+                    if chart and command.get('lab_session'):
+                        progress = request.with_name(f'{request.stem}-lab.progress')
+                        result = self.export_watches(chart, watches, progress=lambda state: atomic_json(progress, {'state': state}))
+                    else:
+                        result = (self.export_watches(chart, watches) if chart else
+                                  {'state': 'OST_SIGN_IN_OR_CHART_SETUP_REQUIRED', 'instruments': {}})
                     if request.exists():
                         atomic_json(response, result)
                 context.pages[0].wait_for_timeout(500)

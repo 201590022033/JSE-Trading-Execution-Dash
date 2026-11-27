@@ -14,7 +14,9 @@ def _title(summary, instrument=None):
     strategies = summary['strategies']
     profile = strategies[0]
     strategy = f"{profile['label']} ({profile['id']} v{profile['version']})"
-    if len(strategies) > 1:
+    if summary.get('comparison_families'):
+        strategy = 'Hypothesis comparison · ' + '/'.join(summary['comparison_families'])
+    elif len(strategies) > 1:
         strategy = f'{len(strategies)} strategies, including {strategy}'
     period = f"{span['first_session']} to {span['last_session']}" if span['first_session'] else 'dates unavailable'
     clock = 'replay cutoff (simulated)' if 'NOT_WALL_CLOCK' in summary['created_at_basis'] else 'saved'
@@ -38,6 +40,7 @@ def _summarize(run, run_id):
     strategies = [
         {'id': item['strategy_profile_id'], 'version': item['strategy_profile_version'],
          'label': item.get('name') or item['strategy_profile_id'],
+         **({'hypothesis_family': item['hypothesis_family']} if 'hypothesis_family' in item else {}),
          'timeframe_minutes': None if item.get('timeframe') == '1d' else item.get('timeframe_minutes'),
          'timeframe_recorded': item.get('timeframe') == '1d' or (
              type(item.get('timeframe_minutes')) is int and item['timeframe_minutes'] > 0)}
@@ -49,6 +52,8 @@ def _summarize(run, run_id):
         'run_id': run_id, 'created_at': created.isoformat(), 'created_at_basis': meta.get('created_at_basis') or '',
         'data_basis': meta['data_basis'], 'grade': meta['grade'], 'cost_basis': meta['cost_basis'],
         'strategies': strategies, 'instruments': instruments,
+        **({'comparison_families': sorted({cell['family'] for cell in meta['comparison']['cells']})}
+           if 'comparison' in meta else {}),
         'first_session': min(observed, default=None), 'last_session': max(observed, default=None),
         'session_count': len(observed),
         'cash_equity_instruments': sorted(
@@ -69,7 +74,7 @@ def _exact(summary, selection):
     if selection['instrument'] not in summary['cash_equity_instruments']:
         return False
     return any(
-        strategy['timeframe_recorded'] and
+        strategy['timeframe_recorded'] and strategy.get('hypothesis_family', 'H1') == 'H1' and
         (strategy['id'], strategy['version'], strategy['timeframe_minutes']) ==
         (selection['strategy_id'], selection['strategy_version'], selection['timeframe_minutes'])
         for strategy in summary['strategies']

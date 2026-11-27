@@ -53,9 +53,11 @@ def check_selector():
             sector_timeouts = {exact_id}
             held_index = []
             hold_first_index = True
+            download_states = iter(['DOWNLOADING', 'IMPORTING', 'PARTIAL_EXPORT'])
+            download_requested = False
 
             def serve(route):
-                nonlocal hold_first_index
+                nonlocal hold_first_index, download_requested
                 method = route.request.method
                 url = route.request.url
                 prefix = 'http://backtest-fixture.test'
@@ -81,11 +83,26 @@ def check_selector():
                     route.fulfill(status=503, json={'state': 'READ_TIMED_OUT'})
                 elif path == '/api/v1/backtest-lab/jobs':
                     route.fulfill(json={'profiles': profiles_fixture,
-                                        'instruments': [{'instrument': 'SASOL', 'symbol': 'SOL'}]})
-                elif path == '/api/v1/backtest-lab/replay-history/SASOL':
+                                        'instruments': [{'instrument': 'SASOL', 'symbol': 'SOL'}],
+                                        'hypotheses': {'SASOL': {'recommended': 'H1', 'reason': 'Fixture',
+                                            'families': [{'id': 'H1', 'name': 'Selected share'}]}}})
+                elif path.startswith('/api/v1/backtest-lab/comparison-preview/SASOL?'):
                     route.fulfill(json={'instrument': 'SASOL', 'first_session': '2026-03-02',
                                         'last_session': '2026-09-25', 'qualified_sessions': 143,
-                                        'unqualified_observed_sessions': 0, 'close_sources': ['FIXTURE']})
+                                        'warmup_first_session': '2025-10-01', 'latest_completed': '2026-09-25',
+                                        'benchmarks': ['ETF_STX40'], 'excluded_sessions': [],
+                                        'close_sources': ['FIXTURE'], 'corroborating_sources': [], 'cells': [],
+                                        'preview_id': 'b' * 64})
+                elif path == '/api/v1/backtest-lab/intraday-data/SASOL/2026-09-25':
+                    if method == 'POST':
+                        download_requested = True
+                        state = 'PENDING_DOWNLOAD'
+                    else:
+                        state = next(download_states, 'PARTIAL_EXPORT') if download_requested else 'MISSING'
+                    route.fulfill(json={
+                        'state': state, 'symbol': 'SOL.JSE', 'session': '2026-09-25', 'expected_bars': 96,
+                        'imported_bars': 30 if state == 'PARTIAL_EXPORT' else 0,
+                    })
                 elif path.startswith('/api/v1/backtest-lab/'):
                     response = client.get(path)
                     route.fulfill(status=response.status_code, body=response.get_data(),
@@ -157,9 +174,21 @@ def check_selector():
             expect(replay).to_be_enabled()
             replay.click()
             expect(page.get_by_role('combobox', name='Exact strategy version')).to_be_visible()
-            expect(page.locator('#bl-replay-history')).to_contain_text('143 usable daily OHLCV sessions')
+            page.get_by_role('button', name='Review data').click()
+            expect(page.locator('#bl-replay-history')).to_contain_text('143 matched daily sessions')
+            page.get_by_text('Change dates', exact=True).click()
+            page.locator('#bl-date-mode').select_option('custom')
             expect(page.get_by_label('From', exact=True)).to_have_value('2026-03-02')
-            expect(page.get_by_role('button', name='Submit replay')).to_be_enabled()
+            page.get_by_role('button', name='Review data').click()
+            expect(page.get_by_role('button', name='Run comparison')).to_be_enabled()
+            page.get_by_text('Prepare five-minute evidence', exact=True).click()
+            page.get_by_role('button', name='Check retained bars').click()
+            intraday_status = page.locator('#bl-intraday-status')
+            expect(intraday_status).to_contain_text('Missing bars')
+            page.get_by_role('button', name='Prepare data', exact=True).click()
+            for stage in ('Pending download', 'Downloading', 'Importing', 'Partial export'):
+                expect(intraday_status).to_contain_text(stage)
+            expect(page.locator('#bl-intraday-expected')).to_contain_text('SOL.JSE')
             share.select_option('MTN')
             expect(page.locator('#bl-content')).to_be_hidden()
             expect(page.locator('#bl-run-details')).to_be_hidden()
@@ -172,9 +201,11 @@ def check_selector():
             expect(selector).to_have_value(exact_id)
             expect(page.locator('#bl-status')).to_contain_text('Exact selected profile and instrument')
             browser.close()
-    assert all(method == 'GET' for method, _ in visited)
+    assert [path for method, path in visited if method != 'GET'] == [
+        '/api/v1/backtest-lab/intraday-data/SASOL/2026-09-25',
+    ]
     assert any(path.startswith('/api/v1/backtest-lab/runs/index?instrument=VOD') for _, path in visited)
-    print('PASS selectable share and version during slow and timed-out index, retry, saved result and exact Radar handoff')
+    print('PASS slow-index share switching, saved result, exact Radar handoff, and mocked five-minute acknowledgements')
 
 
 if __name__ == '__main__':

@@ -6,7 +6,9 @@ let data=null, sectorData=null, windowData=null, strategy=0, selected=0, instrum
 let savedRuns=[], indexRequest=0, resultRequest=0, previousHandoff;
 let funnelInstrument;
 let replayShares=new Map(), pendingReplay=null, completedReplay=null, indexState='idle';
+let replayPolicies=new Map();
 let replayHistory=null, replayHistoryRequest=0, replayShare='';
+let dailyUploadBody=null;
 const staticShares=Array.from($('share').options, item=>item.value);
 async function api(url,{timeout=12000,...options}={}){
  const r=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(timeout),...options});
@@ -129,17 +131,90 @@ async function loadSectorResearch(id,handoff,share,isCurrent){$('research-choice
  table('sector-compare',['Sector','Instruments','Swing: trades / net','VCP: trades / net','Box: trades / net','Pullback: trades / net','Observed lead'],sectorData.sectors.map(g=>{const h=g.research_hypothesis,ids=['swing','vcp','box','pull'],all=[...new Set(g.strategies.flatMap(x=>x.instruments))].sort();return '<tr><td>'+esc(g.sector)+(all.includes('SASOL')?' · <a href="#sasol-timeline-panel">Sasol evidence</a>':'')+'</td><td>'+all.map(esc).join(', ')+'</td>'+ids.map(id=>{const s=g.strategies.find(x=>x.strategy_id===id);return '<td>'+(s?s.trades+' / '+money(s.net):'No trades')+'</td>';}).join('')+'<td>'+esc(data.strategies.find(x=>x.id===h.candidate_strategy_id)?.name||h.candidate_strategy_id)+'</td></tr>';}));researchPick($('research-instrument').value);showEventPreparation($('research-instrument').value);
  }catch(e){if(isCurrent()&&id===runId){sectorData=null;readState($('research-choice'),e,'No sector research for this run.',()=>loadSectorResearch(id,handoff,share,isCurrent));}}}
 async function loadWindows(id,isCurrent){windowData=null;$('window-compare-note').textContent='Loading historical windows…';try{const r=await api('/api/v1/backtest-lab/runs/'+encodeURIComponent(id)+'/sector-windows');if(!isCurrent()||id!==runId)return;if(!r.ok||r.body.state!=='AVAILABLE')throw new Error();windowData=r.body;$('window-compare-note').textContent='Post-hoc windows: '+windowData.windows.map(w=>w.name+' '+w.start+' to '+w.end).join('; ')+'. Training selects the lead; later windows are shown for every strategy. Existing shared-cash replay, not an independent sector backtest; boundary-crossing trades excluded.';drawWindows($('research-instrument').value);}catch(e){if(isCurrent()&&id===runId)readState($('window-compare-note'),e,'No historical window comparison.',()=>loadWindows(id,isCurrent));}}
+function renderMatchedComparison(){
+ const comparison=data.meta.comparison;
+ if(!comparison)return;
+ const runs=data.strategies;
+ $('matched-result').hidden=false;
+ $('matched-title').textContent=comparison.instrument+' · Hypothesis comparison';
+ $('matched-period').textContent=comparison.first_session+' to '+comparison.last_session+' · '+
+  comparison.qualified_sessions+' matched sessions · '+comparison.benchmarks.join(', ')+
+  ' · '+money(data.meta.initial_cash)+' starting capital per cell';
+ const cellLabel=cell=>cell.profile_id+' v'+cell.version+' · '+cell.family;
+ const label=run=>cellLabel({profile_id:run.strategy_profile_id,version:run.strategy_profile_version,family:run.hypothesis_family});
+ const row=columns=>'<tr>'+columns.map(value=>'<td>'+esc(value)+'</td>').join('')+'</tr>';
+ table('matched-metrics',['Strategy and hypothesis','Net return','Max drawdown','Closed trades','Costs','Evidence'],
+  comparison.cells.map(cell=>{
+   const run=runs.find(run=>label(run)===cellLabel(cell));
+   if(!run)return row([cellLabel(cell),'—','—','—','—',cell.reason]);
+   const {sum}=run;
+   return row([label(run)+' v'+run.hypothesis_version,(100*sum.net/data.meta.initial_cash).toFixed(2)+'% · '+money(sum.net),
+    sum.mdd+'%',sum.traded,money(sum.costs),sum.verdict+
+    (run.unavailable_decisions?' · '+run.unavailable_decisions+' unknown decisions':'')]);
+  }));
+ const colors=['#52ceff','#ffc164','#82e69e','#d7a5ff','#ff8c98','#f4ec83'];
+ const days=data.bars[comparison.instrument].map(bar=>{
+  const available=new Date(bar[0]+'T00:00:00Z');
+  available.setUTCDate(available.getUTCDate()+1);
+  return available.toISOString().slice(0,10);
+ });
+ const points=runs.map(run=>{
+  const balances=new Map(run.run.equity.map(point=>[point.at.slice(0,10),num(point.equity)]));
+  let balance=data.meta.initial_cash;
+  return days.map(day=>(balance=balances.get(day)??balance));
+ });
+ let low=data.meta.initial_cash,high=low;
+ for(const series of points)for(const value of series){low=Math.min(low,value);high=Math.max(high,value);}
+ if(low===high){low-=1;high+=1;}
+ const y=value=>200-(value-low)/(high-low)*172;
+ const x=index=>110+index/Math.max(1,days.length-1)*660;
+ const svg=$('matched-equity');
+ svg.innerHTML=[low,(low+high)/2,high].map(value=>
+  '<line x1="110" x2="770" y1="'+y(value)+'" y2="'+y(value)+'" stroke="currentColor" opacity=".2"/>'+
+  '<text x="104" y="'+y(value)+'" text-anchor="end" fill="currentColor" font-size="11">'+esc(money(value))+'</text>').join('')+
+  points.map((path,index)=>'<polyline fill="none" stroke="'+colors[index%colors.length]+'" stroke-width="2"'+
+  ' stroke-dasharray="'+(index%2?'5 3':'none')+'" points="'+path.map((value,i)=>x(i)+','+y(value)).join(' ')+'"/>').join('');
+ $('matched-legend').replaceChildren(...runs.map((run,index)=>{
+  const item=document.createElement('span');
+  item.style.color=colors[index%colors.length];item.textContent=label(run);return item;
+ }));
+ const changes=[];
+ for(const run of runs.filter(run=>run.hypothesis_family!=='H1')){
+  for(const missed of run.missed_triggers){
+   const evidence=missed.trace.at(-1);
+   changes.push([label(run),missed.session,'Missed trigger',evidence.t+' '+evidence.v]);
+  }
+  const baseline=runs.find(other=>other.hypothesis_family==='H1'&&
+   other.strategy_profile_id===run.strategy_profile_id&&other.strategy_profile_version===run.strategy_profile_version);
+  if(!baseline)continue;
+  const baseTrades=new Map(baseline.run.trades.map(trade=>[trade.id,trade]));
+  const variant=new Map(run.run.trades.map(trade=>[trade.id,trade]));
+  const summarize=trade=>trade ? trade.entry_session+' to '+trade.exit_session+' · '+money(trade.net_pnl)+' · '+trade.reason : 'No closed trade';
+  for(const id of new Set([...baseTrades.keys(),...variant.keys()])){
+   const left=baseTrades.get(id),right=variant.get(id);
+   if(left&&right&&['entry_session','exit_session','entry','exit','quantity','net_pnl','reason'].every(key=>left[key]===right[key]))continue;
+   changes.push([label(run),(right||left).entry_session,'Changed trade','H1 '+summarize(left)+' / '+run.hypothesis_family+' '+summarize(right)]);
+  }
+ }
+ table('matched-changes',['Strategy and hypothesis','Date','Outcome','Rule or fill evidence'],
+  (changes.length?changes:[[comparison.instrument,'—','No differences recorded','Select H1 alongside an overlay to compare trades.']]).map(row));
+ $('matched-limits').textContent=comparison.excluded_sessions.length+' excluded sessions. '+
+  comparison.excluded_sessions.join(', ')+(comparison.excluded_sessions.length?'. ':'')+
+  (comparison.disputed_share_sessions?comparison.disputed_share_sessions+' sessions with a retained field disagreement. ':'')+
+  'Daily close-proxy fills and reconstructed historical availability. Corporate action basis remains unverified.';
+}
 async function loadRun(id, isCurrent=()=>true, share, handoff=window.strategyRadarHandoff){
  const r=await api('/api/v1/backtest-lab/runs/'+encodeURIComponent(id),{timeout:35000});
  if(!isCurrent())return;
  if(!r.ok)throw Error('Saved result unavailable.');
- runId=id;data=r.body;sectorData=null;band();$('content').hidden=false;$('portfolio-scope').hidden=false;
+ runId=id;data=r.body;sectorData=null;band();$('content').hidden=false;$('portfolio-scope').hidden=Object.keys(data.bars).length<2;
+ renderMatchedComparison();
  loadW06Sample(share,isCurrent);
  // A profile name alone is insufficient: legacy daily runs omit timeframe and
  // cannot be silently treated as evidence for a selected radar profile.
  const receipt=(data.meta.source_receipts||[]).filter(x=>x.instrument===handoff?.instrument);
  const eligible=handoff?.product==='CASH_SHARE' && data.meta.grade!=='SYNTHETIC' && receipt.length>0 && receipt.every(x=>x.product==='cash_equity') && !!data.bars?.[handoff.instrument];
- const exact=eligible?data.strategies.findIndex(s=>s.strategy_profile_id===handoff.strategy_id && s.strategy_profile_version===handoff.strategy_version && (handoff.timeframe_minutes===null?s.timeframe==='1d':Object.hasOwn(s,'timeframe_minutes') && s.timeframe_minutes===handoff.timeframe_minutes)):-1;
+ const exact=eligible?data.strategies.findIndex(s=>(s.hypothesis_family??'H1')==='H1' && s.strategy_profile_id===handoff.strategy_id && s.strategy_profile_version===handoff.strategy_version && (handoff.timeframe_minutes===null?s.timeframe==='1d':Object.hasOwn(s,'timeframe_minutes') && s.timeframe_minutes===handoff.timeframe_minutes)):-1;
  $('status').textContent=handoff?(exact>=0?'Exact selected profile and instrument are present in this saved result; inspect dates, costs and limitations. Historical research, not validation.':'This saved result does not establish the selected instrument, product, profile, version and timeframe together. The portfolio results have a different scope.'):'Saved research output; no trades are placed.';
  selectStrategy(exact>=0?exact:0);
  if(!handoff && share && data.bars[share]){
@@ -179,12 +254,13 @@ function showVodMtnPilot(pilot){
  }
 }
 async function loadProspective(){$('prospective-note').textContent='Loading prospective comparisons…';try{const r=await api('/api/v1/backtest-lab/prospective-plans');if(!r.ok)throw new Error();showVodMtnPilot(r.body.vod_mtn);if(!r.body.plans.length){$('prospective-note').textContent='No registered prospective comparison.';return;}const details=await Promise.all(r.body.plans.map(async p=>{let summary='Forward monitoring unavailable.';try{const [m,e]=await Promise.all([api('/api/v1/backtest-lab/forward-monitor/'+p.plan_id),api('/api/v1/backtest-lab/forward-replay/'+p.plan_id)]);if(m.ok)summary=Object.entries(m.body.cases).map(([k,v])=>{if(v.state==='UNAVAILABLE')return k+': saved receipt unavailable';const replay=e.ok&&e.body.cases[k];return k+': '+v.captured+' observed days, '+v.partial+' partial strategy states'+(Object.keys(v.latest_missing_inputs||{}).length?' (recent missing: '+Object.entries(v.latest_missing_inputs).map(([f,n])=>f+' '+n).join(', ')+')':'')+', '+v.matured_3+' descriptive three-observation outcomes; '+(replay?replay.segments.length+' replayable segments, '+replay.gaps.length+' data gaps':'replay unavailable');}).join('; ')+'. Daily collector and manual capture; engine segments have separate cash ledgers and are not validated results.';}catch(e){}return 'Registered '+p.registered_at+' · '+Object.entries(p.cases).map(([k,v])=>k+': '+v.strategies.map(s=>s.id).join(' vs ')).join('; ')+' · '+summary;}));$('prospective-note').textContent=details.join(' | ');}catch(e){readState($('prospective-note'),e,'No registered comparison available.',loadProspective);}}
-async function loadHypotheses(){$('hypothesis-status').textContent='Loading retained research…';try{const r=await api('/api/v1/backtest-lab/hypothesis-coverage');if(!r.ok)throw new Error();$('hypothesis-status').textContent='Run a new daily cash-share replay under H1. H2–H7 show retained evidence; sector groups use current classifications.';table('hypothesis-coverage',['Family','New replay in this Lab','Retained research examples','Reference captures','Evidence status'],r.body.families.map(f=>'<tr><td>'+esc(f.id+' · '+f.hypothesis)+'</td><td>'+esc(f.id==='H1'?'Daily cash shares':'Retained evidence only')+'</td><td>'+esc(f.component_examples.map(x=>x.instrument+' '+(x.families||[]).join('/')+' ('+x.verified_artifact_count+')').concat(f.listed_vehicle_runs.length?['NewGold listed ETF ('+f.listed_vehicle_runs.length+' runs)']:[]).concat(f.price_only_studies.length?['USD/ZAR price-only ('+f.price_only_studies.length+' studies)']:[]).join(', ')||'None retained')+'</td><td>'+esc(f.reference_captures)+'</td><td>'+esc(f.status.replaceAll('_',' ').toLowerCase())+' — '+esc(f.meaning)+'</td></tr>'));}catch(e){readState($('hypothesis-status'),e,'No hypothesis coverage available.',loadHypotheses);}}
+async function loadHypotheses(){$('hypothesis-status').textContent='Loading retained research…';try{const r=await api('/api/v1/backtest-lab/hypothesis-coverage');if(!r.ok)throw new Error();$('hypothesis-status').textContent='Retained evidence and reference captures. Check setup for replay eligibility.';table('hypothesis-coverage',['Family','New replay in this Lab','Retained research examples','Reference captures','Evidence status'],r.body.families.map(f=>'<tr><td>'+esc(f.id+' · '+f.hypothesis)+'</td><td>'+esc(['H1','H2','H6','H7'].includes(f.id)?'Check selected share':'Retained evidence only')+'</td><td>'+esc(f.component_examples.map(x=>x.instrument+' '+(x.families||[]).join('/')+' ('+x.verified_artifact_count+')').concat(f.listed_vehicle_runs.length?['NewGold listed ETF ('+f.listed_vehicle_runs.length+' runs)']:[]).concat(f.price_only_studies.length?['USD/ZAR price-only ('+f.price_only_studies.length+' studies)']:[]).join(', ')||'None retained')+'</td><td>'+esc(f.reference_captures)+'</td><td>'+esc(f.status.replaceAll('_',' ').toLowerCase())+' — '+esc(f.meaning)+'</td></tr>'));}catch(e){readState($('hypothesis-status'),e,'No hypothesis coverage available.',loadHypotheses);}}
 async function loadFxStudy(){$('fx-status').textContent='Loading retained USD/ZAR studies…';try{const r=await api('/api/v1/backtest-lab/fx-component-studies');if(!r.ok||!r.body.reports.length){$('fx-status').textContent='No retained USD/ZAR component study.';return;}const report=r.body.reports.at(-1);$('fx-status').textContent='Gross observed-price returns, before costs; not a trade result. Holdout not evaluated. Training '+report.windows.train.join(' to ')+'; validation '+report.windows.validation.join(' to ')+'. ';const link=document.createElement('a');link.href='/api/v1/backtest-lab/fx-component-studies/'+encodeURIComponent(report.report_id);link.target='_blank';link.rel='noopener';link.textContent='View recorded signals and limitations';$('fx-status').append(link);table('fx-comparison',['Rule','Horizon','Training signals / checked','Training mean','Validation signals / checked','Validation mean'],report.trials.map(t=>{const f=x=>x==null?'No signals':x.toFixed(2)+'%';return '<tr><td>'+esc(t.id.replaceAll('_',' '))+'</td><td>'+esc(t.horizon)+' observed sessions</td><td>'+esc(t.results.train.signal_count+' / '+t.results.train.checked)+'</td><td>'+esc(f(t.results.train.mean_gross_return_pct))+'</td><td>'+esc(t.results.validation.signal_count+' / '+t.results.validation.checked)+'</td><td>'+esc(f(t.results.validation.mean_gross_return_pct))+'</td></tr>';}));}catch(e){readState($('fx-status'),e,'No retained USD/ZAR study.',loadFxStudy);}}
 async function loadDailyForward(){if(!$('daily-forward-status'))return;$('daily-forward-status').textContent='Loading daily forward capture…';try{const r=await api('/api/v1/backtest-lab/daily-forward-status');if(!r.ok)throw new Error();const d=r.body;if(d.state==='WAITING_FOR_FIRST_DAILY_RUN'){$('daily-forward-status').textContent='Waiting for the first daily run with forward monitoring.';return;}const cases=Object.entries(d.cases||{}).map(([k,v])=>{if(v.state==='UNAVAILABLE')return k+': saved receipt unavailable';const a=d.capture_attempts?.[k];return k+': latest '+(v.latest_session||'none')+', '+v.latest_partial+' partial states'+(Object.keys(v.latest_missing_inputs||{}).length?' (recent missing: '+Object.entries(v.latest_missing_inputs).map(([f,n])=>f+' '+n).join(', ')+')':'')+', '+v.matured_3+' three-observation outcomes'+(a?.reason?' ('+a.reason.replaceAll('_',' ').toLowerCase()+')':'');}).join('; ');$('daily-forward-status').textContent='Last forward check '+d.finished_at+' · '+d.state.replaceAll('_',' ').toLowerCase()+(cases?' · '+cases:'')+(d.error_type?' · '+d.error_type:'')+'. This describes the forward check, not the whole collector.';}catch(e){readState($('daily-forward-status'),e,'No daily forward status available.',loadDailyForward);}}
 function clearResult(){
  runId=null;data=null;sectorData=null;windowData=null;
  $('content').hidden=true;
+ $('matched-result').hidden=true;
  $('portfolio').checked=false;
  $('portfolio-scope').hidden=true;
  $('result-banner').textContent='Select a saved result.';
@@ -226,6 +302,9 @@ function renderRunDetails(summary){
   ...(data.meta.coverage?.[share]?.longest_contiguous_sessions !== undefined
      ? [['Longest contiguous input',data.meta.coverage[share].longest_contiguous_sessions+' sessions']] : []),
   ...Object.entries(data.meta.replay_assumptions || {}).map(([key,value])=>[key.replaceAll('_',' '),value]),
+  ...[...new Map(data.strategies.filter(run=>run.replay_sizing).map(run=>[
+   run.strategy_profile_id+' v'+run.strategy_profile_version,run.replay_sizing])).entries()].map(([profile,sizing])=>
+    [profile,Object.entries(sizing).map(([key,value])=>key.replaceAll('_',' ')+' '+value).join(' · ')]),
  ];
  const metadata=document.createElement('dl');
  for(const [label,value] of rows){
@@ -262,12 +341,16 @@ function option(label,value){
  element.textContent=label;element.value=value;
  return element;
 }
-function selectShare(preferredRun){
- const share=$('share').value;
+function syncReplayShare(share){
  if(share!==replayShare){
+  resetIntraday();
   replayShare=share;
   ++replayHistoryRequest;
   replayHistory=null;
+  invalidateReplayPreview();
+  showHypothesisOptions(share);
+  $('date-mode').value='auto';
+  $('custom-dates').hidden=true;
   $('replay-controls').hidden=true;
   $('request-run').setAttribute('aria-expanded','false');
   $('retry-history').hidden=true;
@@ -276,6 +359,10 @@ function selectShare(preferredRun){
    input.value='';input.removeAttribute('min');input.removeAttribute('max');
   }
  }
+}
+function selectShare(preferredRun){
+ const share=$('share').value;
+ syncReplayShare(share);
  funnelScope();
  const matches=indexState==='loaded'?savedRuns.filter(run=>Object.hasOwn(run.instruments,share)):[];
  $('runs').replaceChildren(...matches.map(run=>option(run.titles_by_instrument[share],run.run_id)));
@@ -310,6 +397,7 @@ async function activate(force=false,targetRun){
  const requested=handoff?.product==='CASH_SHARE'?handoff.instrument:null;
  extendShares([...staticShares,requested]);
  if(changed&&requested)$('share').value=requested;
+ syncReplayShare($('share').value);
  if(first)loadReplayProfiles();
  const pendingShare=$('share').value,currentRun=$('runs').value;
  const requestNumber=++indexRequest;
@@ -321,9 +409,6 @@ async function activate(force=false,targetRun){
  $('run-errors').hidden=true;
  $('status').textContent='Loading saved results…';
  updateReplayControl($('share').value);
- if(first){
-  loadDailyForward();loadProspective();loadHypotheses();loadFxStudy();loadRealFunnel();loadZebra();loadRadarPrices();
- }
  const params=new URLSearchParams();
  if(handoff?.instrument&&handoff.product&&handoff.strategy_id&&handoff.strategy_version){
   for(const key of ['instrument','product','strategy_id','strategy_version'])params.set(key,handoff[key]);
@@ -350,43 +435,126 @@ async function activate(force=false,targetRun){
   if(requestNumber!==indexRequest)return;
   indexState='failed';
   readState($('status'),error,'Saved results unavailable.',()=>activate(true));
+ }finally{
+  if(first){
+   loadDailyForward();loadProspective();loadHypotheses();loadFxStudy();loadRealFunnel();loadZebra();loadRadarPrices();
+  }
+ }
+}
+
+function selectedComparison(share){
+ const profiles=[$('replay-profile').value,...[...$('extra-profiles').querySelectorAll('input:checked')].map(input=>input.value)]
+  .filter(Boolean).map(value=>value.split('@'));
+ const families=[...$('hypothesis-options').querySelectorAll('input:checked')].map(input=>input.value);
+ const custom=$('date-mode').value==='custom';
+ return {instrument:share,profiles,families,first_session:custom?$('replay-start').value:null,last_session:custom?$('replay-end').value:null};
+}
+function showHypothesisOptions(share){
+ const policy=replayPolicies.get(share);
+ for(const label of $('hypothesis-options').querySelectorAll('label'))label.remove();
+ $('hypothesis-recommendation').textContent=policy ? 'Suggested for '+share+' · '+policy.recommended+' · '+policy.reason
+  : 'Available for recognized Zebra cash shares.';
+ if(!policy)return;
+ for(const family of policy.families){
+  const label=document.createElement('label'), input=document.createElement('input');
+  input.type='checkbox';input.value=family.id;input.checked=family.id==='H1'||family.id===policy.recommended;
+  label.title=family.reason||family.rule;
+  label.append(input,' '+family.id+' · '+family.name);
+  $('hypothesis-options').append(label);
  }
 }
 function updateReplayControl(share){
  $('run-request').hidden=!share;
  const enabled=replayShares.has(share)&&$('replay-profile').options.length>0&&!pendingReplay;
-
- $('submit-replay').disabled=!enabled || replayHistory?.instrument!==share;
+ $('request-run').disabled=Boolean(pendingReplay);
+ $('intraday-preparation').hidden=!replayShares.has(share);
+ $('prepare-replay').disabled=!enabled;
+ $('submit-replay').disabled=!enabled || replayHistory?.instrument!==share || !replayHistory.qualified_sessions;
  const mapped=[...replayShares].find(([key,symbol])=>key!==share && symbol===share);
- $('run-unavailable').textContent=enabled ? 'The replay checks retained daily history for the selected dates. It does not add a live watch.'
-  : pendingReplay ? 'The requested replay is still in progress.'
-  : !$('replay-profile').options.length
-   ? 'No compatible exact strategy is currently available.'
-  : mapped ? 'This code is available for saved results. For a new replay select '+mapped[0]+' ('+share+').'
+ $('run-unavailable').textContent=enabled ? ''
+  : pendingReplay ? 'The requested comparison is still in progress.'
+  : !$('replay-profile').options.length ? 'No compatible exact strategy is currently available.'
+  : mapped ? 'For a new replay select '+mapped[0]+' ('+share+').'
   : 'This instrument is outside the recognized Zebra cash-share list for new replays.';
 }
-async function loadReplayHistory(share){
- const requestNumber=++replayHistoryRequest, status=$('replay-history');
+function invalidateReplayPreview(){
+ ++replayHistoryRequest;
  replayHistory=null;
- $('retry-history').hidden=true;
+ $('replay-history').textContent='';
+ for(const id of ['replay-cells','preview-gaps','preview-sources','retry-history','daily-upload'])$(id).hidden=true;
+ $('daily-upload-form').reset();
+ resetDailyUpload();
+ updateReplayControl($('share').value);
+}
+async function loadReplayHistory(share){
+ invalidateReplayPreview();
+ const requestNumber=replayHistoryRequest,status=$('replay-history'),spec=selectedComparison(share);
+ const mode=$('date-mode').value;
+ if(!spec.profiles.length || !spec.families.length){
+  status.textContent='Choose at least one exact strategy and one hypothesis.';
+  return;
+ }
+ if(mode==='custom'&&(!spec.first_session||!spec.last_session)){
+  status.textContent='Choose a start and end date.';
+  return;
+ }
  status.textContent='Checking retained daily history for '+share+'…';
- updateReplayControl(share);
+ const fetchPreview=async ()=>{
+  const params=new URLSearchParams();
+  for(const family of spec.families)params.append('family',family);
+  for(const profile of spec.profiles)params.append('profile',profile.join('@'));
+  if(spec.first_session!==null){params.set('from',spec.first_session);params.set('to',spec.last_session);}
+  const result=await api('/api/v1/backtest-lab/comparison-preview/'+encodeURIComponent(share)+'?'+params,{timeout:170000});
+  if(!result.ok)throw Error(result.body.error||'The history check failed.');
+  return result.body;
+ };
  try{
-  const result=await api('/api/v1/backtest-lab/replay-history/'+encodeURIComponent(share));
+  let history=await fetchPreview();
   if(requestNumber!==replayHistoryRequest)return;
-  if(!result.ok)throw Error(result.body.error || 'The history check failed.');
-  const history=result.body;
-  if(history.instrument!==share)throw Error('The history returned for a different share.');
-  replayHistory=history;
-  const {first_session:first,last_session:last}=history;
-  for(const [input,value] of [[$('replay-start'),first],[$('replay-end'),last]]){
-   input.min=first;input.max=last;
-   if(!input.value||input.value<first||input.value>last)input.value=value;
+  if(mode!=='auto'&&mode!=='custom'&&history.last_session){
+   const start=new Date(history.last_session+'T00:00:00Z');
+   start.setUTCDate(start.getUTCDate()-Number(mode)+1);
+   spec.first_session=start.toISOString().slice(0,10);spec.last_session=history.last_session;
+   history=await fetchPreview();
   }
-  status.textContent=share+' · '+history.qualified_sessions+' usable daily OHLCV sessions · '+first+' to '+last
-   +' · Close sources: '+history.close_sources.join(', ')+'. '
-   +history.unqualified_observed_sessions+' retained sessions excluded. Dates in this span can have gaps. '
-   +'The replay checks the requested window and benchmark again when it runs.';
+  if(requestNumber!==replayHistoryRequest)return;
+  if(history.instrument!==share)throw Error('The history returned for a different share.');
+  replayHistory={...history,spec:{...spec,preview_id:history.preview_id}};
+  const {first_session:first,last_session:last}=history;
+  $('intraday-session').max=history.latest_completed;
+  if(!$('intraday-session').value)$('intraday-session').value=history.latest_completed;
+  $('replay-end').max=history.latest_completed;
+  if(!spec.first_session&&first){
+   $('replay-start').value=first;$('replay-end').value=last;
+  }
+  const bench=history.benchmarks.join(', ');
+  const references=[...new Set(history.cells.flatMap(cell=>
+   replayPolicies.get(share)?.families.find(family=>family.id===cell.family)?.references||[]))];
+  status.textContent=first ? share+' · '+history.qualified_sessions+' matched daily sessions · '+first+' to '+last
+   +' · 99-session warm-up from '+history.warmup_first_session+' · Retained history from '+
+   (history.earliest_retained_session||history.warmup_first_session)+' · Selected fields: '+history.close_sources.join(', ')
+   +(history.corroborating_sources.length?' · Other retained providers: '+history.corroborating_sources.join(', '):'')
+   +(history.disputed_share_sessions?' · '+history.disputed_share_sessions+' sessions with field disagreement':'')
+   +' · Benchmark: '+bench+(references.length?' · Context: '+references.join(', '):'')+'.'
+   : 'No selected cell is ready. Review the reasons below.';
+  table('replay-cells',['Strategy version','Hypothesis','Data readiness'],history.cells.map(cell=>
+   '<tr><td>'+esc(cell.profile_id+' v'+cell.version)+'</td><td>'+esc(cell.family)+'</td><td>'+
+   esc(cell.reason||('Ready · '+cell.rule))+'</td></tr>'));
+  $('replay-cells').hidden=false;
+  const clocks=Object.entries(history.provider_acquired_at||{});
+  for(const [key,receipt] of Object.entries(history.references||{}))clocks.push([key+' · '+receipt.provider,receipt.acquired_at]);
+  $('preview-sources').hidden=clocks.length===0;
+  $('preview-clocks').replaceChildren(...clocks.map(([source,clock])=>{
+   const item=document.createElement('li');item.textContent=source+' · '+clock;return item;
+  }));
+  $('preview-gaps').hidden=Boolean(first)&&!history.excluded_sessions.length;
+  $('preview-excluded').textContent=history.excluded_sessions.length ?
+   history.excluded_sessions.length+' excluded sessions · '+history.excluded_sessions.join(', ') : '';
+  $('daily-upload').hidden=Boolean(first)&&!history.missing_share_sessions?.length;
+  $('daily-export').textContent='For missing share OHLCV, use a native daily ViewPoint CSV for '+replayShares.get(share)+
+   '.JSE with Date, Open, High, Low, Close and Volume. Coverage to check · '+
+   (spec.first_session||history.missing_share_sessions?.[0]||first||'first retained session')+' to '+
+   (spec.last_session||history.latest_completed)+'.';
  }catch(error){
   if(requestNumber!==replayHistoryRequest)return;
   status.textContent=error.message || 'The history check failed.';
@@ -411,7 +579,18 @@ async function loadReplayProfiles(){
    }));
   }
   replayShares=new Map((response.body.instruments||[]).map(item=>[item.instrument,item.symbol]));
+  replayPolicies=new Map(Object.entries(response.body.hypotheses||{}));
+  const extra=$('extra-profiles');
+  for(const label of extra.querySelectorAll('label'))label.remove();
+  for(const profile of profiles.filter(item=>item.available)){
+   const label=document.createElement('label'),input=document.createElement('input');
+   input.type='checkbox';input.value=profile.id+'@'+profile.version;
+   label.append(input,' '+profile.name+' v'+profile.version);
+   extra.append(label);
+  }
+  extra.hidden=extra.querySelectorAll('input').length<2;
   extendShares(replayShares.keys());
+  showHypothesisOptions($('share').value);
   updateReplayControl($('share').value);
  }catch(error){
   readState($('run-unavailable'),error,'Replay share catalog unavailable.',loadReplayProfiles);
@@ -430,7 +609,7 @@ async function checkReplay(job){
    progress.textContent=job.share+' replay complete.';
    $('open-replay').hidden=false;
    finishReplay();
-   if($('share').value===job.share)activate(true,result.run_id);
+   if($('share').value===job.share)await openCompletedComparison(result.run_id,job.share);
    return;
   }
   if(result.state==='FAILED'){
@@ -452,23 +631,161 @@ function finishReplay(){
 $('open-replay').addEventListener('click',()=>{
  if(!completedReplay)return;
  $('share').value=completedReplay.share;
- activate(true,completedReplay.id);
+ openCompletedComparison(completedReplay.id,completedReplay.share);
 });
+async function openCompletedComparison(id, share){
+ await activate(true,id);
+ if($('share').value===share&&runId===id)$('step-result').focus();
+}
 $('request-run').addEventListener('click',()=>{
  const controls=$('replay-controls');
  controls.hidden=!controls.hidden;
  $('request-run').setAttribute('aria-expanded',String(!controls.hidden));
  if(!controls.hidden){
-  if(!replayHistory)loadReplayHistory($('share').value);
+  if(!replayHistory)$('replay-history').textContent='Review the automatically selected data before running.';
   $('replay-profile').focus();
  }
 });
 $('retry-history').addEventListener('click',()=>loadReplayHistory($('share').value));
+function resetDailyUpload(){
+ dailyUploadBody=null;
+ $('daily-save').hidden=true;
+ $('daily-validation').textContent='';
+}
+$('daily-upload-form').addEventListener('change',resetDailyUpload);
+$('daily-upload-form').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const share=$('share').value, serial=replayHistoryRequest, save=event.submitter===$('daily-save');
+ const keepsSelection=()=>serial===replayHistoryRequest&&share===$('share').value;
+ const file=$('daily-file').files[0],status=$('daily-validation');
+ if(!file||file.size>2500000){status.textContent='Choose an IRESS daily CSV within 2.5 MB.';return;}
+ if(save&&!dailyUploadBody)return;
+ const button=event.submitter;
+ button.disabled=true;
+ try{
+  const body=save?dailyUploadBody:{
+   provider:'IRESS',instrument_id:share,origin_symbol:replayShares.get(share)+'.JSE',
+   acquired_at:new Date($('daily-captured').value+'+02:00').toISOString(),
+   csv:await file.text(),instrument_confirmed:$('daily-confirmed').checked,
+  };
+  if(!keepsSelection())return;
+  status.textContent=save?'Registering the validated daily file…':'Checking the daily file…';
+  const response=await api(save?'/api/v1/ost/alternative-import':'/api/v1/backtest-lab/daily-export-preview',{
+   method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),timeout:35000,
+  });
+  if(!keepsSelection())return;
+  if(!response.ok)throw Error(response.body.error);
+  if(save){await loadReplayHistory(share);return;}
+  const result=response.body,available=new Set(result.sessions);
+  const missing=replayHistory?.missing_share_sessions||[];
+  const covered=missing.filter(day=>available.has(day)).length;
+  status.textContent=result.symbol+' · '+available.size+' completed daily rows · '+result.sessions[0]+
+   ' to '+result.sessions.at(-1)+(missing.length?' · '+covered+' of '+missing.length+' missing share sessions covered':'')+
+   (result.import_available?'':' · Daily import is disabled in this dashboard.');
+  dailyUploadBody=body;
+  $('daily-save').hidden=!result.import_available||Boolean(missing.length&&!covered);
+ }catch(error){
+  if(keepsSelection())status.textContent=error.message||'The daily export could not be checked.';
+ }finally{
+  button.disabled=false;
+ }
+});
+let intradayRequest=0,intradayResult=null,intradayFileHash=null;
+const intradayLabels={
+ READY:'Ready',MISSING:'Missing bars',PENDING_DOWNLOAD:'Pending download',DOWNLOADING:'Downloading',
+ IMPORTING:'Importing',PARTIAL_EXPORT:'Partial export',SIGN_IN_REQUIRED:'Sign in to OST and open the ViewPoint chart',
+ EXPORT_UNAVAILABLE:'The ViewPoint export could not be read',REQUEST_TIMED_OUT:'No collector receipt arrived in time',
+ COLLECTOR_NOT_CONNECTED:'The existing ViewPoint collector is disconnected',
+ UNSUPPORTED_HISTORICAL_WINDOW:'The collector can only request the latest completed session',
+};
+const intradayActive=new Set(['PENDING_DOWNLOAD','DOWNLOADING','IMPORTING']);
+const intradayRetry=new Set(['PARTIAL_EXPORT','SIGN_IN_REQUIRED','EXPORT_UNAVAILABLE','COLLECTOR_NOT_CONNECTED']);
+function resetIntradayFile(){
+ intradayFileHash=null;
+ $('intraday-save').hidden=true;
+ $('intraday-validation').textContent='';
+}
+function resetIntraday(){
+ ++intradayRequest;intradayResult=null;
+ $('intraday-status').textContent='';
+ $('intraday-download').hidden=true;
+ $('intraday-upload').hidden=true;
+ $('intraday-upload').reset();
+ resetIntradayFile();
+}
+function intradayUrl(){
+ return '/api/v1/backtest-lab/intraday-data/'+encodeURIComponent($('share').value)+'/'+
+  encodeURIComponent($('intraday-session').value);
+}
+function renderIntraday(result){
+ intradayResult=result;
+ $('intraday-status').textContent=(intradayLabels[result.state]||result.state)+' · '+result.imported_bars+
+  ' of '+result.expected_bars+' complete regular-session bars retained.';
+ $('intraday-download').hidden=result.state!=='MISSING'&&!intradayRetry.has(result.state);
+ $('intraday-download').textContent=intradayRetry.has(result.state)?'Retry download':'Prepare data';
+ $('intraday-upload').hidden=result.state==='READY'||intradayActive.has(result.state);
+ $('intraday-expected').textContent=result.symbol+' · Five minutes · '+result.session+
+  ' · Native ViewPoint CSV with Date, Open, High, Low, Close and Volume.';
+}
+async function inspectIntraday({submit=false,serial=++intradayRequest}={}){
+ if(!$('intraday-session').value){
+  $('intraday-status').textContent='Choose a completed session first.';
+  return;
+ }
+ if(submit)$('intraday-download').disabled=true;
+ try{
+  const options=submit?{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({retry:intradayRetry.has(intradayResult?.state)})}:{};
+  const response=await api(intradayUrl(),options);
+  if(serial!==intradayRequest)return;
+  if(!response.ok)throw Error(response.body.error);
+  renderIntraday(response.body);
+  if(intradayActive.has(response.body.state))setTimeout(()=>{
+   if(serial===intradayRequest)inspectIntraday({serial});
+  },1200);
+ }catch(error){
+  if(serial===intradayRequest)$('intraday-status').textContent=error.message||'Intraday evidence could not be read.';
+ }finally{
+  if(submit)$('intraday-download').disabled=false;
+ }
+}
+$('intraday-session').addEventListener('change',resetIntraday);
+$('intraday-check').addEventListener('click',()=>inspectIntraday());
+$('intraday-download').addEventListener('click',()=>inspectIntraday({submit:true}));
+$('intraday-upload').addEventListener('change',resetIntradayFile);
+$('intraday-upload').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const save=event.submitter===$('intraday-save'),serial=++intradayRequest;
+ const form=new FormData(event.target);
+ if(save&&intradayFileHash)form.set('preview_sha256',intradayFileHash);
+ resetIntradayFile();
+ try{
+  const response=await api(intradayUrl(),{method:'POST',body:form});
+  if(serial!==intradayRequest)return;
+  if(!response.ok)throw Error(response.body.error);
+  if(save){renderIntraday(response.body);return;}
+  const result=response.body;
+  intradayFileHash=result.source_sha256;
+  $('intraday-save').hidden=!result.validated_bars;
+  $('intraday-validation').textContent=result.validated_bars+' complete matching bars from '+result.file_rows+
+   ' file rows · '+result.missing_bars+' regular-session bars still missing.';
+ }catch(error){
+  if(serial===intradayRequest)$('intraday-validation').textContent=error.message||'The file could not be checked.';
+ }
+});
+$('prepare-replay').addEventListener('click',()=>loadReplayHistory($('share').value));
+$('hypothesis-options').addEventListener('change',invalidateReplayPreview);
+for(const id of ['replay-profile','extra-profiles','replay-start','replay-end']){
+ $(id).addEventListener('change',invalidateReplayPreview);
+}
+$('date-mode').addEventListener('change',()=>{
+ $('custom-dates').hidden=$('date-mode').value!=='custom';
+ invalidateReplayPreview();
+});
 $('replay-form').addEventListener('submit',async event=>{
  event.preventDefault();
  if(pendingReplay)return;
- const [strategyId,strategyVersion]=$('replay-profile').value.split('@');
- if(!strategyId||!strategyVersion||!replayShares.has($('share').value)||replayHistory?.instrument!==$('share').value)return;
+ if(!replayHistory?.qualified_sessions||replayHistory.instrument!==$('share').value)return;
  const share=$('share').value, progress=$('job-progress');
  const job={share,errors:0};
  pendingReplay=job;
@@ -477,11 +794,7 @@ $('replay-form').addEventListener('submit',async event=>{
  progress.textContent='Submitting the replay…';
  try{
   const response=await api('/api/v1/backtest-lab/jobs',{
-   method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    instrument:share,family:'H1',strategy_id:strategyId,strategy_version:strategyVersion,
-    product:'CASH_SHARE',timeframe:'1d',first_session:$('replay-start').value,
-    last_session:$('replay-end').value,request_id:crypto.randomUUID(),
-   }),
+   method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(replayHistory.spec),
   });
   if(!response.ok)throw Error(response.body.error);
   job.id=response.body.job_id;

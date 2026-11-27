@@ -52,8 +52,9 @@
  <h2 id="bl-title">Backtest Lab</h2>
  <section class="panel" aria-labelledby="bl-step-share"><h3 id="bl-step-share">1. Choose a share</h3><label>Share <select id="bl-share" aria-label="Share">{% for share in backtest_shares %}<option value="{{ share }}">{{ share }}</option>{% endfor %}</select></label></section>
  <section class="panel" aria-labelledby="bl-step-family"><h3 id="bl-step-family">2. Choose a hypothesis</h3>
-  <p><strong>Available to run: H1 · Selected-share research.</strong> Choose an exact strategy version below for a daily, long-only cash-share replay. Short and CFD replays are unavailable in this Lab runner.</p>
- <article class="panel"><h3>Hypothesis coverage</h3><p class="muted">H2–H7 show saved research or coverage gaps. They cannot be submitted as new replays here.</p><p id="bl-hypothesis-status" role="status">Available when Backtest Lab opens.</p><div class="bl-scroll"><table id="bl-hypothesis-coverage"></table></div></article>
+  <p id="bl-hypothesis-recommendation" role="status">Select a share to see its research hypotheses.</p>
+  <fieldset id="bl-hypothesis-options"><legend>Hypotheses to compare</legend></fieldset>
+  <details><summary>Retained hypothesis research</summary><p id="bl-hypothesis-status" role="status">Available when Backtest Lab opens.</p><div class="bl-scroll"><table id="bl-hypothesis-coverage"></table></div></details>
  </section>
  <section class="panel" aria-labelledby="bl-step-version"><h3 id="bl-step-version">3. Choose a strategy and version</h3>
   <p>Open a saved result to see its exact strategy versions, or request a new replay for the selected share.</p>
@@ -62,18 +63,62 @@
  <button type="button" id="bl-request-run" aria-controls="bl-replay-controls" aria-expanded="false" aria-describedby="bl-run-unavailable">Run a backtest for this share</button>
  <p id="bl-run-unavailable" role="status">Checking watched-share eligibility…</p>
  <div id="bl-replay-controls" hidden><form id="bl-replay-form">
-  <p>H1 selected-share research · cash share · completed daily sessions</p>
+  <p>Daily cash-share replay</p>
   <label>Exact strategy version <select id="bl-replay-profile" required>{% for profile in backtest_profiles if profile.available %}<option value="{{ profile.id }}@{{ profile.version }}">{{ profile.name }} · v{{ profile.version }}</option>{% endfor %}</select></label>
+  <fieldset id="bl-extra-profiles" hidden><legend>Additional strategy versions</legend></fieldset>
   <details><summary>Unavailable strategy versions</summary><ul id="bl-unavailable-profiles">{% for profile in backtest_profiles if not profile.available %}<li>{{ profile.id }} v{{ profile.version }} · {{ profile.reason }}</li>{% endfor %}</ul></details>
-  <p id="bl-replay-history" role="status" aria-live="polite"></p>
+  <details><summary>Change dates</summary>
+   <label>Period <select id="bl-date-mode"><option value="auto">Longest usable common window</option><option value="365">Last 12 months of the available window</option><option value="90">Last 90 days of the available window</option><option value="custom">Custom dates</option></select></label>
+   <div id="bl-custom-dates" hidden><label>From <input id="bl-replay-start" type="date"></label><label>To <input id="bl-replay-end" type="date"></label></div>
+  </details>
+  <button type="button" id="bl-prepare-replay">Review data</button>
+  <p id="bl-replay-history" role="status" aria-live="polite">Review the automatically selected data before running.</p>
+  <details id="bl-preview-sources" hidden><summary>Provider receipt times</summary><ul id="bl-preview-clocks"></ul></details>
+  <div class="bl-scroll"><table id="bl-replay-cells" hidden></table></div>
+  <details id="bl-preview-gaps" hidden><summary>Excluded sessions and daily imports</summary><p id="bl-preview-excluded"></p></details>
   <button type="button" id="bl-retry-history" hidden>Retry history check</button>
-  <label>From <input id="bl-replay-start" type="date" required></label><label>To <input id="bl-replay-end" type="date" required></label>
-  <button type="submit" id="bl-submit-replay" disabled>Submit replay</button>
- </form></div>
+  <button type="submit" id="bl-submit-replay" disabled>Run comparison</button>
+ </form>
+ <details id="bl-daily-upload" hidden><summary>Provide a daily export</summary><p id="bl-daily-export"></p>
+  <form id="bl-daily-upload-form">
+   <label>ViewPoint daily CSV <input id="bl-daily-file" type="file" accept=".csv,text/csv" required></label>
+   <label>Actual capture time in South Africa <input id="bl-daily-captured" type="datetime-local" required></label>
+   <label><input id="bl-daily-confirmed" type="checkbox" required> I confirm the exact instrument and actual capture time.</label>
+   <button type="submit" id="bl-daily-validate">Validate daily file</button>
+   <button type="submit" id="bl-daily-save" hidden>Import validated daily file</button>
+   <p id="bl-daily-validation" role="status"></p>
+  </form>
+  <button type="button" data-bl-tab="technical-view" data-bl-target="ost-onboarding">Open daily import tools</button>
+ </details>
+ </div>
+ <details id="bl-intraday-preparation" hidden>
+  <summary>Prepare five-minute evidence</summary>
+  <p>Check a completed session for intraday research. Daily comparisons use daily bars.</p>
+  <label>Session <input type="date" id="bl-intraday-session"></label>
+  <button type="button" id="bl-intraday-check">Check retained bars</button>
+  <button type="button" id="bl-intraday-download" hidden>Prepare data</button>
+  <p id="bl-intraday-status" role="status"></p>
+  <form id="bl-intraday-upload" hidden>
+   <p id="bl-intraday-expected"></p>
+   <label>ViewPoint chart-table CSV <input type="file" name="file" accept=".csv,text/csv" required></label>
+   <label><input type="checkbox" name="accept_operator_conventions" value="yes" required> Use cents, exact share volume and UTC interval-start timestamps.</label>
+   <button type="submit" id="bl-intraday-validate">Validate file</button>
+   <button type="submit" id="bl-intraday-save" hidden>Import validated bars</button>
+   <p id="bl-intraday-validation" role="status"></p>
+  </form>
+ </details>
  <p id="bl-job-progress" role="status" aria-live="polite"></p><button type="button" id="bl-open-replay" hidden>Open completed result</button>
   </div><details id="bl-run-details" hidden><summary>Details</summary><div id="bl-run-metadata" style="overflow-wrap:anywhere"></div></details><details id="bl-run-errors" hidden><summary>Saved results that could not be verified</summary><ul></ul></details>
  </section>
- <section aria-labelledby="bl-step-result"><h3 id="bl-step-result">4. Review the result</h3><p id="bl-result-banner" role="status">Select a saved result.</p><p id="bl-w06-sample" role="status" hidden></p><label id="bl-portfolio-scope" hidden><input type="checkbox" id="bl-portfolio"> Show whole portfolio</label>
+ <section aria-labelledby="bl-step-result"><h3 id="bl-step-result" tabindex="-1">4. Review the result</h3>
+  <article class="panel" id="bl-matched-result" hidden>
+   <h4 id="bl-matched-title"></h4><p id="bl-matched-period"></p>
+   <div class="bl-scroll"><table id="bl-matched-metrics"></table></div>
+   <h4>Equity after costs</h4><svg id="bl-matched-equity" viewBox="0 0 800 230" role="img" aria-label="Overlaid equity curves for matched hypotheses"></svg><div id="bl-matched-legend" class="bl-buttons"></div>
+   <details><summary>Changed trades and missed triggers</summary><div class="bl-scroll"><table id="bl-matched-changes"></table></div></details>
+   <details><summary>Excluded dates and data limits</summary><p id="bl-matched-limits"></p></details>
+  </article>
+  <p id="bl-result-banner" role="status">Select a saved result.</p><p id="bl-w06-sample" role="status" hidden></p><label id="bl-portfolio-scope" hidden><input type="checkbox" id="bl-portfolio"> Show whole portfolio</label>
   <p id="bl-status" role="status">Open this tab to load saved results.</p>
  <div class="panel bl-band" id="bl-band" role="status"><b>No saved result selected.</b> Research only; no live execution.</div>
   <h4 id="bl-run-totals" hidden>Full saved run totals</h4><div id="bl-stats" class="bl-stats"></div>
@@ -83,24 +128,25 @@
  <article class="panel"><h3 id="bl-price-title">Price chart</h3><p id="bl-price-status" role="status"></p><div id="bl-instruments" class="bl-buttons"></div><svg id="bl-price" viewBox="0 0 800 320" role="img" aria-label="Daily price candles and trade markers"></svg><p class="muted">Entry and exit triangles are hypothetical close-proxy fills. Amber dashes show the selected stop.</p></article>
   </div>
  </section>
- <details class="panel" id="bl-fold-data"><summary>Data quality</summary>
+ <p class="muted">Step 4 shows your result. Open any section below for more detail.</p>
+ <details class="panel" id="bl-fold-data"><summary>Data quality <span class="muted">· Check the prices, dates and fields the backtest used, including gaps or source differences.</span></summary>
   <p><button type="button" data-bl-tab="technical-view" data-bl-target="zebra-field-symbol">Inspect Zebra field coverage and volume reconciliation</button></p>
  <article class="panel"><h3>Multi-source historical closes</h3><p id="bl-zebra-status" role="status">Open this tab to load the research handover.</p><p class="muted">The handover retains source lineage for each close. It is historical research, with reconstructed availability, and is not a current quote.</p><h4>Radar public price capture</h4><p id="bl-radar-prices" role="status">Loading latest attempt…</p><p class="muted">The daily collector captures up to ten explicitly linked radar shares separately from broker data. Yahoo history may be delayed; individual failures do not stop other shares.</p></article>
  <article class="panel"><h3>Swing hypothesis data</h3><button id="bl-historical-ready" type="button">Check historical research data</button><p id="bl-historical-ready-status" role="status">Check retained Zebra data without calling a model.</p></article>
  </details>
- <details class="panel" id="bl-fold-learning"><summary>Learning</summary>
+ <details class="panel" id="bl-fold-learning"><summary>Learning <span class="muted">· See what earlier comparisons suggest you could test next.</span></summary>
  <article class="panel"><h3>Saved strategy comparisons · full run</h3><div class="bl-scroll"><table id="bl-compare"></table></div><p class="muted">Desk bucket is a rule-based first pass, not a validated decision.</p></article>
 <article class="panel"><h4>Swing rule alternatives</h4><p id="bl-variants-note" class="muted">Select an instrument to inspect saved research alternatives.</p><div class="bl-scroll"><table id="bl-variants-compare"></table></div><h4>Prospective comparisons</h4><p id="bl-prospective-note" class="muted">Checking registered comparisons…</p></article>
  <article class="panel"><h3>Ask the desk</h3><p class="muted">Send the selected role and saved backtest to the configured Ollama Cloud model. If no cloud key is configured, the local model uses its existing idle and resource rules. Advisory only.</p><label>Role <select id="bl-role"><option value="manager">Research manager</option><option value="over">Overfitting detector</option><option value="risk">Risk manager</option><option value="brk">Breakout engineer</option></select></label><label>Question <input id="bl-question" maxlength="500" value="Which strategy deserves more testing, and what should we test next?"></label><div class="bl-buttons"><button id="bl-ask" type="button">Ask the desk</button><button id="bl-copy" type="button">Copy prompt</button></div><div id="bl-answer" aria-live="polite" class="bl-answer">The answer appears here.</div></article>
  </details>
- <details class="panel" id="bl-fold-research"><summary>Research detail</summary>
+ <details class="panel" id="bl-fold-research"><summary>Research detail <span class="muted">· Inspect the rules and assumptions behind the result, including why a trade passed or failed.</span></summary>
  <article class="panel"><h3 id="bl-real-title">Real historical Swing rule funnel</h3><p id="bl-real-scope" role="status"></p><p class="muted">Retrospective source observations; not a replay, live signal or proof of performance. The stock and benchmark remain separate sources.</p><p id="bl-real-status" role="status">Open this tab to load the historical funnel.</p><div class="bl-scroll"><table id="bl-real-funnel"></table></div></article>
 <article class="panel"><h4>USD/ZAR price-only component comparison</h4><p id="bl-fx-status" class="muted">Waiting for retained research.</p><div class="bl-scroll"><table id="bl-fx-comparison"></table></div></article>
  <article class="panel"><h3>Sector and instrument research</h3><p class="muted">Compare closed-trade contributions from this shared-cash replay. The selected contender is retrospective, exploratory and not a trade recommendation; sector hypotheses are leads for further testing.</p><label>Research instrument <select id="bl-research-instrument" aria-label="Research instrument"></select></label><p id="bl-research-choice" role="status">Select a saved result to load sector research.</p><div class="bl-scroll"><table id="bl-instrument-compare"></table></div><h4>Sector hypotheses</h4><p id="bl-sector-basis" class="muted"></p><div class="bl-scroll"><table id="bl-sector-compare"></table></div><h4>Strategy outcomes across historical windows</h4><p id="bl-window-compare-note" class="muted">Loading comparison…</p><div class="bl-scroll"><table id="bl-window-compare"></table></div></article>
  <article class="panel"><h3>How this strategy raised its signals</h3><p class="muted">Every rule must pass on the same bar. Counts are cumulative.</p><div id="bl-funnel"></div><details><summary>Why another bar did not fire</summary><label>Rejected stock-day <select id="bl-rejected"></select></label><div class="bl-scroll"><table id="bl-rejected-trace"></table></div></details><h3>Signal checklist</h3><p id="bl-check-label" class="muted">Select a trade to inspect its signal.</p><div class="bl-scroll"><table id="bl-checklist"></table></div></article>
  <article class="panel"><h3>Where the signals went</h3><div id="bl-outcomes"></div></article>
  </details>
- <details class="panel" id="bl-fold-instrument"><summary>Instrument-specific</summary>
+ <details class="panel" id="bl-fold-instrument"><summary>Instrument-specific <span class="muted">· Focus on one share within a saved run. Useful when the run covers several shares.</span></summary>
  <article class="panel"><h3>Daily forward capture · BTI and SASOL</h3><p class="muted">The existing daily collector checks BTI and Sasol after its source refresh. Earlier decisions and later corrections remain separate.</p><p id="bl-daily-forward-status" role="status">Waiting for Backtest Lab.</p></article>
   <p>Gold vehicle and reference evidence is listed in Hypothesis coverage.</p>
   <p><button type="button" data-bl-tab="trading-strategies" data-bl-target="sasol-refinement-panel">Open the Sasol refinement report</button></p>

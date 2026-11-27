@@ -25,11 +25,20 @@ def enqueue(service, lane, *, instrument=None, request_id=None):
 
 def enqueue_exact(service, request):
     from application.backtest_lab.exact_run_job import EXACT_REQUEST, validate_request
+    from application.backtest_lab import hypothesis_comparison
 
-    spec = validate_request(request, service)
+    if isinstance(request, dict) and 'families' in request:
+        spec = hypothesis_comparison.validate(request, service)
+        if 'preview_id' not in spec:
+            from application.backtest_lab.exact_run_job import RunUnavailable
+            raise RunUnavailable('Review the retained data before starting a comparison.')
+        kind = hypothesis_comparison.REQUEST_KIND
+    else:
+        spec = validate_request(request, service)
+        kind = EXACT_REQUEST
     journal = LearningJournal(service.folder / 'work-roster.sqlite3')
     try:
-        return journal.enqueue({**spec, 'lane': 'backtester', 'request_kind': EXACT_REQUEST})
+        return journal.enqueue({**spec, 'lane': 'backtester', 'request_kind': kind})
     finally:
         journal.close()
 
@@ -39,13 +48,14 @@ def exact_status(service, identity):
     import json
     import sqlite3
     from application.backtest_lab.exact_run_job import EXACT_REQUEST
+    from application.backtest_lab.hypothesis_comparison import REQUEST_KIND
 
     path = (service.folder / 'work-roster.sqlite3').resolve()
     if not path.is_file():
         return None
     with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)) as db:
         row = db.execute('SELECT spec,state,result FROM jobs WHERE id=?', (identity,)).fetchone()
-    if row is None or json.loads(row[0]).get('request_kind') != EXACT_REQUEST:
+    if row is None or json.loads(row[0]).get('request_kind') not in (EXACT_REQUEST, REQUEST_KIND):
         return None
     spec, state, result = row
     return {'job_id': identity, 'instrument': json.loads(spec)['instrument'],
@@ -67,8 +77,11 @@ def run_lane(service, lane, *, invoke=None):
             if job is None: return {'state': 'IDLE'}
             if lane == 'backtester' and job['spec'].get('request_kind'):
                 from application.backtest_lab.exact_run_job import RunUnavailable, run_job
+                from application.backtest_lab import hypothesis_comparison
 
                 try:
+                    if job['spec']['request_kind'] == hypothesis_comparison.REQUEST_KIND:
+                        run_job = hypothesis_comparison.run_job
                     result = {'run_id': run_job(service, job['spec']), 'model_calls_requested': 0}
                     state = 'COMPLETED'
                 except RunUnavailable as exc:

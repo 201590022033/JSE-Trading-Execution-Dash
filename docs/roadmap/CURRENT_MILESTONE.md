@@ -1,3 +1,7 @@
+## Backtest Lab comparison delivery — 27 November 2026
+
+Local research implementation connects hypothesis selection, exact strategy versions, retained-data review and immutable selected-share results. AGL recommends the H2 resource and USD/ZAR overlay alongside H1. Supported gold-share and telecom overlays use their own references. Unsupported cells retain the missing inputs or runner in setup and results. Five-minute preparation uses the existing ViewPoint request path. See [changes and limits](../changes/2026-11-27-backtest-hypothesis-comparison.md).
+
 ## Unified roadmap R18 reliability and handover — 19 November 2026
 
 R18 completes the unified roadmap. The SENS bridge now resumes across bounded pages and replays without duplicate records. The restarted local dashboard showed a retained IRESS ViewPoint receipt, alongside the worker's recovery and partial-source status. [R18 verification and sweep handoff](R18_INTEGRATED_RELIABILITY_2026-11-19.md) records the remaining operational observations before the HR series.

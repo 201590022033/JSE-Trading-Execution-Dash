@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sqlite3
 import subprocess
 import sys
 from threading import Lock
@@ -734,7 +735,10 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
                 for profile in profiles:
                     if profile['available']:
                         profile.update(available=False, reason='The dashboard saved-results folder is not configured.')
-            return response({'profiles': profiles, 'instruments': replay_instruments(radar_factory().root),
+            from .hypothesis_comparison import contract
+            instruments = replay_instruments(radar_factory().root)
+            return response({'profiles': profiles, 'instruments': instruments,
+                             'hypotheses': {row['instrument']: contract(row['instrument']) for row in instruments},
                              'family': 'H1', 'product': 'CASH_SHARE', 'timeframe': '1d'})
         origin_header = request.headers.get('Origin')
         try:
@@ -757,6 +761,90 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
             return response({'job_id': job_id, 'state': 'QUEUED',
                              'notice': 'The worker could not start. The queued job remains available to the monitor.'}, 202)
         return response({'job_id': job_id, 'state': 'QUEUED'}, 202)
+
+    from application.bounded_dashboard_read import retained_read
+
+    @bp.get('/api/v1/backtest-lab/comparison-preview/<instrument>')
+    @retained_read(wait_seconds=150, ttl=15)
+    def comparison_preview(instrument):
+        if radar_factory is None or request.remote_addr not in ('127.0.0.1', '::1'):
+            return response({'error': 'Comparison data is available on the local dashboard.'}, 403)
+        from .hypothesis_comparison import preview
+        from .exact_run_job import RunUnavailable
+
+        body = dict(instrument=instrument, families=request.args.getlist('family'),
+                    profiles=[value.split('@') for value in request.args.getlist('profile')],
+                    first_session=request.args.get('from'), last_session=request.args.get('to'))
+        try:
+            return response(preview(radar_factory(), body))
+        except RunUnavailable as exc:
+            return response({'error': str(exc)}, 422)
+        except OSError:
+            return response({'error': 'The retained inputs could not be read. Try again.'}, 503)
+
+    @bp.route('/api/v1/backtest-lab/intraday-data/<instrument>/<session>', methods=['GET', 'POST'])
+    def comparison_intraday_data(instrument, session):
+        if radar_factory is None or request.remote_addr not in ('127.0.0.1', '::1'):
+            return response({'error': 'Intraday preparation is available on the local dashboard.'}, 403)
+        if request.method == 'POST' and request.headers.get('Origin') not in (None, request.host_url.rstrip('/')):
+            return response({'error': 'Local same-origin request required.'}, 403)
+        from . import intraday_preparation as preparation
+        from .exact_run_job import RunUnavailable
+
+        try:
+            service = radar_factory()
+            target = preparation.target(service, instrument, session)
+            if request.method == 'GET':
+                return response(preparation.status(service, target))
+            if request.is_json:
+                body = request.get_json(silent=True)
+                if not isinstance(body, dict) or set(body) != {'retry'} or type(body['retry']) is not bool:
+                    raise RunUnavailable('Use the explicit ViewPoint preparation control.')
+                result = preparation.submit(service, target, retry=body['retry'])
+                return response(result, 202 if result['state'] == 'PENDING_DOWNLOAD' else 200)
+            if (request.mimetype != 'multipart/form-data' or request.content_length is None
+                    or request.content_length > 2_600_000 or request.form.get('accept_operator_conventions') != 'yes'):
+                raise RunUnavailable('Select a native ViewPoint CSV within 2.5 MB and accept the source conventions.')
+            upload = request.files.get('file')
+            if upload is None or not upload.filename:
+                raise RunUnavailable('Select a native ViewPoint CSV.')
+            raw = upload.stream.read(2_500_001)
+            if len(raw) > 2_500_000:
+                raise RunUnavailable('The CSV exceeds 2.5 MB.')
+            confirmed = request.form.get('preview_sha256')
+            if confirmed and hashlib.sha256(raw).hexdigest() != confirmed:
+                raise RunUnavailable('Validate this file again before importing it.')
+            return response(preparation.manual(service, target, raw, upload.filename, save=bool(confirmed)))
+        except (RunUnavailable, ValueError) as exc:
+            return response({'error': str(exc)}, 422)
+        except (OSError, sqlite3.Error):
+            return response({'error': 'Intraday data is temporarily busy. Try again.'}, 503)
+
+    @bp.post('/api/v1/backtest-lab/daily-export-preview')
+    def daily_export_preview():
+        if (radar_factory is None or request.remote_addr not in ('127.0.0.1', '::1')
+                or request.headers.get('Origin') != request.host_url.rstrip('/')):
+            return response({'error': 'Local same-origin request required.'}, 403)
+        if not request.is_json or request.content_length is None or request.content_length > 2_700_000:
+            return response({'error': 'Choose a daily IRESS CSV within 2.5 MB.'}, 413)
+        from .exact_run_job import replay_instruments
+        from application.opportunities.source_resolution import parse_iress_export
+
+        try:
+            body = request.get_json(silent=True)
+            if (not isinstance(body, dict) or body.get('provider') != 'IRESS'
+                    or body.get('instrument_confirmed') is not True):
+                raise ValueError('Confirm the exact ViewPoint symbol.')
+            service = radar_factory()
+            if not any(row['instrument'] == body['instrument_id'] for row in replay_instruments(service.root)):
+                raise ValueError('The selected share is outside the Lab cash-share catalog.')
+            chart = parse_iress_export(body['csv'].encode('utf-8'), body['instrument_id'],
+                                       body['origin_symbol'], body['acquired_at'], service.clock())
+            return response({'symbol': chart['origin_symbol'], 'source_sha256': chart['source_sha256'],
+                             'sessions': [row['timestamp'] for row in chart['bars']],
+                             'import_available': os.environ.get('OST_LOCAL_IMPORT_ENABLED') == '1'})
+        except (ValueError, TypeError, AttributeError, KeyError, OverflowError) as exc:
+            return response({'error': str(exc)}, 422)
 
     @bp.get('/api/v1/backtest-lab/replay-history/<instrument>')
     def exact_replay_history(instrument):
