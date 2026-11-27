@@ -123,6 +123,10 @@ def merge_captures(captures, *, now, max_rows=None):
                         field_hash = receipt.get('source_sha256')
                         if field_hash is not None and (not isinstance(field_hash,str) or not re.fullmatch('[0-9a-f]{64}', field_hash)): continue
                         obs = _observation(value, provider, observed, digest, field_hash)
+                        if capture.get('received_at'):
+                            received = _time(capture['received_at'])
+                            if not observed <= received <= now: continue
+                            obs['received_at'] = received.isoformat()
                     except (ValueError, TypeError, AttributeError, OverflowError):
                         continue
                     current = grouped[key][session][field].get(provider)
@@ -341,6 +345,63 @@ def _prospective_iress_captures(folder, codes, now, diagnostics):
             diagnostics['IRESS']['invalid_captures'] += 1
 
 
+def _sens_research_iress_captures(root, codes, now, diagnostics):
+    """Verify the separate research archive and supply completed native closes."""
+    by_code = {code: key for key, code in codes.items()}
+    for path in sorted((root / 'price-captures').glob('*.json')):
+        try:
+            _, receipt = _load_json(path)
+            code = receipt['instrument_id']
+            if code not in by_code: continue
+            if (receipt['schema'] != 'sens-learning-price-capture/1'
+                    or receipt['provider'] != 'IRESS' or receipt['format'] != 'IRESS_TIME_SERIES'
+                    or receipt['symbol'] != code + '.JSE' or receipt['currency'] != 'ZAR'
+                    or receipt['product'] not in ('cash_equity', 'cash_etf')
+                    or not re.fullmatch(r'Time Series \(' + re.escape(receipt['symbol'])
+                                        + r'\)_\d{4}-\d{2}-\d{2}T[^\\/]+\.csv', receipt['original_filename'], re.I)):
+                raise ValueError('research IRESS receipt identity')
+            identity = {key: value for key, value in receipt.items() if key != 'capture_id'}
+            digest = sha256(json.dumps(identity, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+            if path.stem != digest or receipt['capture_id'] != 'sha256:' + digest:
+                raise ValueError('research IRESS receipt hash')
+            acquired, received = (_time(receipt[field]) for field in ('acquired_at', 'received_at'))
+            if acquired > received: raise ValueError('receipt precedes acquisition')
+            if received > now: continue
+            raw_hash = receipt['raw_sha256']
+            if not re.fullmatch('[0-9a-f]{64}', raw_hash): raise ValueError('research IRESS raw identity')
+            raw = (root / 'raw' / (raw_hash + '.csv')).read_bytes()
+            if not 0 < len(raw) <= 2_000_000 or sha256(raw).hexdigest() != raw_hash:
+                raise ValueError('research IRESS raw hash')
+            reader = csv.DictReader(io.StringIO(raw.decode('utf-8-sig')))
+            if not {'Date', 'Open', 'High', 'Low', 'Close', 'Volume'} <= set(reader.fieldnames or ()):
+                raise ValueError('research IRESS raw columns')
+            native = defaultdict(set)
+            for index, row in enumerate(reader):
+                if index >= 10000: raise ValueError('research IRESS source too long')
+                day = datetime.strptime(row['Date'].strip(), '%d-%b-%Y').date().isoformat()
+                if all(row[field].strip() == '0' for field in ('Open', 'High', 'Low', 'Volume')):
+                    continue
+                close = _value(row['Close'].replace(',', ''), 'close')
+                if close is not None:
+                    native[day].add(Decimal(str(close)) / 100)
+            rows = []
+            for row in receipt['rows']:
+                if not row['completed_at_capture'] or row['placeholder_or_carry'] or not row['capabilities']['close']:
+                    continue
+                day = row['session']
+                if date.fromisoformat(day) >= acquired.date():
+                    raise ValueError('research IRESS close is incomplete at acquisition')
+                close = Decimal(row['close'])
+                if native.get(day) != {close}: raise ValueError('research IRESS close differs from raw source')
+                rows.append({'session':day, 'close':str(close)})
+            diagnostics['IRESS']['accepted_captures'] += 1
+            yield {'instrument':by_code[code], 'provider':'IRESS', 'acquired_at':acquired.isoformat(),
+                   'received_at':received.isoformat(), 'source_sha256':digest, 'rows':rows,
+                   'field_receipts':{'close':{'source_sha256':raw_hash}}}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, UnicodeError, InvalidOperation):
+            diagnostics['IRESS']['invalid_captures'] += 1
+
+
 def _ost_raw_fields(raw):
     """Read OST cents/volume per field, isolating malformed rows and values."""
     from .ost_data import _history_text
@@ -437,6 +498,7 @@ def load_zebra_screen_data(root=None, now=None, *, max_rows=None, instruments=No
         yield from _iress_captures(intake,codes,now,diagnostics)
         yield from _iress_time_series_captures(folder,codes,now,diagnostics)
         yield from _prospective_iress_captures(folder,codes,now,diagnostics)
+        yield from _sens_research_iress_captures(intake.parents[1] / 'sens-learning',codes,now,diagnostics)
         yield from _ost_captures(folder,codes,now,diagnostics)
     # Restrict merging, not identity validation: an individual research view
     # need not normalize every other issuer's entire archive.

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from application.opportunities.zebra_screen_data import load_zebra_screen_data, merge_captures, _public_captures, _eodhd_captures, _ost_captures
+from application.opportunities.zebra_screen_data import load_zebra_screen_data, merge_captures, _public_captures, _eodhd_captures, _ost_captures, _sens_research_iress_captures
 
 NOW = datetime(2026,11,4,8,tzinfo=timezone.utc)
 
@@ -16,6 +16,37 @@ def cap(provider, rows, *, instrument='SASOL', acquired='2026-11-03T18:00:00+00:
             'source_sha256':digest or sha256(provider.encode()).hexdigest(),'rows':rows}
 
 class ZebraScreenDataTests(unittest.TestCase):
+    def test_research_iress_close_requires_retained_receipt_and_matching_native_bytes(self):
+        native = b'Date,Open,High,Low,Close,Volume\n02-Nov-2026,9900,10200,9800,10000,7k\n'
+        raw_hash = sha256(native).hexdigest()
+        receipt = {
+            'schema':'sens-learning-price-capture/1', 'provider':'IRESS', 'format':'IRESS_TIME_SERIES',
+            'instrument_id':'DTC', 'symbol':'DTC.JSE', 'currency':'ZAR', 'product':'cash_equity',
+            'original_filename':'Time Series (DTC.JSE)_2026-11-03T08_00.csv',
+            'acquired_at':'2026-11-03T06:00:00+00:00', 'received_at':'2026-11-03T06:01:00+00:00',
+            'raw_sha256':raw_hash, 'rows':[{'session':'2026-11-02', 'close':'100',
+                'capabilities':{'close':True}, 'completed_at_capture':True, 'placeholder_or_carry':False}],
+        }
+        digest = sha256(json.dumps(receipt, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        receipt['capture_id'] = 'sha256:' + digest
+        diagnostics = {'IRESS':{'accepted_captures':0, 'invalid_captures':0}}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'raw').mkdir()
+            (root / 'price-captures').mkdir()
+            raw_path = root / 'raw' / (raw_hash + '.csv')
+            raw_path.write_bytes(native)
+            (root / 'price-captures' / (digest + '.json')).write_text(json.dumps(receipt))
+            cutoff = datetime.fromisoformat(receipt['acquired_at'])
+            self.assertEqual(list(_sens_research_iress_captures(root, {'DTC':'DTC'}, cutoff, diagnostics)), [])
+            captures = list(_sens_research_iress_captures(root, {'DTC':'DTC'}, NOW, diagnostics))
+            field = merge_captures(captures, now=NOW)['DTC']['rows'][0]['fields']['close']
+            self.assertEqual((field['value'], field['received_at'], field['field_source_sha256']),
+                             (100, receipt['received_at'], raw_hash))
+            raw_path.write_bytes(native.replace(b'10000', b'10100'))
+            self.assertEqual(list(_sens_research_iress_captures(root, {'DTC':'DTC'}, NOW, diagnostics)), [])
+            self.assertEqual(diagnostics['IRESS']['invalid_captures'], 1)
+
     def test_disagreement_and_three_provider_consensus_retained_by_field(self):
         captures=[cap('IRESS',[{'session':'2026-11-02','close':100,'high':102,'low':98,'open':None,'volume':None}]),
           cap('SHAREDATA',[{'session':'2026-11-02','close':101,'open':99,'high':102,'low':98,'volume':1000}]),
