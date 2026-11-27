@@ -1,5 +1,28 @@
 # AI series status
 
+## Live SENS recovery and Sasol research handoff — 27 November
+
+The existing 08:10 SAST research task returned 0. It recovered the 23 November
+morning manifest at 08:11:46 (425 observations) and processed the 27 November
+morning manifest at 08:13:07 (404 observations). Both reports link to the
+matching retained manifest hash. Seven slots with no upstream manifest were
+reported as waiting and did not block the current run.
+
+A browser against the running dashboard opened the Sasol SENS card and
+selected SASOL in the main Backtest Lab share selector. The retained body
+requires the existing Portfolio unlock, which returned 401 in the fresh
+browser session. The live radar and event preparation APIs returned 200.
+No model was called by this verification.
+
+Technical analysis previously abandoned Zebra history on the initial bounded
+read timeout. The updated browser read rejoins the query while it is still
+running. Live dashboard HTML with the updated script and an isolated current
+Backtest Lab API displayed the 26 November Sasol close of R205.66 from IRESS,
+the ShareData match, 600 sessions of research context and the sector benchmark.
+This browser run returned 200 after four bounded waits. The running Flask
+process still needs its next normal reload to use the updated backend. No
+existing process, credentials or data collection settings were changed.
+
 ## Unified R16 follow-up checkpoint — 19 November
 
 The live dashboard linked the scheduled Qwen reading to its exact retained watch and showed two recorded macro failure/retry pairs. Both retries abstained. The 30-day view had six outputs and zero operator reviews or later same-source results. A fresh share or macro run had no eligible event. Remaining unattended calendar-generation and scheduler diagnostic limits are recorded in [R16 verification](../roadmap/R16_AI_FOLLOWUP_AND_RECOVERY_2026-11-19.md).

@@ -1,5 +1,11 @@
 # Zebra research data integrity policy
 
+IRESS ViewPoint is the primary price reference for this dashboard. Use
+completed retained IRESS observations for research when available and show
+the provider and session beside the price. Corroboration is a separate
+check. An available IRESS close remains usable for research when another
+provider is late, with its current verification state visible.
+
 For each instrument, completed exchange session and requested field, check
 every known approved source with available evidence. Two distinct named
 providers reporting the same normalized price are the minimum for

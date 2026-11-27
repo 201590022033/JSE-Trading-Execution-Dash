@@ -52,8 +52,23 @@
       }
     }).catch(error=>{if(request===inspection&&!fullHistory)unavailable(volumeOut,error,'daily volume reconciliation');});
     try {
-      const response=await fetch(endpoint,{cache:'no-store',signal:AbortSignal.timeout(15000)});
-      const data=await response.json();if(data.state==='READ_TIMED_OUT')throw new DOMException('History read timed out','TimeoutError');if(!response.ok)throw Error(data.state || 'Unavailable');
+      // The server bounds each HTTP wait while the same query continues in
+      // its retained-read worker. Rejoin that query without starting a new one.
+      const deadline = performance.now() + 90000;
+      let data;
+      for (;;) {
+        const response = await fetch(endpoint, {cache:'no-store', signal:AbortSignal.timeout(12000)});
+        data = await response.json();
+        if (request !== inspection) return;
+        if (data.state !== 'READ_TIMED_OUT') {
+          if (!response.ok) throw Error(data.state || 'Unavailable');
+          break;
+        }
+        if (performance.now() >= deadline) throw new DOMException('History read timed out','TimeoutError');
+        historyOut.textContent = 'Comparing retained sources for ' + symbol + '…';
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (request !== inspection) return;
+      }
       if(request!==inspection)return;
       fullHistory=true;
       const h=data.history;const row=h.rows.at(-1);const close=row?.fields?.close;
