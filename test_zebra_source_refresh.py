@@ -9,6 +9,26 @@ from application.opportunities.zebra_screen_queue import record_research_screen
 
 
 class ZebraRefreshTests(unittest.TestCase):
+    def test_mapped_share_is_requested_and_yahoo_staleness_is_reported(self):
+        catalog = {key: {} for key in ('SASOL', 'ETF_STX40')}
+        yahoo = {'results': [
+            {'instrument':'DTC', 'state':'CAPTURED', 'last_completed_session':'2026-11-24'},
+            {'instrument':'SASOL', 'state':'CAPTURED', 'last_completed_session':'2026-11-25'},
+        ]}
+        with tempfile.TemporaryDirectory() as directory, \
+             patch('scripts.refresh_zebra_sources.mappings', return_value={'DTC':'DTC', 'SASOL':'SOL'}), \
+             patch('scripts.refresh_zebra_sources.capture', return_value={'last':'2026-11-25'}), \
+             patch('scripts.refresh_zebra_sources.build', return_value={'sessions':1}), \
+             patch('scripts.refresh_zebra_sources._research_expected_session', return_value='2026-11-25'), \
+             patch('application.opportunities.radar_price_capture.research_catalog', return_value=catalog), \
+             patch('application.opportunities.radar_price_capture.capture', return_value=yahoo) as capture, \
+             patch('jse_adapter.YahooFinanceFetcher'):
+            result = run(Path(directory), workers=1)
+            self.assertEqual(capture.call_args.kwargs['screen_issuers'], {'DTC':'DTC'})
+            statuses = result['yahoo_freshness']['instruments']
+            self.assertEqual({key: row['state'] for key, row in statuses.items()},
+                             {'DTC':'STALE', 'SASOL':'FRESH', 'ETF_STX40':'NO_RESULT'})
+
     def test_maps_share_alias_and_etf_code(self):
         result=mappings(Path('nonexistent-test-captures'))
         self.assertEqual(result['SASOL'],'SOL')

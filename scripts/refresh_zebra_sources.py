@@ -8,6 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from application.opportunities.zebra_instruments import mappings
+from application.opportunities.zebra_screen_data import _research_expected_session
 from scripts.capture_sharedata_prices import capture
 from scripts.reconcile_zebra_prices import build
 
@@ -29,10 +30,12 @@ def run(root=ROOT, workers=3, include_eodhd=False):
     # the mapping and are still reconciled using their retained captures.
     from application.opportunities.radar_price_capture import capture as capture_yahoo, research_catalog
     from application.opportunities.zebra_public_handover import update_public_handover
+    catalog = research_catalog()
+    screen_issuers = {key:code for key,code in registry.items()
+                      if key not in conflicts and key == code and key not in catalog}
+    registered = sorted(set(catalog) | set(screen_issuers))
     try:
         from jse_adapter import YahooFinanceFetcher
-        registered = sorted(set(research_catalog()) | (set(queued) - set(conflicts)))
-        screen_issuers = {key:code for key,code in queued.items() if key not in conflicts and key==code}
         yahoo = capture_yahoo({'source_leads':[{'instrument_ids':registered,
                                 'source_id':'daily-zebra-registered-universe'}]},
                               YahooFinanceFetcher(),folder/'radar-public-prices',limit=len(registered),
@@ -43,6 +46,22 @@ def run(root=ROOT, workers=3, include_eodhd=False):
         # Yahoo availability is independent of ShareData and other sources.
         yahoo={'state':'FAILED_PRIOR_CAPTURES_RETAINED','error_type':type(exc).__name__,
                'results':[], 'live_execution':False}
+    expected = _research_expected_session(datetime.fromisoformat(started))
+    yahoo_by_instrument = {item['instrument']: item for item in yahoo['results']}
+    yahoo_coverage = {}
+    for key in sorted(registry.keys() | set(registered)):
+        item = yahoo_by_instrument.get(key)
+        session = item.get('last_completed_session') if item else None
+        if item is None:
+            state = 'NO_RESULT' if key in registered else 'NOT_MAPPED_FOR_YAHOO'
+        elif item['state'] != 'CAPTURED':
+            state = 'CAPTURE_FAILED'
+        elif expected is None or session is None:
+            state = 'FRESHNESS_UNKNOWN'
+        else:
+            state = 'FRESH' if session == expected else 'STALE' if session < expected else 'SESSION_MISMATCH'
+        yahoo_coverage[key] = {'state':state, 'last_completed_session':session}
+    yahoo['freshness'] = {'expected_session':expected, 'instruments':yahoo_coverage}
     for item in yahoo['results']:
         if item['state'] == 'CAPTURED':
             try:
@@ -92,6 +111,7 @@ def run(root=ROOT, workers=3, include_eodhd=False):
             'technical_views':sum(r['technical_view']['state']=='AVAILABLE' for r in results),
             'yahoo_attempted':len(yahoo['results']),
             'yahoo_captured':sum(r['state']=='CAPTURED' for r in yahoo['results']), 'eodhd':eodhd,
+            'yahoo_freshness':yahoo['freshness'],
             'failures':[r for r in results if r['capture']['state']!='CAPTURED' or r['comparison']['state']!='AVAILABLE'
                         or r['technical_view']['state']!='AVAILABLE'],
             'screen_queue':report['screen_queue'],'receipt':str(target)}
