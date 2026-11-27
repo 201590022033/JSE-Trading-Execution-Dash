@@ -489,6 +489,8 @@ def start_strategy_radar_background():
 
 if __name__ == "__main__":
     start_strategy_radar_background()
+    from application.strategy_radar.receipt_prewarm import start_receipt_prewarm
+    start_receipt_prewarm(Path(__file__).resolve().parent)
     backtest_lab.warm_saved_index()
     socketio.run(
         app,
