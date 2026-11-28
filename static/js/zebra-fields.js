@@ -57,7 +57,7 @@
       const deadline = performance.now() + 90000;
       let data;
       for (;;) {
-        const response = await fetch(endpoint, {cache:'no-store', signal:AbortSignal.timeout(12000)});
+        const response = await fetch(endpoint+'?view=summary', {cache:'no-store', signal:AbortSignal.timeout(12000)});
         data = await response.json();
         if (request !== inspection) return;
         if (data.state !== 'READ_TIMED_OUT') {
@@ -79,7 +79,7 @@
         '20-session close mean: '+(h.technical.sma20==null?'unavailable':h.technical.sma20.toFixed(2))+' · 20-session return: '+(h.technical.return20==null?'unavailable':(100*h.technical.return20).toFixed(2)+'%'),
         'Benchmark: '+(h.benchmark.label||h.benchmark.instrument||'none')+' ('+(h.benchmark.data_quality||h.benchmark.basis)+')',
         'Missing latest fields: '+(row?.capabilities?.missing?.join(', ')||'none'),
-        'The most recent '+data.row_limit+' observed sessions are shown; exchange-calendar gaps split windows.'];
+        'Coverage and technical fields use up to '+data.row_limit+' observed sessions; the latest observation is shown. Exchange-calendar gaps split windows.'];
       historyOut.replaceChildren(...lines.map(t=>{const p=document.createElement('p');p.textContent=t;return p;}));
       if(!volumeLoaded) renderVolume(volumeOut,data.volume_reconciliation);
       if(close?.alternatives?.length){const p=document.createElement('p');p.textContent='Other close observations: '+JSON.stringify(close.alternatives);historyOut.append(p);}

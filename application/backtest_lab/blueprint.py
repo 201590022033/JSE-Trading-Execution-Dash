@@ -434,7 +434,7 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
             return response({'state':'INVALID_INSTRUMENT'},400)
         if request.args.get('view') == 'volume':
             return cached_zebra_volume(instrument)
-        return cached_zebra_fields(instrument)
+        return cached_zebra_fields(instrument, compact=request.args.get('view') == 'summary')
 
     @retained_read(workers=1)
     def cached_zebra_volume(instrument):
@@ -450,22 +450,33 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             return response({'state': 'ZEBRA_CACHE_UNAVAILABLE', 'instrument': instrument}, 404)
 
-    def zebra_fields_response(data, instrument, snapshot_state):
+    def zebra_fields_response(data, instrument, snapshot_state, *, compact=False):
         from application.backtest_lab.zebra_field_windows import describe
-        from application.opportunities.zebra_volume_reconciliation import reconcile_volume
 
         if instrument not in data['instruments']:
             return response({'state': 'UNAVAILABLE', 'instrument': instrument}, 404)
         result = describe(data, keys={instrument})
+        history = result['instruments'][instrument]
+        volume = None
+        if compact:
+            # The panel renders aggregate coverage plus the latest observation.
+            # Returning every source alternative for 600 sessions made this
+            # read several megabytes and exceeded the browser's request timeout.
+            rows = history.get('rows', [])
+            history = {key: value for key, value in history.items() if key != 'rows'}
+            history.update({'rows': rows[-1:], 'observations': len(rows)})
+        else:
+            from application.opportunities.zebra_volume_reconciliation import reconcile_volume
+            volume = reconcile_volume(data['instruments'][instrument]['rows'])
         return response({'state': 'AVAILABLE', 'instrument': instrument,
             'version': result['version'], 'availability': result['availability'],
-            'gap_policy': result['gap_policy'], 'history': result['instruments'][instrument],
-            'volume_reconciliation': reconcile_volume(data['instruments'][instrument]['rows']),
+            'gap_policy': result['gap_policy'], 'history': history,
+            **({'volume_reconciliation': volume} if volume is not None else {}),
             'snapshot_state': snapshot_state, 'cached_as_of': data['as_of'],
             'row_limit': 600, 'research_only': True})
 
     @retained_read(wait_seconds=0)
-    def refresh_zebra_fields(instrument, keys):
+    def refresh_zebra_fields(instrument, keys, compact=False):
         from application.strategy_radar.daily import prewarm_daily, read_daily_snapshots, save_daily_snapshots
 
         root = Path(__file__).resolve().parents[2]
@@ -474,9 +485,9 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
         data, fresh = read_daily_snapshots(root, keys, datetime.now(timezone.utc), max_rows=600)
         if data is None:
             return response({'state': 'UNAVAILABLE', 'instrument': instrument}, 503)
-        return zebra_fields_response(data, instrument, 'READY' if fresh else 'REFRESH_PENDING')
+        return zebra_fields_response(data, instrument, 'READY' if fresh else 'REFRESH_PENDING', compact=compact)
 
-    def cached_zebra_fields(instrument):
+    def cached_zebra_fields(instrument, *, compact=False):
         from application.backtest_lab.zebra_field_windows import benchmark_input_keys
         from application.strategy_radar.daily import read_daily_snapshots
 
@@ -484,10 +495,10 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
         keys = sorted(benchmark_input_keys(root, {instrument}))
         data, fresh = read_daily_snapshots(root, keys, datetime.now(timezone.utc), max_rows=600)
         if fresh:
-            return zebra_fields_response(data, instrument, 'READY')
-        pending = refresh_zebra_fields(instrument, keys)
+            return zebra_fields_response(data, instrument, 'READY', compact=compact)
+        pending = refresh_zebra_fields(instrument, keys, compact)
         if data is not None and instrument in data['instruments']:
-            return zebra_fields_response(data, instrument, 'REFRESH_PENDING')
+            return zebra_fields_response(data, instrument, 'REFRESH_PENDING', compact=compact)
         return pending
     def read_zebra():
         root = folder()

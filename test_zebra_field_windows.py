@@ -94,6 +94,32 @@ class ZebraFieldWindowsTests(unittest.TestCase):
         self.assertFalse(result.json['live_execution'])
         self.assertTrue(result.json['history']['rows'][0]['capabilities']['close_only'])
 
+    def test_summary_field_endpoint_bounds_payload_for_live_panel(self):
+        from flask import Flask
+        from application.backtest_lab.blueprint import create_backtest_lab_blueprint
+
+        app = Flask(__name__)
+        app.register_blueprint(create_backtest_lab_blueprint())
+        rows = [{'session': f'2026-11-{(i % 27) + 1:02d}', 'close': 100 + i,
+                 'fields': {'close': {'source': 'IRESS', 'acquired_at': '2026-11-27T19:58:04+00:00'}},
+                 'capabilities': {'missing': []}} for i in range(600)]
+        history = {'rows': rows, 'fields': {'close': 600},
+                   'technical': {'sma20': 590, 'return20': 0.2},
+                   'benchmark': {'label': 'ETF_STX40', 'data_quality': 'AGREEMENT'}}
+        described = {'version': 'zebra-field-windows-v2', 'availability': 'ACTUAL_CAPTURE_CLOCKS',
+                     'gap_policy': 'SPLIT_AT_KNOWN_JSE_GAP', 'instruments': {'SASOL': history}}
+        snapshot = {'instruments': {'SASOL': {'rows': rows}}, 'as_of': '2026-11-27T19:58:04+00:00'}
+        with patch('application.backtest_lab.zebra_field_windows.benchmark_input_keys', return_value={'SASOL'}), \
+             patch('application.strategy_radar.daily.read_daily_snapshots', return_value=(snapshot, True)), \
+             patch('application.backtest_lab.zebra_field_windows.describe', return_value=described):
+            result = app.test_client().get('/api/v1/backtest-lab/zebra-fields/SASOL?view=summary')
+
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json['history']['observations'], 600)
+        self.assertEqual(len(result.json['history']['rows']), 1)
+        self.assertEqual(result.json['history']['rows'][0]['close'], 699)
+        self.assertLess(len(result.data), 20_000)
+
     def test_cached_volume_view_retains_provider_difference_without_scanning_archives(self):
         import json
         from flask import Flask
