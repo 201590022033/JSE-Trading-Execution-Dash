@@ -74,6 +74,7 @@
       const h=data.history;const row=h.rows.at(-1);const close=row?.fields?.close;
       const lines=[symbol+' · '+(row?.session||'no session')+' · close '+(row?.close??'unavailable'),
         'Source '+(close?.source||'unknown')+' · acquired '+(close?.acquired_at||'unknown'),
+        ...(data.snapshot_state==='REFRESH_PENDING' ? ['Snapshot from '+data.cached_as_of+'. Refresh pending.'] : []),
         'Coverage: '+Object.entries(h.fields).map(([k,v])=>k+' '+v).join(', '),
         '20-session close mean: '+(h.technical.sma20==null?'unavailable':h.technical.sma20.toFixed(2))+' · 20-session return: '+(h.technical.return20==null?'unavailable':(100*h.technical.return20).toFixed(2)+'%'),
         'Benchmark: '+(h.benchmark.label||h.benchmark.instrument||'none')+' ('+(h.benchmark.data_quality||h.benchmark.basis)+')',

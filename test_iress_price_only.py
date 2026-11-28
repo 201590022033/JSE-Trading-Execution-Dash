@@ -77,6 +77,31 @@ class PriceOnlyTests(unittest.TestCase):
         self.assertEqual(len(parse(RAW,'SOL.JSE',early,later,after_close=True)['bars']),1)
         self.assertEqual(len(parse(RAW,'SOL.JSE',later,later,after_close=True)['bars']),2)
         self.assertEqual(len(parse(RAW,'SOL.JSE',later,later)['bars']),1)
+    def test_native_daily_table_replays_from_raw_into_zebra(self):
+        from application.opportunities.zebra_screen_data import _iress_time_series_captures, merge_captures
+
+        raw = (b'Date,Open,High,Low,Close,Volume,RSI\n'
+               b'2026-11-25T22:00:00.000Z,9920,10015,9843,9930,594269,42\n'
+               b'2026-11-26T22:00:00.000Z,9805,10217,9805,10130,123779,48\n')
+        before_close = datetime(2026, 11, 27, 15, 19, tzinfo=UTC)
+        after_close = datetime(2026, 11, 27, 15, 20, tzinfo=UTC)
+        parsed = parse(raw, 'STX40.JSE', before_close, after_close, chart_table=True, after_close=True)
+        self.assertEqual([row['timestamp'] for row in parsed['bars']], ['2026-11-26'])
+        with self.assertRaises(ValueError):
+            parse(raw.replace(b'T22:00:', b'T09:00:'), 'STX40.JSE', after_close, after_close,
+                  chart_table=True, after_close=True)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'STX40.JSE (20261127000000000 _ 20261126000000000).csv'
+            path.write_bytes(raw)
+            os.utime(path, (after_close.timestamp(), after_close.timestamp()))
+            saved = register(path, root, after_close, after_close=True)
+            self.assertEqual(register(path, root, after_close, after_close=True), saved)
+            diagnostics = {'IRESS': {'accepted_captures': 0, 'invalid_captures': 0}}
+            sources = _iress_time_series_captures(root, {'ETF_STX40': 'STX40'}, after_close, diagnostics)
+            row = merge_captures(sources, now=after_close)['ETF_STX40']['rows'][-1]
+            self.assertEqual((row['session'], row['close'], row['volume']), ('2026-11-27', 101.30, None))
+            self.assertEqual(row['fields']['close']['source_sha256'], saved['source_sha256'])
     def test_other_symbol_enters_zebra_without_rounded_volume(self):
         from application.opportunities.zebra_screen_data import _iress_time_series_captures, merge_captures
         with tempfile.TemporaryDirectory() as directory:

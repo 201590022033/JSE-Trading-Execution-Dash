@@ -4,16 +4,93 @@ Local prewarm reads existing captures only. Refresh is a separate explicit call;
 its receipts report attempts, never turn manual OST/IRESS into automatic feeds.
 """
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import re
+from threading import Lock
+from uuid import uuid4
 
 from application.opportunities.zebra_screen_data import FIELDS, SOURCE_PRIORITY, load_zebra_screen_data
 
 ROOT = Path(__file__).resolve().parents[2]
 MAX_REFRESH_INSTRUMENTS = 5
+DAILY_CACHE_MAX_AGE = timedelta(minutes=30)
+DAILY_CACHE_WRITE_LOCK = Lock()
+
+
+def save_daily_snapshots(folder, data, *, optional=()):
+    """Publish full retained histories in the existing Radar snapshot format."""
+    folder.mkdir(parents=True, exist_ok=True)
+    as_of = datetime.fromisoformat(data['as_of'])
+    for key, daily in data['watches'].items():
+        if key in optional and not daily.get('latest_session'):
+            continue
+        target = folder / (key + '.json')
+        temporary = folder / (key + '-' + uuid4().hex + '.tmp')
+        raw = json.dumps({'as_of': data['as_of'], 'daily': daily}, allow_nan=False).encode('utf-8')
+        with DAILY_CACHE_WRITE_LOCK:
+            try:
+                existing = json.loads(target.read_bytes())
+                if datetime.fromisoformat(existing['as_of']) > as_of:
+                    continue
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+            try:
+                temporary.write_bytes(raw)
+                os.replace(temporary, target)
+            finally:
+                temporary.unlink(missing_ok=True)
+
+
+def read_daily_snapshots(root, keys, now, *, max_rows):
+    """Read the shared histories at their recorded cutoffs and check freshness."""
+    from application.opportunities.zebra_screen_data import _research_expected_session
+
+    folder = root / 'runtime/local-swing-data'
+    cache = folder / 'strategy-radar/daily-cache'
+    instruments, clocks = {}, []
+    for key in keys:
+        try:
+            saved = json.loads((cache / (key + '.json')).read_bytes())
+            daily = saved['daily']
+            clock = datetime.fromisoformat(saved['as_of'])
+            if daily['instrument'] != key or clock > now:
+                return None, False
+            history = daily['history']
+            if history is not None:
+                rows = history['rows']
+                if history['instrument'] != key or not rows or rows[-1]['session'] != daily['latest_session']:
+                    return None, False
+                instruments[key] = {
+                    **history, 'rows': rows[-max_rows:],
+                    'history_truncated_for_request': len(rows) > max_rows or history.get('history_truncated_for_request', False),
+                }
+            elif daily['state'] != 'NO_RETAINED_HISTORY':
+                return None, False
+            clocks.append(clock)
+        except (OSError, ValueError, KeyError, TypeError, IndexError):
+            return None, False
+    if not clocks:
+        return None, False
+    oldest = min(clocks)
+    # New captures normally create files. The age limit bounds refreshes for
+    # sibling-workspace archives and updates that keep the same filename.
+    watched = ('latest.json', 'radar-public-prices', 'sharedata-prices', 'eodhd',
+               'price-only', 'price-only-after-close', 'dated-sector-mappings')
+    fresh = now - oldest <= DAILY_CACHE_MAX_AGE and _research_expected_session(oldest) == _research_expected_session(now)
+    for name in watched:
+        try:
+            if (folder / name).stat().st_mtime > oldest.timestamp():
+                fresh = False
+        except FileNotFoundError:
+            continue
+        except OSError:
+            fresh = False
+    return {'instruments': instruments, 'as_of': oldest.isoformat(),
+            'availability': 'ACTUAL_CAPTURE_CLOCKS_HISTORICAL_BAR_AVAILABILITY_RECONSTRUCTED'}, fresh
 
 
 def _keys(instruments, limit=None):

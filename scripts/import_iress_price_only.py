@@ -1,4 +1,4 @@
-"""Import supported native IRESS Time Series exports into the local price-only archive."""
+"""Import native IRESS Time Series or after-close daily chart table exports."""
 import argparse
 from datetime import datetime, timezone
 import json

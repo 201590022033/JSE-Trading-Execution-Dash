@@ -1,6 +1,6 @@
-"""Retain native ViewPoint Time Series OHLC without promoting rounded volume."""
+"""Retain native daily ViewPoint prices as separate IRESS observations."""
 import csv
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 import io
@@ -14,21 +14,30 @@ from .swing_data_quality import real_ohlc
 SYMBOLS = {'SOL.JSE':'SASOL', 'BTI.JSE':'BTI', 'FSR.JSE':'FSR', 'ABG.JSE':'ABSPJ',
            'STX40.JSE':'ETF_STX40', 'STXFIN.JSE':'ETF_STXFIN',
            'STXRES.JSE':'ETF_STXRES', 'STXIND.JSE':'ETF_STXIND'}
+CHART_TABLE_PROVIDER = 'IRESS_VIEWPOINT_DAILY_TABLE'
 
 
-def parse(raw, symbol, acquired_at, now, *, after_close=False):
+def parse(raw, symbol, acquired_at, now, *, after_close=False, chart_table=False):
     if symbol not in SYMBOLS or not isinstance(raw, bytes) or not 0 < len(raw) <= 2500000:
         raise ValueError('explicit supported IRESS symbol and bounded bytes required')
     if acquired_at.tzinfo is None or now.tzinfo is None or acquired_at > now:
         raise ValueError('actual aware acquisition time required')
+    if chart_table and not after_close:
+        raise ValueError('daily chart tables require the after-close archive')
     reader = csv.DictReader(io.StringIO(raw.decode('utf-8-sig')))
     if not {'Date', 'Open', 'High', 'Low', 'Close', 'Volume'} <= set(reader.fieldnames or ()):
-        raise ValueError('native Time Series fields required')
+        raise ValueError('native daily ViewPoint OHLCV fields required')
     seen, bars, excluded = set(), [], []
     for count, row in enumerate(reader):
         if count >= 10000:
             raise ValueError('too many rows')
-        session = datetime.strptime(row['Date'], '%d-%b-%Y').date().isoformat()
+        if chart_table:
+            stamp = datetime.strptime(row['Date'], '%Y-%m-%dT22:00:00.000Z')
+            # The export labels the session at midnight SAST (22:00 UTC
+            # on the preceding date). It does not give the close time.
+            session = (stamp.date() + timedelta(days=1)).isoformat()
+        else:
+            session = datetime.strptime(row['Date'], '%d-%b-%Y').date().isoformat()
         if session in seen:
             raise ValueError('duplicate session')
         seen.add(session)
@@ -55,9 +64,9 @@ def parse(raw, symbol, acquired_at, now, *, after_close=False):
     if not bars:
         raise ValueError('no completed bars')
     return {'schema': 'iress-price-only-v2-after-close' if after_close else 'iress-price-only-v1', 'instrument': SYMBOLS[symbol], 'origin_symbol': symbol,
-            'provider': 'IRESS_TIME_SERIES', 'acquired_at': acquired_at.isoformat(),
+            'provider': CHART_TABLE_PROVIDER if chart_table else 'IRESS_TIME_SERIES', 'acquired_at': acquired_at.isoformat(),
             'source_sha256': sha256(raw).hexdigest(), 'price_units': 'ZAR',
-            'volume_basis': 'ROUNDED_SOURCE_VOLUME_NOT_IMPORTED',
+            'volume_basis': 'CHART_TABLE_VOLUME_NOT_IMPORTED' if chart_table else 'ROUNDED_SOURCE_VOLUME_NOT_IMPORTED',
             'historical_availability': 'UNVERIFIED', 'research_only': True,
             'live_execution': False, 'calendar_completeness': 'UNVERIFIED',
             'excluded_rows': sorted(excluded, key=lambda x: x['session']), 'bars': bars}
@@ -66,12 +75,17 @@ def parse(raw, symbol, acquired_at, now, *, after_close=False):
 def register(path, folder, now, *, after_close=False):
     path, folder = Path(path), Path(folder)
     match = re.fullmatch(r'Time Series \(([A-Z0-9]+\.JSE)\)_.+\.csv', path.name, re.IGNORECASE)
+    chart_table = False
+    if match is None and after_close:
+        match = re.fullmatch(r'([A-Z0-9]+\.JSE) \(\d{8}000000000 _ \d{8}000000000\)\.csv',
+                             path.name, re.IGNORECASE)
+        chart_table = match is not None
     if not match or match.group(1).upper() not in SYMBOLS:
-        raise ValueError('supported native IRESS Time Series filename required')
+        raise ValueError('supported native IRESS daily export filename required')
     symbol = match.group(1).upper()
     acquired = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
     raw = path.read_bytes()
-    result = parse(raw, symbol, acquired, now, after_close=after_close)
+    result = parse(raw, symbol, acquired, now, after_close=after_close, chart_table=chart_table)
     base = folder / ('price-only-after-close' if after_close else 'price-only')
     archive = base / 'raw'
     archive.mkdir(parents=True, exist_ok=True)
@@ -83,7 +97,9 @@ def register(path, folder, now, *, after_close=False):
     receipt = base / (result['source_sha256'] + '.json')
     if receipt.exists():
         previous = json.loads(receipt.read_text(encoding='utf-8'))
-        if previous['source_sha256'] != result['source_sha256'] or parse(raw, symbol, datetime.fromisoformat(previous['acquired_at']), now, after_close=after_close) != previous:
+        if previous['source_sha256'] != result['source_sha256'] or parse(
+                raw, symbol, datetime.fromisoformat(previous['acquired_at']), now,
+                after_close=after_close, chart_table=chart_table) != previous:
             raise ValueError('existing receipt does not match source')
         return previous
     receipt.write_text(json.dumps(result, sort_keys=True, allow_nan=False)+'\n', encoding='utf-8')

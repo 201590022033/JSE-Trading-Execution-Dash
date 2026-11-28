@@ -192,7 +192,10 @@ def compare(config, manifest, charts, *, benchmark_name=None, decision_start=Non
                       else peer_projection(rows,i,config.horizon,peer_cases,feature_cache) if variant=='momentum_peers'
                       else projection(rows,i,config.horizon,variant,reference_map,feature_cache))
             distance=estimate.get('target_distance')
-            signals.append(Signal(**asdict(original),target_distance=Decimal(str(distance)) if distance else None))
+            parameters = asdict(original)
+            if parameters.pop('stop_limit_bps', None) is not None:
+                raise ValueError('Momentum target replay does not support stop-limit fills')
+            signals.append(Signal(**parameters, target_distance=Decimal(str(distance)) if distance else None))
             estimates[item['id']]=estimate
         result=replay([manifest],signals,as_of=max(b.available_at for b in manifest.bars)+timedelta(days=8),
                       initial_cash=Decimal(1000000),costs=costs)

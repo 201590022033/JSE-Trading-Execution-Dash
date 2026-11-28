@@ -303,8 +303,8 @@ def _iress_captures(intake, codes, now, diagnostics):
 
 
 def _iress_time_series_captures(folder, codes, now, diagnostics):
-    """Use exact OHLC from archived Time Series; its rounded volume stays absent."""
-    from .iress_price_only import parse
+    """Use exact OHLC from archived daily exports without importing volume."""
+    from .iress_price_only import CHART_TABLE_PROVIDER, parse
     roots = (folder / 'price-only', folder / 'price-only-after-close')
     for path in sorted(p for root in roots for p in root.glob('*.json')):
         try:
@@ -318,7 +318,9 @@ def _iress_time_series_captures(folder, codes, now, diagnostics):
             if acquired > now: continue
             raw = (path.parent / 'raw' / (digest + '.csv')).read_bytes()
             after_close = path.parent.name == 'price-only-after-close'
-            if sha256(raw).hexdigest() != digest or parse(raw, saved['origin_symbol'], acquired, now, after_close=after_close) != saved:
+            if sha256(raw).hexdigest() != digest or parse(
+                    raw, saved['origin_symbol'], acquired, now, after_close=after_close,
+                    chart_table=saved['provider'] == CHART_TABLE_PROVIDER) != saved:
                 raise ValueError('raw or receipt mismatch')
             diagnostics['IRESS']['accepted_captures'] += 1
             yield {'instrument': saved['instrument'], 'provider': 'IRESS', 'acquired_at': saved['acquired_at'],

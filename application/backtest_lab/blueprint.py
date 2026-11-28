@@ -1,4 +1,5 @@
 """Read frozen lab reports and provide bounded local advisory text."""
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -449,23 +450,45 @@ def create_backtest_lab_blueprint(directory=None, advisor=desk_advice, *, radar_
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             return response({'state': 'ZEBRA_CACHE_UNAVAILABLE', 'instrument': instrument}, 404)
 
-    @retained_read()
-    def cached_zebra_fields(instrument):
+    def zebra_fields_response(data, instrument, snapshot_state):
+        from application.backtest_lab.zebra_field_windows import describe
         from application.opportunities.zebra_volume_reconciliation import reconcile_volume
-        from application.opportunities.zebra_screen_data import load_zebra_screen_data
-        from application.backtest_lab.zebra_field_windows import benchmark_input_keys, describe
-        root = Path(__file__).resolve().parents[2]
-        data=load_zebra_screen_data(max_rows=600, instruments=benchmark_input_keys(root, {instrument}))
+
         if instrument not in data['instruments']:
-            return response({'state':'UNAVAILABLE','instrument':instrument},404)
-        # The benchmark selection sees the complete instrument catalog.
-        result=describe(data, keys={instrument})
-        return response({'state':'AVAILABLE','instrument':instrument,
-            'version':result['version'],'availability':result['availability'],
-            'gap_policy':result['gap_policy'],'history':result['instruments'][instrument],
-            'volume_reconciliation':reconcile_volume(data['instruments'][instrument]['rows']),
-            'row_limit':600,
-            'research_only':True})
+            return response({'state': 'UNAVAILABLE', 'instrument': instrument}, 404)
+        result = describe(data, keys={instrument})
+        return response({'state': 'AVAILABLE', 'instrument': instrument,
+            'version': result['version'], 'availability': result['availability'],
+            'gap_policy': result['gap_policy'], 'history': result['instruments'][instrument],
+            'volume_reconciliation': reconcile_volume(data['instruments'][instrument]['rows']),
+            'snapshot_state': snapshot_state, 'cached_as_of': data['as_of'],
+            'row_limit': 600, 'research_only': True})
+
+    @retained_read(wait_seconds=0)
+    def refresh_zebra_fields(instrument, keys):
+        from application.strategy_radar.daily import prewarm_daily, read_daily_snapshots, save_daily_snapshots
+
+        root = Path(__file__).resolve().parents[2]
+        snapshot = prewarm_daily(keys, root=root)
+        save_daily_snapshots(root / 'runtime/local-swing-data/strategy-radar/daily-cache', snapshot)
+        data, fresh = read_daily_snapshots(root, keys, datetime.now(timezone.utc), max_rows=600)
+        if data is None:
+            return response({'state': 'UNAVAILABLE', 'instrument': instrument}, 503)
+        return zebra_fields_response(data, instrument, 'READY' if fresh else 'REFRESH_PENDING')
+
+    def cached_zebra_fields(instrument):
+        from application.backtest_lab.zebra_field_windows import benchmark_input_keys
+        from application.strategy_radar.daily import read_daily_snapshots
+
+        root = Path(__file__).resolve().parents[2]
+        keys = sorted(benchmark_input_keys(root, {instrument}))
+        data, fresh = read_daily_snapshots(root, keys, datetime.now(timezone.utc), max_rows=600)
+        if fresh:
+            return zebra_fields_response(data, instrument, 'READY')
+        pending = refresh_zebra_fields(instrument, keys)
+        if data is not None and instrument in data['instruments']:
+            return zebra_fields_response(data, instrument, 'REFRESH_PENDING')
+        return pending
     def read_zebra():
         root = folder()
         if root is None:

@@ -6,12 +6,9 @@ from threading import Lock
 from contextlib import closing
 import json
 import sqlite3
-import os
 import logging
 from hashlib import sha256
-from uuid import uuid4
-
-from .daily import prewarm_daily, refresh_daily
+from .daily import prewarm_daily, refresh_daily, save_daily_snapshots
 from .watch_store import WatchStore
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -204,19 +201,7 @@ class RadarService:
         watches = [self.store.get(key) for key in keys]
         benchmarks = [watch['benchmark'] for watch in watches if watch and watch.get('benchmark')]
         data = self.prewarm(list(dict.fromkeys([*keys, *benchmarks])), root=self.root, now=self.clock())
-        folder = self.folder / 'daily-cache'
-        folder.mkdir(parents=True, exist_ok=True)
-        for key, value in data.get('watches', {}).items():
-            if key in benchmarks and key not in keys and not value.get('latest_session'):
-                continue
-            raw = json.dumps({'as_of': data.get('as_of'), 'daily': value}, allow_nan=False).encode('utf-8')
-            target = folder / (key + '.json')
-            temp = folder / (key + '-' + uuid4().hex + '.tmp')
-            try:
-                temp.write_bytes(raw)
-                os.replace(temp, target)
-            finally:
-                if temp.exists(): temp.unlink()
+        save_daily_snapshots(self.folder / 'daily-cache', data, optional=set(benchmarks) - set(keys))
         return data
 
     def status(self, include_history=False):
